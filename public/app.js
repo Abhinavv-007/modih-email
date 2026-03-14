@@ -370,6 +370,9 @@ async function refreshInbox() {
 
 // ========== RENDER MAIL LIST ==========
 function renderMailList() {
+  // Don't re-render the list if we're viewing a message detail
+  if (currentMessageId) return;
+
   const listEl = document.getElementById("mail-list");
   const emptyEl = document.getElementById("mail-empty");
 
