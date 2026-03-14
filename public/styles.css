@@ -826,10 +826,10 @@ body {
 }
 
 .btn-warm:hover {
-  background: #3B82F6;
-  border-color: rgba(255, 255, 255, 0.6);
+  background: rgba(10, 10, 15, 0.8);
+  border-color: rgba(255, 255, 255, 0.4);
   transform: translateY(-2px);
-  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.7), 0 4px 15px rgba(0, 0, 0, 0.5);
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.8), 0 4px 15px rgba(0, 0, 0, 0.6);
 }
 
 .btn-warm:active {
@@ -858,10 +858,10 @@ body {
 
 .btn-ghost-warm:hover {
   color: #fff;
-  background: rgba(59, 130, 246, 0.35);
+  background: rgba(10, 10, 15, 0.8);
   border-color: rgba(255, 255, 255, 0.4);
   transform: translateY(-2px);
-  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.7), 0 4px 15px rgba(0, 0, 0, 0.5);
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.8), 0 4px 15px rgba(0, 0, 0, 0.6);
 }
 
 .glow-btn {
