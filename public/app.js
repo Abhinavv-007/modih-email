@@ -35,11 +35,6 @@ function initVideoController() {
     } else {
       video.addEventListener('canplay', tryPlay, { once: true });
     }
-
-    // When it ends, just pause — freeze on last frame
-    video.addEventListener('ended', () => {
-      video.pause();
-    });
   });
 }
 
