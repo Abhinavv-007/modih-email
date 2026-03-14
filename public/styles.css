@@ -419,37 +419,35 @@ body {
 }
 
 .hero-line-1 {
-  font-family: 'Playfair Display', serif;
-  font-style: italic;
-  font-weight: 400;
-  font-size: clamp(3rem, 6vw, 5rem);
-  color: #F8FAFC;
-  text-shadow: 0 8px 30px rgba(0,0,0,0.35);
+  font-family: 'Dancing Script', cursive;
+  font-weight: 600;
+  font-size: clamp(3.5rem, 7vw, 6rem);
+  color: #FDFAFF;
+  text-shadow: 0 4px 20px rgba(0,0,0,0.3);
   line-height: 1.1;
 }
 
 .hero-line-2 {
-  font-family: 'Playfair Display', serif;
-  font-style: italic;
-  font-weight: 400;
-  font-size: clamp(4rem, 10vw, 7.5rem);
-  background: linear-gradient(90deg, #FFD700, #F59E0B);
+  font-family: 'Dancing Script', cursive;
+  font-weight: 700;
+  font-size: clamp(4.5rem, 11vw, 8.5rem);
+  background: linear-gradient(90deg, #FFC75F, #F9F871);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
   color: transparent;
-  text-shadow: 0 8px 30px rgba(0,0,0,0.35);
+  text-shadow: 0 6px 25px rgba(0,0,0,0.35);
   line-height: 1.1;
   padding: 0.1em 0;
+  transform: rotate(-2deg);
 }
 
 .hero-line-3 {
-  font-family: 'Playfair Display', serif;
-  font-style: italic;
-  font-weight: 400;
-  font-size: clamp(3.5rem, 8vw, 6rem);
-  color: #1F2937;
-  text-shadow: 0 8px 30px rgba(0,0,0,0.35);
+  font-family: 'Dancing Script', cursive;
+  font-weight: 600;
+  font-size: clamp(4rem, 9vw, 7rem);
+  color: #3B2A20; /* Deep warm charcoal-brown */
+  text-shadow: 0 4px 25px rgba(0,0,0,0.4);
   line-height: 1;
 }
 
