@@ -268,9 +268,12 @@ function openMailWindow() {
   document.getElementById("bg-media").style.display = "none";
   document.getElementById("mail-bg-media").style.display = "block";
 
-  // Show mail window
+  // Show mail window with animation
   const mailWindow = document.getElementById("mail-window");
   mailWindow.style.display = "block";
+  requestAnimationFrame(() => {
+    mailWindow.classList.add("active");
+  });
 
   // Hide main content sections
   document.getElementById("navbar").style.display = "none";
@@ -292,17 +295,23 @@ function openMailWindow() {
 function closeMailWindow() {
   isMailWindowOpen = false;
 
-  // Swap backgrounds back
-  document.getElementById("bg-media").style.display = "block";
-  document.getElementById("mail-bg-media").style.display = "none";
+  // Animate out
+  const mailWindow = document.getElementById("mail-window");
+  mailWindow.classList.remove("active");
 
-  // Hide mail window
-  document.getElementById("mail-window").style.display = "none";
+  // Wait for animation to finish, then hide
+  setTimeout(() => {
+    // Swap backgrounds back
+    document.getElementById("bg-media").style.display = "block";
+    document.getElementById("mail-bg-media").style.display = "none";
 
-  // Show main content
-  document.getElementById("navbar").style.display = "block";
-  document.querySelectorAll(".section").forEach((s) => (s.style.display = "flex"));
-  document.querySelector(".footer").style.display = "block";
+    mailWindow.style.display = "none";
+
+    // Show main content
+    document.getElementById("navbar").style.display = "block";
+    document.querySelectorAll(".section").forEach((s) => (s.style.display = "flex"));
+    document.querySelector(".footer").style.display = "block";
+  }, 350);
 
   stopAutoRefresh();
 }
@@ -364,14 +373,14 @@ function renderMailList() {
   listEl.style.display = "flex";
 
   listEl.innerHTML = currentMessages
-    .map((msg) => {
+    .map((msg, index) => {
       const fromDisplay = msg.from_name || msg.from_address;
       const initial = fromDisplay.charAt(0).toUpperCase();
       const timeAgo = formatTimeAgo(msg.received_at);
       const otp = extractOTP(msg.subject + " " + msg.body_text + " " + msg.body_html);
 
       return `
-      <div class="mail-item" onclick="openMessage('${msg.id}')">
+      <div class="mail-item" onclick="openMessage('${msg.id}')" style="animation-delay: ${index * 0.08}s">
         <div class="mail-item-avatar">${initial}</div>
         <div class="mail-item-content">
           <div class="mail-item-top">
@@ -434,6 +443,44 @@ function closeMessageDetail() {
 }
 
 // ========== DELETE MESSAGES ==========
+// ========== DELETE ADDRESS & RESET ==========
+async function deleteAddressAndReset() {
+  if (!currentInbox) return;
+
+  if (!confirm("Delete this address and all its messages? You'll need to create a new one.")) return;
+
+  try {
+    // Delete all messages first
+    await fetch(`/api/messages?inbox_id=${currentInbox.id}`, { method: "DELETE" });
+  } catch (e) {
+    console.error("Delete error:", e);
+  }
+
+  // Clear everything
+  currentInbox = null;
+  currentMessages = [];
+  currentMessageId = null;
+  clearSession();
+  if (countdownInterval) clearInterval(countdownInterval);
+  stopAutoRefresh();
+
+  // Close mail window if open
+  if (isMailWindowOpen) {
+    closeMailWindow();
+  }
+
+  // Hide the result section
+  const resultEl = document.getElementById("email-result");
+  if (resultEl) resultEl.style.display = "none";
+
+  // Scroll back to generate section
+  setTimeout(() => {
+    scrollToSection('generate');
+    showToast("Address deleted. Create a new one!");
+  }, 400);
+}
+
+// ========== DELETE ALL MESSAGES (keep address) ==========
 async function deleteAllMessages() {
   if (!currentInbox) return;
 

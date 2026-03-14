@@ -147,15 +147,16 @@ body {
 
 .glass-pill {
   display: inline-block;
-  background: rgba(212, 167, 106, 0.12);
-  border: 1px solid rgba(212, 167, 106, 0.3);
+  background: rgba(212, 167, 106, 0.18);
+  border: 1px solid rgba(212, 167, 106, 0.4);
   border-radius: 100px;
   padding: 0.4rem 1.2rem;
   font-size: 0.8rem;
-  font-weight: 500;
-  color: var(--accent-secondary);
+  font-weight: 600;
+  color: #ffe6b0;
   letter-spacing: 0.05em;
   text-transform: uppercase;
+  text-shadow: 0 2px 8px rgba(0,0,0,0.5);
 }
 
 /* ========== NAVIGATION (Single Glass Pill Style) ========== */
@@ -196,6 +197,29 @@ body {
   display: flex;
   align-items: center;
   gap: 0.5rem;
+  transition: transform 0.3s ease;
+}
+
+.nav-brand:hover {
+  transform: scale(1.05);
+}
+
+.nav-brand:hover .brand-icon {
+  animation: brandBounce 0.5s ease;
+}
+
+@keyframes brandBounce {
+  0%, 100% { transform: translateY(0) rotate(0deg); }
+  25% { transform: translateY(-4px) rotate(-8deg); }
+  50% { transform: translateY(0) rotate(8deg); }
+  75% { transform: translateY(-2px) rotate(-4deg); }
+}
+
+.brand-icon {
+  font-size: 1.6rem;
+  display: inline-block;
+  transition: transform 0.3s ease;
+  filter: drop-shadow(0 2px 4px rgba(0,0,0,0.3));
 }
 .brand-logo {
   filter: drop-shadow(0 2px 4px rgba(0,0,0,0.2));
@@ -471,16 +495,16 @@ body {
 }
 
 .hero-subtitle {
-  color: rgba(255, 255, 255, 0.85);
+  color: #fff;
   font-family: 'Inter', sans-serif;
   font-size: clamp(0.95rem, 1.3vw, 1.1rem);
-  font-weight: 300;
+  font-weight: 400;
   line-height: 1.8;
   margin-bottom: 2.5rem;
   max-width: 650px;
   margin-left: auto;
   margin-right: auto;
-  text-shadow: 0 2px 10px rgba(0,0,0,0.5);
+  text-shadow: 0 3px 15px rgba(0,0,0,0.7), 0 1px 3px rgba(0,0,0,0.5);
 }
 
 .subtitle-word {
@@ -747,15 +771,20 @@ body {
   cursor: pointer;
   transition: var(--transition);
   white-space: nowrap;
-  background: transparent;
-  color: rgba(255, 255, 255, 0.85);
-  border: 1px solid transparent;
-  text-shadow: 0 1px 4px rgba(0,0,0,0.2);
+  background: rgba(37, 99, 235, 0.12);
+  color: #fff;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  text-shadow: 0 1px 4px rgba(0,0,0,0.3);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
 }
 
 .btn-ghost-warm:hover {
   color: #fff;
-  background: rgba(255, 255, 255, 0.1);
+  background: rgba(59, 130, 246, 0.35);
+  border-color: rgba(255, 255, 255, 0.4);
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(59, 130, 246, 0.3);
 }
 
 .glow-btn {
@@ -863,6 +892,13 @@ body {
 .feature-card {
   padding: 2rem;
   text-align: left;
+  transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.feature-card:hover {
+  transform: translateY(-4px) scale(1.02);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.3);
+  border-color: rgba(212, 167, 106, 0.3);
 }
 
 .feature-icon {
@@ -1059,7 +1095,14 @@ body {
   width: 100%;
   height: 100%;
   z-index: 100;
-  animation: fadeIn 0.4s ease;
+  opacity: 0;
+  transform: scale(0.97);
+  transition: opacity 0.35s ease, transform 0.35s ease;
+}
+
+.mail-window.active {
+  opacity: 1;
+  transform: scale(1);
 }
 
 .mail-container {
@@ -1076,11 +1119,12 @@ body {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  border-bottom: 1px solid var(--glass-border);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
   flex-shrink: 0;
-  background: rgba(10, 10, 15, 0.6);
-  backdrop-filter: blur(30px);
-  -webkit-backdrop-filter: blur(30px);
+  background: rgba(10, 10, 15, 0.7);
+  backdrop-filter: blur(40px);
+  -webkit-backdrop-filter: blur(40px);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
 }
 
 .mail-header-left {
@@ -1134,20 +1178,32 @@ body {
   align-items: flex-start;
   gap: 1rem;
   padding: 1.25rem;
-  background: rgba(20, 20, 30, 0.4);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
-  border: 1px solid var(--glass-border);
+  background: rgba(20, 20, 30, 0.5);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
   border-radius: var(--radius);
   cursor: pointer;
-  transition: var(--transition);
-  animation: slideUp 0.4s ease;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  animation: mailItemIn 0.4s ease both;
+}
+
+@keyframes mailItemIn {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .mail-item:hover {
-  background: rgba(20, 20, 30, 0.55);
-  border-color: var(--glass-border-hover);
-  transform: translateY(-1px);
+  background: rgba(30, 30, 45, 0.7);
+  border-color: rgba(212, 167, 106, 0.25);
+  transform: translateY(-2px) scale(1.01);
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.3);
 }
 
 .mail-item-avatar {
