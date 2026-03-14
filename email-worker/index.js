@@ -44,8 +44,11 @@ export default {
           .replace(/<link[\s\S]*?>/gi, "")
           .replace(/on\w+="[^"]*"/gi, "")
           .replace(/on\w+='[^']*'/gi, "")
+          .replace(/on\w+=[^\s>]+/gi, "")
           .replace(/javascript:/gi, "blocked:")
-          .replace(/vbscript:/gi, "blocked:");
+          .replace(/vbscript:/gi, "blocked:")
+          .replace(/<base[\s\S]*?>/gi, "")
+          .replace(/<meta[\s\S]*?>/gi, "");
       }
 
       // Limit body size (skip attachments)
