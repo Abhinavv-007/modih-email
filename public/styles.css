@@ -773,7 +773,6 @@ body {
   text-decoration: none;
   white-space: nowrap;
   position: relative;
-  overflow: hidden;
 }
 
 .btn:active {
@@ -785,9 +784,11 @@ body {
   content: '';
   position: absolute;
   inset: 0;
-  background: radial-gradient(circle at center, rgba(255,255,255,0.2) 0%, transparent 70%);
+  border-radius: inherit;
+  background: radial-gradient(circle at center, rgba(255,255,255,0.15) 0%, transparent 70%);
   opacity: 0;
   transition: opacity 0.3s ease;
+  pointer-events: none;
 }
 
 .btn:hover::after {
