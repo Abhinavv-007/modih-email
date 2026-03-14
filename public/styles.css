@@ -516,24 +516,10 @@ body {
   text-shadow: 0 2px 15px rgba(212, 167, 106, 0.4);
 }
 
-.hero-cta-container {
-  display: inline-flex;
-  position: relative;
-  align-items: center;
-  justify-content: center;
-  margin-bottom: 3rem;
-  border: 1px solid rgba(255,255,255,0.05);
-  padding: 0.5rem;
-  border-radius: 100px;
-  background: rgba(40, 45, 60, 0.3);
-  backdrop-filter: blur(20px);
-  box-shadow: 0 10px 40px rgba(0,0,0,0.2);
-}
-
 .hero-actions {
   display: flex;
-  gap: 0.8rem;
-  margin-bottom: 0;
+  gap: 1rem;
+  margin-bottom: 3rem;
   justify-content: center;
   flex-wrap: wrap;
 }
