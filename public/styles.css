@@ -385,6 +385,13 @@ body {
   padding-right: 0.1em;
 }
 
+.serif-bold-italic {
+  font-family: 'Playfair Display', 'Cormorant Garamond', serif;
+  font-weight: 700;
+  font-style: italic;
+  padding-right: 0.1em;
+}
+
 .serif-normal {
   font-family: 'Playfair Display', 'Cormorant Garamond', serif;
   font-weight: 400;
