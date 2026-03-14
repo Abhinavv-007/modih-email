@@ -432,38 +432,37 @@ body {
 }
 
 .hero-line-1 {
-  font-family: 'Playfair Display', serif;
+  font-family: 'Cormorant Garamond', 'Playfair Display', serif;
   font-style: italic;
-  font-weight: 400;
+  font-weight: 500;
   font-size: clamp(3rem, 6vw, 5rem);
-  color: #F8FAFC;
-  text-shadow: 0 8px 30px rgba(0,0,0,0.35);
-  line-height: 1.1;
+  color: #F5F0E8;
+  text-shadow: 0 4px 20px rgba(0,0,0,0.4);
+  line-height: 1.15;
+  letter-spacing: 0.02em;
 }
 
 .hero-line-2 {
-  font-family: 'Playfair Display', serif;
+  font-family: 'Cormorant Garamond', 'Playfair Display', serif;
   font-style: italic;
-  font-weight: 400;
+  font-weight: 600;
   font-size: clamp(4rem, 10vw, 7.5rem);
-  background: linear-gradient(90deg, #FFD700, #F59E0B);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
-  color: transparent;
-  text-shadow: 0 8px 30px rgba(0,0,0,0.35);
+  color: #F5F0E8;
+  text-shadow: 0 4px 20px rgba(0,0,0,0.4);
   line-height: 1.1;
   padding: 0.1em 0;
+  letter-spacing: -0.01em;
 }
 
 .hero-line-3 {
-  font-family: 'Playfair Display', serif;
+  font-family: 'Cormorant Garamond', 'Playfair Display', serif;
   font-style: italic;
-  font-weight: 400;
+  font-weight: 500;
   font-size: clamp(3.5rem, 8vw, 6rem);
-  color: #1F2937;
-  text-shadow: 0 8px 30px rgba(0,0,0,0.35);
+  color: #F5F0E8;
+  text-shadow: 0 4px 20px rgba(0,0,0,0.4);
   line-height: 1;
+  letter-spacing: 0.01em;
 }
 
 /* Typewriter elements hidden initially */
@@ -485,11 +484,11 @@ body {
 }
 
 .subtitle-word {
-  font-family: 'Playfair Display', serif;
+  font-family: 'Cormorant Garamond', serif;
   font-style: italic;
   font-weight: 600;
-  color: #f7e192;
-  font-size: 1.1em;
+  color: #ffe6b0;
+  font-size: 1.15em;
   text-shadow: 0 2px 15px rgba(212, 167, 106, 0.4);
 }
 
@@ -515,55 +514,7 @@ body {
   flex-wrap: wrap;
 }
 
-.benefits-overlay {
-  position: absolute;
-  top: 50%;
-  left: calc(100% + 1.5rem);
-  transform: translateY(-50%) translateX(-15px);
-  background: rgba(20, 20, 25, 0.9);
-  backdrop-filter: blur(24px);
-  -webkit-backdrop-filter: blur(24px);
-  border: 1px solid rgba(255, 215, 0, 0.25);
-  padding: 1.5rem;
-  border-radius: 16px;
-  width: max-content;
-  opacity: 0;
-  visibility: hidden;
-  transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
-  box-shadow: 0 15px 45px rgba(0,0,0,0.5);
-  pointer-events: none;
-  text-align: left;
-  z-index: 10;
-}
 
-.hero-cta-container:hover .benefits-overlay {
-  opacity: 1;
-  visibility: visible;
-  transform: translateY(-50%) translateX(0);
-}
-
-.benefits-list {
-  list-style: none;
-  padding: 0;
-  margin: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 0.8rem;
-}
-
-.benefits-list li {
-  display: flex;
-  align-items: center;
-  gap: 0.6rem;
-  color: rgba(255, 255, 255, 0.95);
-  font-size: 0.85rem;
-  font-weight: 500;
-  font-family: 'Inter', sans-serif;
-}
-
-.benefits-list li svg {
-  color: #34d399; /* Emerald accent */
-}
 
 /* ========== HERO STAT BOXES (translucent glass) ========== */
 /* ========== HERO STATS BUBBLE (Expanding Hover Style) ========== */
