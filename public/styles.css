@@ -218,8 +218,27 @@ body {
 .brand-icon {
   font-size: 1.6rem;
   display: inline-block;
-  transition: transform 0.3s ease;
   filter: drop-shadow(0 2px 4px rgba(0,0,0,0.3));
+  transition: transform 0.4s ease;
+}
+
+.brand-icon::after {
+  content: attr(data-closed);
+}
+
+.nav-brand:hover .brand-icon {
+  animation: envelopeOpen 0.5s ease forwards;
+}
+
+.nav-brand:hover .brand-icon::after {
+  content: attr(data-open);
+}
+
+@keyframes envelopeOpen {
+  0% { transform: scale(1) rotateY(0deg); }
+  40% { transform: scale(1.2) rotateY(90deg); }
+  60% { transform: scale(1.2) rotateY(90deg); }
+  100% { transform: scale(1.15) rotateY(0deg); }
 }
 .brand-logo {
   filter: drop-shadow(0 2px 4px rgba(0,0,0,0.2));
