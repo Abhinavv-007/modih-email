@@ -4,10 +4,10 @@
 
 :root {
   --bg-dark: #0a0a0f;
-  --glass-bg: rgba(255, 255, 255, 0.08);
-  --glass-bg-hover: rgba(255, 255, 255, 0.14);
-  --glass-border: rgba(255, 255, 255, 0.15);
-  --glass-border-hover: rgba(255, 255, 255, 0.28);
+  --glass-bg: rgba(30, 25, 20, 0.65);
+  --glass-bg-hover: rgba(45, 38, 30, 0.75);
+  --glass-border: rgba(255, 255, 255, 0.1);
+  --glass-border-hover: rgba(212, 167, 106, 0.3);
   --text-primary: #fff;
   --text-secondary: rgba(255, 255, 255, 0.82);
   --text-muted: rgba(255, 255, 255, 0.55);
@@ -441,46 +441,101 @@ body {
 }
 
 /* ========== HERO STAT BOXES (translucent glass) ========== */
-.hero-stats {
-  display: flex;
-  gap: 1.25rem;
+/* ========== HERO STATS BUBBLE (Expanding Hover Style) ========== */
+.stats-bubble-wrapper {
+  position: relative;
+  display: inline-flex;
+  margin: 0 auto;
+  align-items: center;
   justify-content: center;
-  flex-wrap: wrap;
-}
-
-.stat-item {
-  text-align: center;
-  min-width: 140px;
-  background: rgba(40, 45, 60, 0.7);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  padding: 1.5rem 2rem;
-  border-radius: 12px;
+  height: 50px;
+  background: rgba(40, 45, 60, 0.75);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 100px;
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
-  transition: transform 0.3s ease, background 0.3s ease;
+  overflow: hidden;
+  transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  width: 160px; /* Initial collapsed width */
+  cursor: default;
 }
 
-.stat-item:hover {
-  transform: translateY(-4px);
-  background: rgba(50, 55, 75, 0.75);
+.stats-bubble-wrapper:hover {
+  width: 520px; /* Expanded width */
+  background: rgba(50, 55, 75, 0.85);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.4);
 }
 
-.stat-number {
-  display: block;
+.stats-bubble-trigger {
+  position: absolute;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.6rem;
+  color: rgba(255, 255, 255, 0.9);
+  font-size: 0.9rem;
+  font-weight: 500;
+  letter-spacing: 0.05em;
+  transition: opacity 0.3s ease, visibility 0.3s ease;
+}
+
+.stats-bubble-wrapper:hover .stats-bubble-trigger {
+  opacity: 0;
+  visibility: hidden;
+}
+
+.stats-bubble-content {
+  display: flex;
+  align-items: center;
+  justify-content: space-around;
+  width: 520px;
+  height: 100%;
+  padding: 0 2rem;
+  opacity: 0;
+  visibility: hidden;
+  transform: scale(0.95);
+  transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  transition-delay: 0s;
+}
+
+.stats-bubble-wrapper:hover .stats-bubble-content {
+  opacity: 1;
+  visibility: visible;
+  transform: scale(1);
+  transition-delay: 0.1s;
+}
+
+.bubble-stat {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.bubble-line {
+  width: 1px;
+  height: 20px;
+  background: rgba(255, 255, 255, 0.2);
+}
+
+.bubble-stat .stat-number {
   font-family: 'Cormorant Garamond', serif;
-  font-size: 2.2rem;
+  font-size: 1.6rem;
   font-weight: 500;
   color: #d4a76a; /* Gold accent */
-  margin-bottom: 0.5rem;
-  text-shadow: 0 1px 4px rgba(0,0,0,0.5);
+  text-shadow: 0 1px 2px rgba(0,0,0,0.5);
+  line-height: 1;
 }
 
-.stat-label {
-  font-size: 0.7rem;
-  color: rgba(255, 255, 255, 0.7);
+.bubble-stat .stat-label {
+  font-size: 0.65rem;
+  color: rgba(255, 255, 255, 0.8);
   text-transform: uppercase;
   letter-spacing: 0.15em;
+  text-shadow: 0 1px 2px rgba(0,0,0,0.5);
 }
 
 /* ========== HERO BOTTOM BAR ========== */
@@ -510,9 +565,9 @@ body {
   display: flex;
   justify-content: center;
   align-items: center;
-  gap: 2.5rem;
+  gap: 1rem;
   flex-wrap: wrap;
-  padding: 0 2rem;
+  padding: 0 1rem;
 }
 
 .partner-name {
@@ -526,7 +581,7 @@ body {
   background: rgba(30, 25, 20, 0.65);
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
-  padding: 0.6rem 2rem;
+  padding: 0.5rem 1.6rem;
   border-radius: 100px;
   border: 1px solid rgba(255, 255, 255, 0.08);
   box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
