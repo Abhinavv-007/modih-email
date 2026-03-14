@@ -171,6 +171,7 @@ body {
   transition: var(--transition);
   background: transparent;
   border: none;
+  pointer-events: none; /* Let clicks pass through the transparent part */
 }
 
 /* No background on scroll — stays fully transparent */
@@ -186,6 +187,7 @@ body {
   align-items: center;
   justify-content: space-between;
   height: 56px;
+  pointer-events: auto; /* Re-enable clicks for items inside nav */
 }
 
 /* Cursive brand */
@@ -323,14 +325,19 @@ body {
   text-align: center;
   padding-top: 8rem;
   padding-bottom: 2rem;
-  justify-content: flex-start;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
   min-height: 100vh;
 }
 
 .hero-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
   max-width: 850px;
   margin: 0 auto;
-  padding-top: 6vh;
 }
 
 /* "New" pill badge */
@@ -396,17 +403,15 @@ body {
 
 .hero-domain {
   display: block;
-  background: linear-gradient(135deg, #fcd34d, #f59e0b, #d97706);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
+  font-family: 'Playfair Display', serif;
+  color: #ffffff;
   font-size: clamp(3rem, 8vw, 6.5rem);
   font-style: normal;
-  font-weight: 600;
-  letter-spacing: -0.04em;
+  font-weight: 500;
+  letter-spacing: -0.02em;
   line-height: 1.1;
   padding: 0.1em 0;
-  filter: drop-shadow(0 2px 12px rgba(0,0,0,0.4));
+  text-shadow: 0 0 25px rgba(255, 255, 255, 0.4), 0 0 50px rgba(212, 167, 106, 0.4);
 }
 
 .cursive-line {
@@ -479,8 +484,6 @@ body {
 
 /* ========== HERO BOTTOM BAR ========== */
 .hero-bottom-bar {
-  margin-top: 4rem;
-  padding-bottom: 2rem;
   width: 100%;
   text-align: center;
   z-index: 2;
