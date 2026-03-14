@@ -1,0 +1,8 @@
+name = "modih-mail-email-worker"
+main = "index.js"
+compatibility_date = "2024-09-25"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "modih-mail-db"
+database_id = "YOUR_D1_DATABASE_ID"
