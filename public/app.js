@@ -331,7 +331,7 @@ async function fetchMessages() {
   if (!currentInbox) return;
 
   try {
-    const res = await fetch(`/api/messages?inbox_id=${currentInbox.id}`);
+    const res = await fetch(`/api/messages?inbox_id=${encodeURIComponent(currentInbox.id)}`);
     const data = await res.json();
 
     if (data.expired) {
@@ -393,7 +393,7 @@ function renderMailList() {
       const otp = extractOTP(msg.subject + " " + msg.body_text + " " + msg.body_html);
 
       return `
-      <div class="mail-item" onclick="openMessage('${msg.id}')" style="animation-delay: ${index * 0.08}s">
+      <div class="mail-item" onclick="openMessageByIndex(${index})" style="animation-delay: ${index * 0.08}s">
         <div class="mail-item-avatar">${initial}</div>
         <div class="mail-item-content">
           <div class="mail-item-top">
@@ -410,6 +410,12 @@ function renderMailList() {
 }
 
 // ========== MESSAGE DETAIL ==========
+function openMessageByIndex(index) {
+  const msg = currentMessages[index];
+  if (!msg) return;
+  openMessage(msg.id);
+}
+
 function openMessage(msgId) {
   const msg = currentMessages.find((m) => m.id === msgId);
   if (!msg) return;
@@ -464,7 +470,7 @@ async function deleteAddressAndReset() {
 
   try {
     // Delete all messages first
-    await fetch(`/api/messages?inbox_id=${currentInbox.id}`, { method: "DELETE" });
+    await fetch(`/api/messages?inbox_id=${encodeURIComponent(currentInbox.id)}`, { method: "DELETE" });
   } catch (e) {
     console.error("Delete error:", e);
   }
@@ -500,7 +506,7 @@ async function deleteAllMessages() {
   if (!confirm("Delete all messages in this inbox?")) return;
 
   try {
-    const res = await fetch(`/api/messages?inbox_id=${currentInbox.id}`, {
+    const res = await fetch(`/api/messages?inbox_id=${encodeURIComponent(currentInbox.id)}`, {
       method: "DELETE",
     });
 
@@ -521,7 +527,7 @@ async function deleteCurrentMessage() {
 
   try {
     const res = await fetch(
-      `/api/messages?inbox_id=${currentInbox.id}&id=${currentMessageId}`,
+      `/api/messages?inbox_id=${encodeURIComponent(currentInbox.id)}&id=${encodeURIComponent(currentMessageId)}`,
       { method: "DELETE" }
     );
 
@@ -540,17 +546,25 @@ async function deleteCurrentMessage() {
 // ========== COPY ==========
 function copyEmail() {
   if (!currentInbox) return;
-  navigator.clipboard.writeText(currentInbox.email).then(() => {
-    showToast("Email copied to clipboard");
-  });
+  navigator.clipboard.writeText(currentInbox.email)
+    .then(() => {
+      showToast("Email copied to clipboard");
+    })
+    .catch(() => {
+      showToast("Unable to copy email");
+    });
 }
 
 function copyOTP() {
   const otpCode = document.getElementById("detail-otp-code").textContent;
   if (otpCode) {
-    navigator.clipboard.writeText(otpCode).then(() => {
-      showToast("OTP copied to clipboard");
-    });
+    navigator.clipboard.writeText(otpCode)
+      .then(() => {
+        showToast("OTP copied to clipboard");
+      })
+      .catch(() => {
+        showToast("Unable to copy OTP");
+      });
   }
 }
 
@@ -591,10 +605,14 @@ function sanitizeRenderedHtml(html) {
     .replace(/<style[\s\S]*?<\/style>/gi, "")
     .replace(/on\w+\s*=\s*"[^"]*"/gi, "")
     .replace(/on\w+\s*=\s*'[^']*'/gi, "")
+    .replace(/on\w+\s*=\s*[^\s>]+/gi, "")
     .replace(/javascript\s*:/gi, "blocked:")
     .replace(/<iframe[\s\S]*?<\/iframe>/gi, "")
     .replace(/<object[\s\S]*?<\/object>/gi, "")
-    .replace(/<embed[\s\S]*?>/gi, "");
+    .replace(/<embed[\s\S]*?>/gi, "")
+    .replace(/<form[\s\S]*?<\/form>/gi, "")
+    .replace(/<base[\s\S]*?>/gi, "")
+    .replace(/<meta[\s\S]*?>/gi, "");
 }
 
 function formatTimeAgo(timestamp) {

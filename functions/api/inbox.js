@@ -31,7 +31,8 @@ function sanitizePrefix(prefix) {
 async function checkRateLimit(env, ip) {
   const key = `rate:${ip}`;
   const current = await env.RATE_LIMIT.get(key);
-  const count = current ? parseInt(current) : 0;
+  const parsed = current ? Number.parseInt(current, 10) : 0;
+  const count = Number.isFinite(parsed) ? parsed : 0;
   if (count >= RATE_LIMIT_MAX) {
     return false;
   }
