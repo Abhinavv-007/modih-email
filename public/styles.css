@@ -756,6 +756,7 @@ body {
   background: #3B82F6;
   border-color: rgba(255, 255, 255, 0.6);
   transform: translateY(-2px);
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.5); /* Black glow */
 }
 
 .btn-warm:active {
@@ -787,7 +788,7 @@ body {
   background: rgba(59, 130, 246, 0.35);
   border-color: rgba(255, 255, 255, 0.4);
   transform: translateY(-2px);
-  box-shadow: 0 6px 20px rgba(59, 130, 246, 0.3);
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.5); /* Black glow */
 }
 
 .glow-btn {
@@ -962,10 +963,10 @@ body {
 .email-input-wrap {
   display: flex;
   align-items: center;
-  background: rgba(20, 20, 30, 0.4);
+  background: rgba(255, 255, 255, 0.1); /* Greyish translucent */
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
-  border: 1px solid var(--glass-border);
+  border: 1px solid rgba(255, 255, 255, 0.2);
   border-radius: 14px;
   overflow: hidden;
   transition: var(--transition);
@@ -1007,9 +1008,17 @@ body {
   gap: 0.75rem;
 }
 
-.generate-actions .btn {
+.generate-actions .btn-primary {
   flex: 1;
   justify-content: center;
+  padding: 1rem;
+  background: rgba(255, 255, 255, 0.08); /* Greyish translucent */
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+.generate-actions .btn-primary:hover {
+  background: rgba(255, 255, 255, 0.15);
+  border-color: rgba(255, 255, 255, 0.4);
 }
 
 .error-msg {
@@ -1577,9 +1586,63 @@ body {
     padding-top: 6rem;
   }
 
+  .hero-line-1 {
+    font-size: clamp(2rem, 8vw, 3rem);
+  }
+
+  .hero-line-2 {
+    font-size: clamp(2.8rem, 12vw, 4.5rem);
+  }
+
+  .hero-line-3 {
+    font-size: clamp(2.4rem, 10vw, 3.5rem);
+  }
+
+  .hero-subtitle {
+    font-size: 0.9rem;
+    padding: 0 0.5rem;
+    line-height: 1.7;
+  }
+
+  .hero-tag-pill.small-pill {
+    padding: 0.15rem 0.6rem 0.15rem 0.15rem;
+  }
+
+  .tag-text {
+    font-size: 0.7rem;
+  }
+
+  .brand-icon {
+    font-size: 1.3rem;
+  }
+
+  .brand-text {
+    font-size: 1.4rem;
+  }
+
+  .nav-links {
+    padding: 0.4rem 1rem;
+    gap: 1rem;
+  }
+
+  .nav-link {
+    font-size: 0.8rem;
+  }
+
+  .nav-cta {
+    font-size: 0.75rem;
+    padding: 0.5rem 1rem;
+  }
+
   .hero-actions {
     flex-direction: column;
     align-items: center;
+  }
+
+  .btn-warm, .btn-ghost-warm {
+    width: 100%;
+    max-width: 280px;
+    justify-content: center;
   }
 
   .hero-stats {
@@ -1635,6 +1698,14 @@ body {
 
   .hero-bottom-bar {
     bottom: 2rem;
+  }
+
+  .footer-content {
+    padding: 0 1rem;
+  }
+
+  .footer-links {
+    gap: 1rem;
   }
 
   .partner-logos {
