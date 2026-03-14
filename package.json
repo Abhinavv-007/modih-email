@@ -5,7 +5,7 @@
   "scripts": {
     "dev": "wrangler pages dev public --d1=DB --kv=RATE_LIMIT --port 8788",
     "deploy": "wrangler pages deploy public --project-name=modih-mail",
-    "db:init": "wrangler d1 execute modih-mail-db --file=schema.sql"
+    "db:init": "wrangler d1 execute modih-mail-db --remote --file=final-desptop-tab.sql"
   },
   "devDependencies": {
     "wrangler": "^3.60.0"
