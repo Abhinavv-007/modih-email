@@ -23,6 +23,7 @@
   --radius-xs: 6px;
   --transition: 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   --transition-slow: 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+  --bounce: cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
 /* ========== RESET ========== */
@@ -125,6 +126,7 @@ body {
   background: var(--glass-bg-hover);
   border-color: var(--glass-border-hover);
   transform: translateY(-2px);
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.25), 0 0 0 1px rgba(212, 167, 106, 0.15);
 }
 
 .glass-card-large {
@@ -278,10 +280,28 @@ body {
   letter-spacing: 0.02em;
   transition: var(--transition);
   text-shadow: 0 1px 4px rgba(0,0,0,0.3);
+  position: relative;
+}
+
+.nav-link::after {
+  content: '';
+  position: absolute;
+  bottom: -4px;
+  left: 50%;
+  width: 0;
+  height: 2px;
+  background: linear-gradient(90deg, #FFD700, #F59E0B);
+  border-radius: 2px;
+  transition: width 0.3s ease, left 0.3s ease;
+}
+
+.nav-link:hover::after, .nav-link.active::after {
+  width: 100%;
+  left: 0;
 }
 
 .nav-link:hover, .nav-link.active {
-  color: rgba(255, 255, 255, 0.7);
+  color: rgba(255, 255, 255, 0.9);
 }
 
 /* Nav CTA — Solid White Button */
@@ -304,7 +324,12 @@ body {
 
 .nav-cta:hover {
   background: rgba(255, 255, 255, 0.85);
-  transform: translateY(-1px);
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.25);
+}
+
+.nav-cta:active {
+  transform: translateY(0) scale(0.95);
 }
 
 @media (max-width: 768px) {
@@ -479,10 +504,12 @@ body {
   font-style: italic;
   font-weight: 500;
   font-size: clamp(3rem, 6vw, 5rem);
-  color: #C8E6FF; /* Soft sky blue */
+  color: #C8E6FF;
   text-shadow: 0 4px 20px rgba(100, 180, 255, 0.35), 0 2px 8px rgba(0,0,0,0.4);
   line-height: 1.15;
   letter-spacing: 0.02em;
+  animation: heroLineIn 0.8s ease both;
+  animation-delay: 0.2s;
 }
 
 .hero-line-2 {
@@ -490,11 +517,13 @@ body {
   font-style: italic;
   font-weight: 600;
   font-size: clamp(4rem, 10vw, 7.5rem);
-  color: #A8F0C6; /* Soft mint green */
+  color: #A8F0C6;
   text-shadow: 0 4px 20px rgba(100, 220, 160, 0.4), 0 2px 8px rgba(0,0,0,0.4);
   line-height: 1.1;
   padding: 0.1em 0;
   letter-spacing: -0.01em;
+  animation: heroLineIn 0.8s ease both;
+  animation-delay: 0.5s;
 }
 
 .hero-line-3 {
@@ -502,10 +531,25 @@ body {
   font-style: italic;
   font-weight: 500;
   font-size: clamp(3.5rem, 8vw, 6rem);
-  color: #B8C8FF; /* Soft periwinkle blue */
+  color: #B8C8FF;
   text-shadow: 0 4px 20px rgba(130, 150, 255, 0.35), 0 2px 8px rgba(0,0,0,0.4);
   line-height: 1;
   letter-spacing: 0.01em;
+  animation: heroLineIn 0.8s ease both;
+  animation-delay: 0.8s;
+}
+
+@keyframes heroLineIn {
+  from {
+    opacity: 0;
+    transform: translateY(25px);
+    filter: blur(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+    filter: blur(0);
+  }
 }
 
 /* Typewriter elements hidden initially */
@@ -725,9 +769,29 @@ body {
   font-family: inherit;
   cursor: pointer;
   border: none;
-  transition: var(--transition);
+  transition: all 0.3s var(--bounce);
   text-decoration: none;
   white-space: nowrap;
+  position: relative;
+  overflow: hidden;
+}
+
+.btn:active {
+  transform: scale(0.95) !important;
+  transition-duration: 0.1s;
+}
+
+.btn::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle at center, rgba(255,255,255,0.2) 0%, transparent 70%);
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+.btn:hover::after {
+  opacity: 1;
 }
 
 .btn-primary {
@@ -874,6 +938,7 @@ body {
   background: rgba(20, 20, 30, 0.6);
   color: var(--text-primary);
   border-color: var(--glass-border-hover);
+  transform: scale(1.1);
 }
 
 .icon-btn.danger:hover {
@@ -913,6 +978,23 @@ body {
   border-color: rgba(212, 167, 106, 0.3);
 }
 
+.feature-card:hover .feature-icon {
+  animation: iconPulse 0.6s ease;
+  border-color: rgba(212, 167, 106, 0.5);
+  background: rgba(212, 167, 106, 0.18);
+}
+
+.feature-card:hover h3 {
+  transform: translateX(4px);
+  color: #ffe6b0;
+}
+
+@keyframes iconPulse {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.15); }
+  100% { transform: scale(1); }
+}
+
 .feature-icon {
   width: 56px;
   height: 56px;
@@ -924,6 +1006,7 @@ body {
   justify-content: center;
   margin-bottom: 1.25rem;
   color: var(--accent);
+  transition: all 0.3s ease;
 }
 
 .feature-card h3 {
@@ -933,6 +1016,7 @@ body {
   font-style: italic;
   margin-bottom: 0.6rem;
   text-shadow: 0 1px 6px rgba(0,0,0,0.3);
+  transition: transform 0.3s ease, color 0.3s ease;
 }
 
 .feature-card p {
