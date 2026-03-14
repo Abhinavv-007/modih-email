@@ -460,8 +460,8 @@ body {
   font-style: italic;
   font-weight: 500;
   font-size: clamp(3rem, 6vw, 5rem);
-  color: #F5F0E8;
-  text-shadow: 0 4px 20px rgba(0,0,0,0.4);
+  color: #C8E6FF; /* Soft sky blue */
+  text-shadow: 0 4px 20px rgba(100, 180, 255, 0.35), 0 2px 8px rgba(0,0,0,0.4);
   line-height: 1.15;
   letter-spacing: 0.02em;
 }
@@ -471,8 +471,8 @@ body {
   font-style: italic;
   font-weight: 600;
   font-size: clamp(4rem, 10vw, 7.5rem);
-  color: #F5F0E8;
-  text-shadow: 0 4px 20px rgba(0,0,0,0.4);
+  color: #A8F0C6; /* Soft mint green */
+  text-shadow: 0 4px 20px rgba(100, 220, 160, 0.4), 0 2px 8px rgba(0,0,0,0.4);
   line-height: 1.1;
   padding: 0.1em 0;
   letter-spacing: -0.01em;
@@ -483,8 +483,8 @@ body {
   font-style: italic;
   font-weight: 500;
   font-size: clamp(3.5rem, 8vw, 6rem);
-  color: #F5F0E8;
-  text-shadow: 0 4px 20px rgba(0,0,0,0.4);
+  color: #B8C8FF; /* Soft periwinkle blue */
+  text-shadow: 0 4px 20px rgba(130, 150, 255, 0.35), 0 2px 8px rgba(0,0,0,0.4);
   line-height: 1;
   letter-spacing: 0.01em;
 }
