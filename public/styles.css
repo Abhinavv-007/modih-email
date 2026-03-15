@@ -1114,6 +1114,54 @@ body {
 
 .email-input::placeholder {
   color: var(--text-muted);
+  font-style: italic;
+}
+
+.email-input:disabled {
+  color: var(--text-muted);
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+/* PRO ONLY badge inside the input */
+.pro-input-badge {
+  display: inline-flex;
+  align-items: center;
+  white-space: nowrap;
+  font-size: 0.6rem;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--accent);
+  background: rgba(212, 167, 106, 0.12);
+  border: 1px solid rgba(212, 167, 106, 0.3);
+  border-radius: 100px;
+  padding: 0.2rem 0.6rem;
+  margin-right: 0.6rem;
+  flex-shrink: 0;
+}
+
+/* PRO badge pill inside the button */
+.pro-btn-badge {
+  display: inline-flex;
+  align-items: center;
+  font-size: 0.55rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--accent);
+  background: rgba(212, 167, 106, 0.15);
+  border: 1px solid rgba(212, 167, 106, 0.3);
+  border-radius: 100px;
+  padding: 0.15rem 0.5rem;
+  margin-left: 0.4rem;
+}
+
+/* Muted / disabled look for the custom button */
+.btn-pro-lock {
+  opacity: 0.6;
+  cursor: not-allowed;
+  pointer-events: none;
 }
 
 .email-domain {
