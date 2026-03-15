@@ -718,6 +718,35 @@ body {
 }
 
 /* Scroll indicator */
+
+/* Mobile overrides for Stats Bubble */
+@media (max-width: 768px) {
+  .stats-bubble-wrapper:hover {
+    width: 200px;
+    height: 320px;
+    border-radius: 20px;
+  }
+  
+  .stats-bubble-content {
+    flex-direction: column;
+    justify-content: center;
+    width: 200px;
+    height: 320px;
+    padding: 2rem 0;
+    gap: 1.5rem;
+  }
+
+  .bubble-stat {
+    flex-direction: column;
+    gap: 0.2rem;
+  }
+
+  .bubble-line {
+    width: 40px;
+    height: 1px;
+  }
+}
+
 .scroll-indicator {
   margin-top: 1rem;
   display: flex;
