@@ -2112,7 +2112,7 @@ body {
   bottom: 2rem;
   left: 50%;
   transform: translateX(-50%);
-  z-index: 9999;
+  z-index: 20000;
   padding: 0.85rem 1.5rem;
   background: rgba(10, 10, 15, 0.9);
   backdrop-filter: blur(20px);
