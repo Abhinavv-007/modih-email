@@ -1133,9 +1133,9 @@ body {
   font-weight: 700;
   letter-spacing: 0.1em;
   text-transform: uppercase;
-  color: var(--accent);
-  background: rgba(212, 167, 106, 0.1);
-  border: 1px solid rgba(212, 167, 106, 0.25);
+  color: #fff;
+  background: rgba(255, 255, 255, 0.12);
+  border: 1px solid rgba(255, 255, 255, 0.25);
   border-radius: 100px;
   padding: 0.15rem 0.45rem;
   margin-right: 0.5rem;
@@ -1148,8 +1148,8 @@ body {
   width: 5px;
   height: 5px;
   border-radius: 50%;
-  background: var(--accent);
-  box-shadow: 0 0 5px var(--accent);
+  background: #fff;
+  box-shadow: 0 0 5px rgba(255,255,255,0.6);
   flex-shrink: 0;
 }
 
@@ -1162,9 +1162,9 @@ body {
   font-weight: 700;
   letter-spacing: 0.1em;
   text-transform: uppercase;
-  color: var(--accent);
-  background: rgba(212, 167, 106, 0.1);
-  border: 1px solid rgba(212, 167, 106, 0.25);
+  color: #fff;
+  background: rgba(255, 255, 255, 0.12);
+  border: 1px solid rgba(255, 255, 255, 0.25);
   border-radius: 100px;
   padding: 0.15rem 0.45rem;
   margin-left: 0.35rem;
@@ -1176,8 +1176,8 @@ body {
   width: 4px;
   height: 4px;
   border-radius: 50%;
-  background: var(--accent);
-  box-shadow: 0 0 4px var(--accent);
+  background: #fff;
+  box-shadow: 0 0 4px rgba(255,255,255,0.6);
   flex-shrink: 0;
 }
 
