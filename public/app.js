@@ -919,17 +919,29 @@ function animatePrice(elementId, targetValue) {
   const isIncreasing = diff > 0;
   const wrapper = el.parentElement;
 
-  // Apply color state
+  // Get or create arrow span
+  let arrow = wrapper ? wrapper.querySelector('.price-trend-arrow') : null;
+  if (wrapper && !arrow) {
+    arrow = document.createElement('span');
+    arrow.className = 'price-trend-arrow';
+    wrapper.appendChild(arrow);
+  }
+
+  // Apply color state and arrows
   if (isDropping) {
     el.classList.add('price-dropping');
-    // Trigger subtle strikethrough
-    if (wrapper && wrapper.classList.contains('pricing-amount-wrapper')) {
-      wrapper.classList.remove('slicing');
-      void wrapper.offsetWidth;
-      wrapper.classList.add('slicing');
+    if (arrow) {
+      arrow.textContent = '↓';
+      arrow.classList.remove('trending-up');
+      arrow.classList.add('trending-down');
     }
   } else if (isIncreasing) {
     el.classList.add('price-increasing');
+    if (arrow) {
+      arrow.textContent = '↑';
+      arrow.classList.remove('trending-down');
+      arrow.classList.add('trending-up');
+    }
   }
 
   function tick(now) {
@@ -955,12 +967,13 @@ function animatePrice(elementId, targetValue) {
         : targetValue.toFixed(2);
 
       // Fade color back to white via CSS transition
-      el.classList.remove('price-dropping');
-      el.classList.remove('price-increasing');
+      el.classList.remove('price-dropping', 'price-increasing');
 
-      // Clean up strikethrough
-      if (wrapper && wrapper.classList.contains('pricing-amount-wrapper')) {
-        setTimeout(() => wrapper.classList.remove('slicing'), 300);
+      // Clear arrow
+      if (arrow) {
+        setTimeout(() => {
+          arrow.classList.remove('trending-down', 'trending-up');
+        }, 500); // 500ms delay to keep the arrow visible a tiny bit after price settles
       }
     }
   }

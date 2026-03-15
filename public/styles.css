@@ -1779,30 +1779,35 @@ body {
   display: inline-block;
 }
 
-/* Clean strikethrough line for price drops */
-.pricing-amount-slice {
+/* Price Trend Arrow Indicators */
+.price-trend-arrow {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.8rem;
+  margin-left: 0.5rem;
+  vertical-align: middle;
+  opacity: 0;
+  transform: translateY(10px) scale(0.5);
+  transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
   position: absolute;
   top: 50%;
-  left: -4%;
-  right: -4%;
-  height: 2px;
-  background: linear-gradient(90deg, transparent, rgba(239, 68, 68, 0.8), transparent);
-  transform: translateY(-50%) scaleX(0);
-  transform-origin: left;
-  z-index: 3;
-  pointer-events: none;
-  opacity: 0;
-  transition: none;
+  right: -2rem;
+  margin-top: -0.9rem;
 }
 
-.pricing-amount-wrapper.slicing .pricing-amount-slice {
-  animation: strikeThrough 0.6s ease forwards;
+.price-trend-arrow.trending-down {
+  color: #f87171;
+  opacity: 1;
+  transform: translateY(0) scale(1);
+  text-shadow: 0 0 12px rgba(248, 113, 113, 0.4);
 }
 
-@keyframes strikeThrough {
-  0% { transform: translateY(-50%) scaleX(0); opacity: 0.8; }
-  40% { transform: translateY(-50%) scaleX(1); opacity: 0.8; }
-  100% { transform: translateY(-50%) scaleX(1); opacity: 0; }
+.price-trend-arrow.trending-up {
+  color: #34d399;
+  opacity: 1;
+  transform: translateY(0) scale(1);
+  text-shadow: 0 0 12px rgba(52, 211, 153, 0.4);
 }
 
 /* Color states for price animation */
