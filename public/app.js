@@ -3,10 +3,9 @@
    ======================================== */
 
 // ========== STATE ==========
-let currentInbox = null; // { id, email, created_at, expires_at }
+let currentInbox = null; // { id, email, created_at, owner_token }
 let currentMessages = [];
 let currentMessageId = null;
-let countdownInterval = null;
 let refreshInterval = null;
 let isMailWindowOpen = false;
 
@@ -141,6 +140,12 @@ function scrollToSection(id) {
   if (el) el.scrollIntoView({ behavior: "smooth" });
 }
 
+// ========== AUTH HELPERS ==========
+function authHeaders() {
+  const token = currentInbox ? currentInbox.owner_token : "";
+  return { "X-Owner-Token": token };
+}
+
 // ========== INBOX CREATION ==========
 async function createInbox(type) {
   const prefixInput = document.getElementById("email-prefix");
@@ -165,20 +170,32 @@ async function createInbox(type) {
   btnRandom.classList.add("loading");
 
   try {
+    const headers = { "Content-Type": "application/json" };
+    // Include owner_token if we have one (for re-claiming own inbox)
+    if (currentInbox && currentInbox.owner_token) {
+      headers["X-Owner-Token"] = currentInbox.owner_token;
+    }
+
     const res = await fetch("/api/inbox", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers,
       body: JSON.stringify(body),
     });
 
     const data = await res.json();
 
     if (!res.ok) {
-      showError(data.error || "Failed to create inbox.");
+      if (res.status === 409) {
+        showError("That email is already taken. Try another prefix.");
+      } else if (res.status === 403) {
+        showError(data.error || "This name is reserved.");
+      } else {
+        showError(data.error || "Failed to create inbox.");
+      }
       return;
     }
 
-    // Save state
+    // Save state (includes owner_token)
     currentInbox = data;
     currentMessages = [];
     saveSession();
@@ -209,63 +226,8 @@ function showEmailResult(inbox) {
   addressEl.textContent = inbox.email;
   resultEl.style.display = "block";
 
-  // Start countdown
-  startCountdown(inbox.expires_at);
-
   // Smooth scroll to result
   resultEl.scrollIntoView({ behavior: "smooth", block: "center" });
-}
-
-// ========== COUNTDOWN TIMER ==========
-function startCountdown(expiresAt) {
-  if (countdownInterval) clearInterval(countdownInterval);
-
-  function update() {
-    const now = Math.floor(Date.now() / 1000);
-    const remaining = expiresAt - now;
-
-    if (remaining <= 0) {
-      clearInterval(countdownInterval);
-      handleExpired();
-      return;
-    }
-
-    const minutes = Math.floor(remaining / 60);
-    const seconds = remaining % 60;
-    const timeStr = `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
-
-    // Update all countdown displays
-    const timerEl = document.getElementById("countdown-timer");
-    const mailTimerEl = document.getElementById("mail-countdown");
-    const countdownDisplay = document.getElementById("countdown-display");
-
-    if (timerEl) timerEl.textContent = timeStr;
-    if (mailTimerEl) mailTimerEl.textContent = timeStr;
-
-    // Color warnings
-    const className = remaining <= 60 ? "danger" : remaining <= 300 ? "warning" : "";
-    if (countdownDisplay) {
-      countdownDisplay.className = "countdown " + className;
-    }
-  }
-
-  update();
-  countdownInterval = setInterval(update, 1000);
-}
-
-function handleExpired() {
-  currentInbox = null;
-  currentMessages = [];
-  clearSession();
-
-  if (isMailWindowOpen) {
-    closeMailWindow();
-  }
-
-  const resultEl = document.getElementById("email-result");
-  if (resultEl) resultEl.style.display = "none";
-
-  showToast("Inbox expired. Generate a new one.");
 }
 
 // ========== MAIL WINDOW ==========
@@ -331,11 +293,14 @@ async function fetchMessages() {
   if (!currentInbox) return;
 
   try {
-    const res = await fetch(`/api/messages?inbox_id=${encodeURIComponent(currentInbox.id)}`);
+    const res = await fetch(`/api/messages?inbox_id=${encodeURIComponent(currentInbox.id)}`, {
+      headers: authHeaders(),
+    });
     const data = await res.json();
 
-    if (data.expired) {
-      handleExpired();
+    if (res.status === 403 || res.status === 404) {
+      // Session invalid — inbox deleted or token mismatch
+      handleSessionInvalid();
       return;
     }
 
@@ -346,6 +311,21 @@ async function fetchMessages() {
   } catch (e) {
     console.error("Fetch messages error:", e);
   }
+}
+
+function handleSessionInvalid() {
+  currentInbox = null;
+  currentMessages = [];
+  clearSession();
+
+  if (isMailWindowOpen) {
+    closeMailWindow();
+  }
+
+  const resultEl = document.getElementById("email-result");
+  if (resultEl) resultEl.style.display = "none";
+
+  showToast("Session expired or inbox deleted. Create a new one.");
 }
 
 function startAutoRefresh() {
@@ -461,7 +441,6 @@ function closeMessageDetail() {
   renderMailList();
 }
 
-// ========== DELETE MESSAGES ==========
 // ========== DELETE ADDRESS & RESET ==========
 async function deleteAddressAndReset() {
   if (!currentInbox) return;
@@ -469,10 +448,12 @@ async function deleteAddressAndReset() {
   if (!confirm("Delete this address and all its messages? You'll need to create a new one.")) return;
 
   try {
-    // Delete all messages first
-    await fetch(`/api/messages?inbox_id=${encodeURIComponent(currentInbox.id)}`, { method: "DELETE" });
+    await fetch(`/api/inbox?id=${currentInbox.id}`, {
+      method: "DELETE",
+      headers: authHeaders(),
+    });
   } catch (e) {
-    console.error("Delete error:", e);
+    console.error("Delete inbox error:", e);
   }
 
   // Clear everything
@@ -480,7 +461,6 @@ async function deleteAddressAndReset() {
   currentMessages = [];
   currentMessageId = null;
   clearSession();
-  if (countdownInterval) clearInterval(countdownInterval);
   stopAutoRefresh();
 
   // Close mail window if open
@@ -508,6 +488,7 @@ async function deleteAllMessages() {
   try {
     const res = await fetch(`/api/messages?inbox_id=${encodeURIComponent(currentInbox.id)}`, {
       method: "DELETE",
+      headers: authHeaders(),
     });
 
     if (res.ok) {
@@ -528,7 +509,10 @@ async function deleteCurrentMessage() {
   try {
     const res = await fetch(
       `/api/messages?inbox_id=${encodeURIComponent(currentInbox.id)}&id=${encodeURIComponent(currentMessageId)}`,
-      { method: "DELETE" }
+      {
+        method: "DELETE",
+        headers: authHeaders(),
+      }
     );
 
     if (res.ok) {
@@ -650,7 +634,12 @@ function showToast(msg) {
 // ========== SESSION PERSISTENCE ==========
 function saveSession() {
   if (currentInbox) {
-    localStorage.setItem("modih_inbox", JSON.stringify(currentInbox));
+    localStorage.setItem("modih_inbox", JSON.stringify({
+      id: currentInbox.id,
+      email: currentInbox.email,
+      created_at: currentInbox.created_at,
+      owner_token: currentInbox.owner_token,
+    }));
   }
 }
 
@@ -658,19 +647,29 @@ function clearSession() {
   localStorage.removeItem("modih_inbox");
 }
 
-function restoreSession() {
+async function restoreSession() {
   try {
     const saved = localStorage.getItem("modih_inbox");
     if (!saved) return;
 
     const inbox = JSON.parse(saved);
-    const now = Math.floor(Date.now() / 1000);
 
-    // Check if still valid
-    if (inbox.expires_at > now) {
+    // Must have an owner_token to be valid (old sessions without token are cleared)
+    if (!inbox.owner_token) {
+      clearSession();
+      return;
+    }
+
+    // Validate with the server by trying to fetch messages
+    const res = await fetch(`/api/messages?inbox_id=${inbox.id}`, {
+      headers: { "X-Owner-Token": inbox.owner_token },
+    });
+
+    if (res.ok) {
       currentInbox = inbox;
       showEmailResult(inbox);
     } else {
+      // Token invalid or inbox deleted
       clearSession();
     }
   } catch (e) {

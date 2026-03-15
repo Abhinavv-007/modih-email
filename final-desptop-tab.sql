@@ -2,8 +2,9 @@
 CREATE TABLE IF NOT EXISTS inboxes (
   id TEXT PRIMARY KEY,
   email TEXT NOT NULL UNIQUE,
+  owner_token TEXT NOT NULL,
   created_at INTEGER NOT NULL,
-  expires_at INTEGER NOT NULL
+  expires_at INTEGER NOT NULL DEFAULT 0
 );
 
 -- Messages table
@@ -21,6 +22,5 @@ CREATE TABLE IF NOT EXISTS messages (
 
 -- Indexes
 CREATE INDEX IF NOT EXISTS idx_inboxes_email ON inboxes(email);
-CREATE INDEX IF NOT EXISTS idx_inboxes_expires ON inboxes(expires_at);
 CREATE INDEX IF NOT EXISTS idx_messages_inbox ON messages(inbox_id);
 CREATE INDEX IF NOT EXISTS idx_messages_received ON messages(received_at);

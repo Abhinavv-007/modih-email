@@ -1,10 +1,35 @@
-// POST /api/inbox - Create a new inbox
-// GET /api/inbox?email=xxx - Get inbox info
+// POST /api/inbox   - Create a new inbox (returns owner_token once)
+// DELETE /api/inbox  - Delete an inbox (requires owner_token)
 
 const DOMAIN = "modih.in";
-const INBOX_TTL = 30 * 60; // 30 minutes in seconds
-const RATE_LIMIT_MAX = 10; // max inboxes per IP per hour
-const RATE_LIMIT_WINDOW = 3600; // 1 hour
+const RATE_LIMIT_MAX = 10;
+const RATE_LIMIT_WINDOW = 3600;
+const MAX_RANDOM_RETRIES = 5;
+
+// ========== BLOCKED PREFIXES ==========
+// Exact names + operational names. Matching is normalized (lowercase, stripped).
+const BLOCKED_PREFIXES = new Set([
+  // Personal / brand protection
+  "abhnv", "abhinav", "modi", "modih",
+  // Operational / RFC-reserved
+  "admin", "administrator", "support", "security", "postmaster",
+  "root", "help", "billing", "abuse", "contact", "team", "mail",
+  "info", "noreply", "no-reply", "webmaster", "hostmaster",
+  "mailer-daemon", "www", "ftp", "smtp", "imap", "pop",
+]);
+
+function normalizePrefix(raw) {
+  // Lowercase, strip dots/dashes/underscores for variant matching
+  return raw.toLowerCase().replace(/[.\-_]/g, "");
+}
+
+function isBlockedPrefix(prefix) {
+  const normalized = normalizePrefix(prefix);
+  // Check exact match and normalized match
+  if (BLOCKED_PREFIXES.has(prefix.toLowerCase())) return true;
+  if (BLOCKED_PREFIXES.has(normalized)) return true;
+  return false;
+}
 
 function generateId() {
   const chars = "abcdefghijklmnopqrstuvwxyz0123456789";
@@ -13,6 +38,10 @@ function generateId() {
     id += chars[Math.floor(Math.random() * chars.length)];
   }
   return id;
+}
+
+function generateOwnerToken() {
+  return crypto.randomUUID().replace(/-/g, "");
 }
 
 function generateRandomPrefix() {
@@ -40,99 +69,149 @@ async function checkRateLimit(env, ip) {
   return true;
 }
 
-async function cleanupExpired(db) {
-  const now = Math.floor(Date.now() / 1000);
-  try {
-    await db.prepare("DELETE FROM messages WHERE inbox_id IN (SELECT id FROM inboxes WHERE expires_at < ?)").bind(now).run();
-    await db.prepare("DELETE FROM inboxes WHERE expires_at < ?").bind(now).run();
-  } catch (e) {
-    console.error("Cleanup error:", e);
-  }
-}
-
+// ========== POST /api/inbox — Create inbox ==========
 export async function onRequestPost(context) {
   const { env, request } = context;
   const ip = request.headers.get("CF-Connecting-IP") || "unknown";
 
   try {
-    // Rate limit check
     const allowed = await checkRateLimit(env, ip);
     if (!allowed) {
       return Response.json({ error: "Rate limit exceeded. Try again later." }, { status: 429 });
     }
 
-    // Cleanup expired inboxes
-    await cleanupExpired(env.DB);
-
     const body = await request.json().catch(() => ({}));
-    let prefix = body.prefix ? sanitizePrefix(body.prefix) : generateRandomPrefix();
+    const callerToken = request.headers.get("X-Owner-Token") || "";
+    const isCustom = !!body.prefix;
+    let prefix = isCustom ? sanitizePrefix(body.prefix) : null;
 
-    if (prefix.length < 2) {
-      return Response.json({ error: "Prefix must be at least 2 characters." }, { status: 400 });
+    // Validate custom prefix
+    if (isCustom) {
+      if (prefix.length < 2) {
+        return Response.json({ error: "Prefix must be at least 2 characters." }, { status: 400 });
+      }
+      if (isBlockedPrefix(prefix)) {
+        return Response.json({ error: "This name is reserved and cannot be used." }, { status: 403 });
+      }
     }
 
-    const email = `${prefix}@${DOMAIN}`;
+    // --- Custom prefix path ---
+    if (isCustom) {
+      const email = `${prefix}@${DOMAIN}`;
 
-    // Check if inbox already exists and is active
-    const existing = await env.DB.prepare("SELECT * FROM inboxes WHERE email = ? AND expires_at > ?")
-      .bind(email, Math.floor(Date.now() / 1000))
-      .first();
+      // Check if it already exists
+      const existing = await env.DB.prepare("SELECT id, email, created_at, owner_token FROM inboxes WHERE email = ?")
+        .bind(email)
+        .first();
 
-    if (existing) {
+      if (existing) {
+        // Re-claim: caller must prove ownership
+        if (callerToken && callerToken === existing.owner_token) {
+          return Response.json({
+            id: existing.id,
+            email: existing.email,
+            created_at: existing.created_at,
+            owner_token: existing.owner_token,
+          });
+        }
+        // No token or wrong token → reject
+        return Response.json({ error: "Email already taken. Try another prefix." }, { status: 409 });
+      }
+
+      // Insert new inbox
+      const id = generateId();
+      const ownerToken = generateOwnerToken();
+      const now = Math.floor(Date.now() / 1000);
+
+      try {
+        await env.DB.prepare("INSERT INTO inboxes (id, email, owner_token, created_at, expires_at) VALUES (?, ?, ?, ?, 0)")
+          .bind(id, email, ownerToken, now)
+          .run();
+      } catch (e) {
+        // UNIQUE constraint race — another request inserted between our SELECT and INSERT
+        if (e.message && e.message.includes("UNIQUE")) {
+          return Response.json({ error: "Email already taken. Try another prefix." }, { status: 409 });
+        }
+        throw e;
+      }
+
       return Response.json({
-        id: existing.id,
-        email: existing.email,
-        created_at: existing.created_at,
-        expires_at: existing.expires_at,
+        id,
+        email,
+        created_at: now,
+        owner_token: ownerToken,
       });
     }
 
-    const id = generateId();
-    const now = Math.floor(Date.now() / 1000);
-    const expiresAt = now + INBOX_TTL;
+    // --- Random prefix path (with retry) ---
+    for (let attempt = 0; attempt < MAX_RANDOM_RETRIES; attempt++) {
+      const randomPrefix = generateRandomPrefix();
+      const email = `${randomPrefix}@${DOMAIN}`;
+      const id = generateId();
+      const ownerToken = generateOwnerToken();
+      const now = Math.floor(Date.now() / 1000);
 
-    await env.DB.prepare("INSERT INTO inboxes (id, email, created_at, expires_at) VALUES (?, ?, ?, ?)")
-      .bind(id, email, now, expiresAt)
-      .run();
+      try {
+        await env.DB.prepare("INSERT INTO inboxes (id, email, owner_token, created_at, expires_at) VALUES (?, ?, ?, ?, 0)")
+          .bind(id, email, ownerToken, now)
+          .run();
 
-    return Response.json({
-      id,
-      email,
-      created_at: now,
-      expires_at: expiresAt,
-    });
+        return Response.json({
+          id,
+          email,
+          created_at: now,
+          owner_token: ownerToken,
+        });
+      } catch (e) {
+        // UNIQUE collision on random name — retry with a different name
+        if (e.message && e.message.includes("UNIQUE")) {
+          continue;
+        }
+        throw e;
+      }
+    }
+
+    return Response.json({ error: "Failed to generate a unique address. Please try again." }, { status: 500 });
   } catch (e) {
     console.error("Create inbox error:", e);
     return Response.json({ error: "Failed to create inbox." }, { status: 500 });
   }
 }
 
-export async function onRequestGet(context) {
+// ========== DELETE /api/inbox — Delete inbox & cascaded messages ==========
+export async function onRequestDelete(context) {
   const { env, request } = context;
   const url = new URL(request.url);
-  const email = url.searchParams.get("email");
+  const inboxId = url.searchParams.get("id");
+  const ownerToken = request.headers.get("X-Owner-Token");
 
-  if (!email) {
-    return Response.json({ error: "Email parameter required." }, { status: 400 });
+  if (!inboxId) {
+    return Response.json({ error: "id parameter required." }, { status: 400 });
+  }
+  if (!ownerToken) {
+    return Response.json({ error: "Owner token required." }, { status: 403 });
   }
 
   try {
-    const inbox = await env.DB.prepare("SELECT * FROM inboxes WHERE email = ? AND expires_at > ?")
-      .bind(email, Math.floor(Date.now() / 1000))
+    const inbox = await env.DB.prepare("SELECT id, owner_token FROM inboxes WHERE id = ?")
+      .bind(inboxId)
       .first();
 
     if (!inbox) {
-      return Response.json({ error: "Inbox not found or expired." }, { status: 404 });
+      return Response.json({ error: "Inbox not found." }, { status: 404 });
     }
 
-    return Response.json({
-      id: inbox.id,
-      email: inbox.email,
-      created_at: inbox.created_at,
-      expires_at: inbox.expires_at,
-    });
+    if (inbox.owner_token !== ownerToken) {
+      return Response.json({ error: "Unauthorized." }, { status: 403 });
+    }
+
+    // Delete messages first (in case CASCADE isn't enabled at runtime)
+    await env.DB.prepare("DELETE FROM messages WHERE inbox_id = ?").bind(inboxId).run();
+    await env.DB.prepare("DELETE FROM inboxes WHERE id = ?").bind(inboxId).run();
+
+    return Response.json({ success: true, message: "Inbox and all messages deleted." });
   } catch (e) {
-    console.error("Get inbox error:", e);
-    return Response.json({ error: "Failed to get inbox." }, { status: 500 });
+    console.error("Delete inbox error:", e);
+    return Response.json({ error: "Failed to delete inbox." }, { status: 500 });
   }
 }

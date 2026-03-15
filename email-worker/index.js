@@ -9,15 +9,15 @@ export default {
     const from = message.from;
 
     try {
-      // Check if inbox exists and is not expired
+      // Check if inbox exists
       const inbox = await env.DB.prepare(
-        "SELECT * FROM inboxes WHERE email = ? AND expires_at > ?"
+        "SELECT * FROM inboxes WHERE email = ?"
       )
-        .bind(to, Math.floor(Date.now() / 1000))
+        .bind(to)
         .first();
 
       if (!inbox) {
-        message.setReject("Mailbox not found or expired");
+        message.setReject("Mailbox not found");
         return;
       }
 
