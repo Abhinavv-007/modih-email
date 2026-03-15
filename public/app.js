@@ -911,38 +911,23 @@ function animatePrice(elementId, targetValue) {
 
   const startValue = parseFloat(el.textContent) || 0;
   const diff = targetValue - startValue;
-  const duration = 1500; // Match 1.5s CSS
-  const startTime = performance.now();
+  if (diff === 0) return;
 
+  const duration = 800;
+  const startTime = performance.now();
   const isDropping = diff < 0;
   const isIncreasing = diff > 0;
   const wrapper = el.parentElement;
 
-  if (isDropping && wrapper.classList.contains('pricing-amount-wrapper')) {
-    wrapper.classList.remove('slicing');
-    void wrapper.offsetWidth; 
-    wrapper.classList.add('slicing');
-    
-    // Create physical halves of the OLD price that will fall away
-    const oldPriceText = startValue === Math.floor(startValue) ? startValue.toString() : startValue.toFixed(2);
-    
-    const topHalf = document.createElement('span');
-    topHalf.className = 'price-half price-half-top';
-    topHalf.textContent = oldPriceText;
-    
-    const bottomHalf = document.createElement('span');
-    bottomHalf.className = 'price-half price-half-bottom';
-    bottomHalf.textContent = oldPriceText;
-    
-    wrapper.appendChild(topHalf);
-    wrapper.appendChild(bottomHalf);
-    
-    // The main element will instantly become the NEW lower price
-    // but its color is set to transparent in CSS while slicing
-    const newPriceText = targetValue === Math.floor(targetValue) ? targetValue.toString() : targetValue.toFixed(2);
-    el.textContent = newPriceText;
-    
-    createSparkles(el);
+  // Apply color state
+  if (isDropping) {
+    el.classList.add('price-dropping');
+    // Trigger subtle strikethrough
+    if (wrapper && wrapper.classList.contains('pricing-amount-wrapper')) {
+      wrapper.classList.remove('slicing');
+      void wrapper.offsetWidth;
+      wrapper.classList.add('slicing');
+    }
   } else if (isIncreasing) {
     el.classList.add('price-increasing');
   }
@@ -950,77 +935,37 @@ function animatePrice(elementId, targetValue) {
   function tick(now) {
     const elapsed = now - startTime;
     const progress = Math.min(elapsed / duration, 1);
-
+    // Ease out cubic for smooth deceleration
     const eased = 1 - Math.pow(1 - progress, 3);
     const current = startValue + diff * eased;
 
-    // We only animate the number if it's increasing.
-    // If it's dropping, the CSS physically cuts the old number and the new number is already set.
-    if (!isDropping) {
-      if (targetValue === 0) {
-        el.textContent = '0';
-      } else {
-        el.textContent = current.toFixed(2).replace(/\.00$/, '');
-      }
+    // Format display value
+    if (targetValue === 0) {
+      el.textContent = '0';
+    } else {
+      el.textContent = current.toFixed(2).replace(/\.00$/, '');
     }
 
     if (progress < 1) {
       requestAnimationFrame(tick);
     } else {
+      // Final value
+      el.textContent = targetValue === Math.floor(targetValue)
+        ? targetValue.toString()
+        : targetValue.toFixed(2);
+
+      // Fade color back to white via CSS transition
+      el.classList.remove('price-dropping');
       el.classList.remove('price-increasing');
-      if (wrapper.classList.contains('pricing-amount-wrapper')) {
-        // Clear slicing state and clean up the falling halves after animation
-        setTimeout(() => {
-          wrapper.classList.remove('slicing');
-          wrapper.querySelectorAll('.price-half').forEach(half => half.remove());
-        }, 100);
-      }
-      
-      if (targetValue === Math.floor(targetValue)) {
-        el.textContent = targetValue.toString();
-      } else {
-        el.textContent = targetValue.toFixed(2);
+
+      // Clean up strikethrough
+      if (wrapper && wrapper.classList.contains('pricing-amount-wrapper')) {
+        setTimeout(() => wrapper.classList.remove('slicing'), 300);
       }
     }
   }
 
   requestAnimationFrame(tick);
-}
-
-function createSparkles(element) {
-  const rect = element.getBoundingClientRect();
-  const centerX = rect.left + rect.width / 2;
-  const centerY = rect.top + rect.height / 2;
-  
-  const particleCount = 12;
-  for (let i = 0; i < particleCount; i++) {
-    const sparkle = document.createElement('div');
-    sparkle.style.position = 'fixed';
-    sparkle.style.width = '4px';
-    sparkle.style.height = '4px';
-    sparkle.style.backgroundColor = '#fca5a5';
-    sparkle.style.borderRadius = '50%';
-    sparkle.style.pointerEvents = 'none';
-    sparkle.style.zIndex = '9999';
-    sparkle.style.left = centerX + 'px';
-    sparkle.style.top = centerY + 'px';
-    document.body.appendChild(sparkle);
-
-    // Radiate out and fall down slightly
-    const angle = (Math.random() * Math.PI) + Math.PI; // Upwards hemisphere
-    const velocity = 30 + Math.random() * 50;
-    const tx = Math.cos(angle) * velocity;
-    const ty = (Math.sin(angle) * velocity) + 60; // Bias downwards gravity
-
-    sparkle.animate([
-      { transform: `translate(-50%, -50%) scale(1)`, opacity: 1 },
-      { transform: `translate(calc(-50% + ${tx}px), calc(-50% + ${ty}px)) scale(0)`, opacity: 0 }
-    ], {
-      duration: 600 + Math.random() * 300,
-      easing: 'cubic-bezier(0.25, 1, 0.5, 1)',
-      fill: 'forwards'
-    }).onfinish = () => sparkle.remove();
-  }
 }
 
 function updateSavings(elementId, period, plan) {
