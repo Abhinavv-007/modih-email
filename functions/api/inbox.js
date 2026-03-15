@@ -119,9 +119,13 @@ async function logVisitorAction(db, ip, browserToken) {
 async function getActiveInboxCount(db, ip, browserToken) {
   const now = Math.floor(Date.now() / 1000);
   try {
-    // Check active inboxes created by this visitor (within the last 24h window, not expired)
+    // Count active inboxes whose creator matches this visitor directly —
+    // no fragile timestamp-join. Requires creator_ip & creator_token columns
+    // (added by migrate-add-creator-cols.sql).
     const result = await db.prepare(
-      "SELECT COUNT(*) as cnt FROM inboxes i INNER JOIN visitor_actions v ON v.created_at >= (i.created_at - 5) AND v.created_at <= (i.created_at + 5) WHERE (v.ip = ? OR v.browser_token = ?) AND i.expires_at > ?"
+      `SELECT COUNT(*) as cnt FROM inboxes
+       WHERE (creator_ip = ? OR creator_token = ?)
+       AND expires_at > ?`
     ).bind(ip, browserToken, now).first();
     return result ? result.cnt : 0;
   } catch (e) {
@@ -239,8 +243,10 @@ export async function onRequestPost(context) {
       const expiresAt = now + INBOX_TTL;
 
       try {
-        await env.DB.prepare("INSERT INTO inboxes (id, email, owner_token, created_at, expires_at) VALUES (?, ?, ?, ?, ?)")
-          .bind(id, email, ownerToken, now, expiresAt)
+        await env.DB.prepare(
+          "INSERT INTO inboxes (id, email, owner_token, creator_ip, creator_token, created_at, expires_at) VALUES (?, ?, ?, ?, ?, ?, ?)"
+        )
+          .bind(id, email, ownerToken, ip, browserToken, now, expiresAt)
           .run();
 
         // Log this creation for visitor tracking

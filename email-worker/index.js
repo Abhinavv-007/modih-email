@@ -3,7 +3,23 @@
 
 import PostalMime from 'postal-mime';
 
+// ========== SHARED HELPERS ==========
+async function cleanupExpired(db) {
+  const now = Math.floor(Date.now() / 1000);
+  try {
+    await db.prepare("DELETE FROM messages WHERE inbox_id IN (SELECT id FROM inboxes WHERE expires_at > 0 AND expires_at < ?)").bind(now).run();
+    await db.prepare("DELETE FROM inboxes WHERE expires_at > 0 AND expires_at < ?").bind(now).run();
+  } catch (e) {
+    console.error("Cleanup error:", e);
+  }
+}
+
 export default {
+  // ========== SCHEDULED CRON: purge expired inboxes & messages ==========
+  async scheduled(event, env, ctx) {
+    await cleanupExpired(env.DB);
+  },
+
   async email(message, env, ctx) {
     const to = (message.to || "").toLowerCase().trim();
     const from = message.from || "";
@@ -45,7 +61,7 @@ export default {
       let bodyHtml = parsed.html || "";
       let bodyText = parsed.text || "";
 
-      // Sanitize HTML - strip dangerous elements
+      // Sanitize HTML - strip dangerous elements and remote resources (tracking pixels)
       if (bodyHtml) {
         bodyHtml = bodyHtml
           .replace(/<script[\s\S]*?<\/script>/gi, "")
@@ -60,7 +76,9 @@ export default {
           .replace(/javascript:/gi, "blocked:")
           .replace(/vbscript:/gi, "blocked:")
           .replace(/<base[\s\S]*?>/gi, "")
-          .replace(/<meta[\s\S]*?>/gi, "");
+          .replace(/<meta[\s\S]*?>/gi, "")
+          // Block ALL remote images to prevent IP leak via tracking pixels
+          .replace(/<img\b[^>]*>/gi, "[image removed]");
       }
 
       // Limit body size (skip attachments)

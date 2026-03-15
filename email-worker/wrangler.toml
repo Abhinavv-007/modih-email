@@ -6,3 +6,6 @@ compatibility_date = "2024-09-25"
 binding = "DB"
 database_name = "modih-mail-db"
 database_id = "fe8a5416-6c8b-4c4f-b0a5-b59aecd7cc02"
+
+[triggers]
+crons = ["*/30 * * * *"]

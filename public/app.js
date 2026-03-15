@@ -613,15 +613,25 @@ async function deleteAddressAndReset() {
 
   if (!confirm("Delete this address and all its messages? You'll need to create a new one.")) return;
 
+  let deleteOk = false;
   try {
-    await fetch(`/api/inbox?id=${currentInbox.id}`, {
+    const res = await fetch(`/api/inbox?id=${currentInbox.id}`, {
       method: "DELETE",
       headers: authHeaders(),
     });
+    deleteOk = res.ok;
+    if (!deleteOk) {
+      const data = await res.json().catch(() => ({}));
+      showToast(data.error || "Failed to delete address. Please try again.");
+      return; // Keep local state — inbox is still live on the server
+    }
   } catch (e) {
     console.error("Delete inbox error:", e);
+    showToast("Network error. Could not delete address. Please try again.");
+    return; // Keep local state on network failure
   }
 
+  // Only clear state after confirmed server deletion
   currentInbox = null;
   currentMessages = [];
   currentMessageId = null;
@@ -757,7 +767,9 @@ function sanitizeRenderedHtml(html) {
     .replace(/<embed[\s\S]*?>/gi, "")
     .replace(/<form[\s\S]*?<\/form>/gi, "")
     .replace(/<base[\s\S]*?>/gi, "")
-    .replace(/<meta[\s\S]*?>/gi, "");
+    .replace(/<meta[\s\S]*?>/gi, "")
+    // Block remote images (tracking pixels, attacker-controlled URLs)
+    .replace(/<img\b[^>]*>/gi, "[image removed]");
 }
 
 function formatTimeAgo(timestamp) {
@@ -1003,3 +1015,107 @@ function updateSavings(elementId, period, plan) {
   el.offsetHeight;
   el.style.animation = 'savingsPop 0.4s ease both';
 }
+
+// ========== CONTACT MODAL & FORM ==========
+function openContactModal() {
+  const modal = document.getElementById('contact-modal');
+  modal.style.display = 'flex';
+  
+  // Render Turnstile if not already rendered
+  if (window.turnstile && !window.contactTurnstileWidgetId) {
+    window.contactTurnstileWidgetId = window.turnstile.render('#contact-turnstile-widget', {
+      sitekey: window.TURNSTILE_SITE_KEY || '0x4AAAAAAAAAAAAAAAAAAAAAAA',
+      theme: 'dark'
+    });
+  } else if (window.turnstile && window.contactTurnstileWidgetId) {
+    window.turnstile.reset(window.contactTurnstileWidgetId);
+  }
+  
+  requestAnimationFrame(() => {
+    modal.classList.add('active');
+  });
+}
+
+function closeContactModal() {
+  const modal = document.getElementById('contact-modal');
+  modal.classList.remove('active');
+  
+  setTimeout(() => {
+    modal.style.display = 'none';
+    document.getElementById('contact-form').reset();
+  }, 300);
+}
+
+// Close on escape key or clicking outside
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape' && document.getElementById('contact-modal').classList.contains('active')) {
+    closeContactModal();
+  }
+});
+document.getElementById('contact-modal').addEventListener('click', (e) => {
+  if (e.target === document.getElementById('contact-modal')) {
+    closeContactModal();
+  }
+});
+
+async function submitContactForm(e) {
+  e.preventDefault();
+  
+  const btn = document.getElementById('btn-submit-contact');
+  const originalText = btn.innerHTML;
+  
+  const name = document.getElementById('contact-name').value;
+  const email = document.getElementById('contact-email').value;
+  const message = document.getElementById('contact-message').value;
+  
+  let turnstileToken = '';
+  if (window.turnstile && window.contactTurnstileWidgetId) {
+    turnstileToken = window.turnstile.getResponse(window.contactTurnstileWidgetId);
+  }
+  
+  if (!turnstileToken) {
+    showToast("Please complete the security check.");
+    return;
+  }
+  
+  btn.innerHTML = '<span>Sending...</span><div class="loading-dots" style="margin-top:0;"><span></span><span></span><span></span></div>';
+  btn.style.pointerEvents = 'none';
+  btn.style.opacity = '0.7';
+
+  try {
+    const res = await fetch('/api/contact', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Browser-Token': getBrowserToken() // For rate-limiting identical to inbox creation
+      },
+      body: JSON.stringify({
+        name,
+        email,
+        message,
+        turnstile_token: turnstileToken
+      })
+    });
+    
+    if (res.ok) {
+      closeContactModal();
+      setTimeout(() => {
+        showToast("Message sent completely! We'll reply soon.");
+      }, 400);
+    } else {
+      const data = await res.json().catch(() => ({}));
+      showToast(data.error || "Failed to send message. Please try again.");
+      if (window.turnstile && window.contactTurnstileWidgetId) {
+        window.turnstile.reset(window.contactTurnstileWidgetId);
+      }
+    }
+  } catch (error) {
+    console.error("Submit error:", error);
+    showToast("Network error. Could not send message.");
+  } finally {
+    btn.innerHTML = originalText;
+    btn.style.pointerEvents = 'auto';
+    btn.style.opacity = '1';
+  }
+}
+

@@ -168,7 +168,7 @@
             <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
           </div>
           <h3>Safe Rendering</h3>
-          <p>Email content is sanitized and rendered safely. No scripts, no tracking pixels, no risk.</p>
+          <p>Email HTML is sanitized server-side and client-side. Scripts, iframes, and remote images (tracking pixels) are all stripped before display.</p>
         </div>
       </div>
     </div>
@@ -293,7 +293,7 @@
             <li class="feature-included"><span class="feature-check">✓</span> Usage dashboard</li>
             <li class="feature-included"><span class="feature-check">✓</span> 30-day logs</li>
           </ul>
-          <button class="btn btn-secondary pricing-cta">
+          <button class="btn btn-secondary pricing-cta" onclick="openContactModal()">
             <span>Contact Sales ↗</span>
           </button>
         </div>
@@ -458,6 +458,36 @@
           </div>
         </div>
       </div>
+    </div>
+  </div>
+
+  <!-- ========== CONTACT MODAL ========== -->
+  <div id="contact-modal" class="modal-overlay" style="display:none;">
+    <div class="modal-container glass-card-large">
+      <button class="icon-btn close-modal-btn" onclick="closeContactModal()" title="Close">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+      </button>
+      
+      <div class="modal-header">
+        <h2 class="section-title" style="font-size: 2.2rem; margin-bottom: 0.5rem;"><span class="cursive-accent">Contact</span> Support</h2>
+        <p class="section-desc" style="font-size: 0.95rem; margin-bottom: 1.5rem;">Have questions about the Pro or Developer API plans? Send us a message.</p>
+      </div>
+      
+      <form id="contact-form" onsubmit="submitContactForm(event)">
+        <div class="input-group" style="flex-direction: column; gap: 1rem;">
+          <input type="text" id="contact-name" class="email-input" placeholder="Your Name" required autocomplete="name" />
+          <input type="email" id="contact-email" class="email-input" placeholder="Your Return Email" required autocomplete="email" />
+          <textarea id="contact-message" class="email-input" placeholder="How can we help you?" rows="4" required style="resize: vertical; min-height: 100px; padding-top: 1rem; border-radius: 12px;"></textarea>
+          
+          <div id="contact-turnstile-container" style="display: flex; justify-content: center; margin: 0.5rem 0;">
+            <div id="contact-turnstile-widget"></div>
+          </div>
+          
+          <button type="submit" id="btn-submit-contact" class="btn btn-primary glow-btn" style="width: 100%; justify-content: center;">
+            <span>Send Message ↗</span>
+          </button>
+        </div>
+      </form>
     </div>
   </div>
 
