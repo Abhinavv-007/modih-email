@@ -1056,16 +1056,20 @@ function closeContactModal() {
 }
 
 // Close on escape key or clicking outside
-document.addEventListener('keydown', (e) => {
-  if (e.key === 'Escape' && document.getElementById('contact-modal').classList.contains('active')) {
-    closeContactModal();
+document.addEventListener('DOMContentLoaded', () => {
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && document.getElementById('contact-modal').classList.contains('active')) {
+      closeContactModal();
+    }
+  });
+  const contactModal = document.getElementById('contact-modal');
+  if (contactModal) {
+    contactModal.addEventListener('click', (e) => {
+      if (e.target === contactModal) closeContactModal();
+    });
   }
 });
-document.getElementById('contact-modal').addEventListener('click', (e) => {
-  if (e.target === document.getElementById('contact-modal')) {
-    closeContactModal();
-  }
-});
+
 
 async function submitContactForm(e) {
   e.preventDefault();

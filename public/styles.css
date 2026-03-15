@@ -1651,6 +1651,19 @@ body {
   text-align: center;
 }
 
+.pricing-section .section-tag {
+  display: inline-block;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.pricing-section .section-title,
+.pricing-section .section-desc {
+  text-align: center;
+  margin-left: auto;
+  margin-right: auto;
+}
+
 /* Billing Toggle */
 .billing-toggle-wrapper {
   display: flex;
