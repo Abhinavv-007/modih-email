@@ -1017,31 +1017,46 @@ function updateSavings(elementId, period, plan) {
 }
 
 // ========== CONTACT MODAL & FORM ==========
-function openContactModal() {
+const CONTACT_PLAN_CONFIG = {
+  pro: {
+    badge: '⭐ Pro Plan',
+    desc: 'Interested in the Pro plan? Leave your details and we\'ll get back to you!',
+    message: 'Hi, I\'m interested in the Pro plan ($5/month). Can you tell me more about how to get started?'
+  },
+  developer: {
+    badge: '🔑 Developer Plan',
+    desc: 'Interested in the Developer API plan? Leave your details and we\'ll get back to you!',
+    message: 'Hi, I\'m interested in the Developer API plan. Can you tell me more about the API access and pricing?'
+  }
+};
+
+function openContactModal(plan) {
   try {
     const modal = document.getElementById('contact-modal');
     modal.style.display = 'flex';
-    
-    // Render Turnstile if not already rendered
-    try {
-      if (window.turnstile && !window.contactTurnstileWidgetId) {
-        window.contactTurnstileWidgetId = window.turnstile.render('#contact-turnstile-widget', {
-          sitekey: window.TURNSTILE_SITE_KEY || '0x4AAAAAAAAAAAAAAAAAAAAAAA',
-          theme: 'dark'
-        });
-      } else if (window.turnstile && window.contactTurnstileWidgetId) {
-        window.turnstile.reset(window.contactTurnstileWidgetId);
-      }
-    } catch (err) {
-      console.error("Turnstile failed to render:", err);
+
+    // Update badge and description based on plan
+    const badge = document.getElementById('contact-plan-badge');
+    const badgeText = document.getElementById('contact-plan-text');
+    const desc = document.getElementById('contact-modal-desc');
+    const messageField = document.getElementById('contact-message');
+
+    if (plan && CONTACT_PLAN_CONFIG[plan]) {
+      const cfg = CONTACT_PLAN_CONFIG[plan];
+      badge.style.display = 'block';
+      badgeText.textContent = cfg.badge;
+      desc.textContent = cfg.desc;
+      if (!messageField.value) messageField.value = cfg.message;
+    } else {
+      badge.style.display = 'none';
+      desc.textContent = 'Have a question or want to get early access? Send us a message.';
     }
     
     requestAnimationFrame(() => {
       modal.classList.add('active');
     });
   } catch (e) {
-    console.error("Failed to open modal:", e);
-    alert("Could not open contact form. Please email us directly at hi@abhnv.in");
+    console.error('Failed to open modal:', e);
   }
 }
 
@@ -1085,11 +1100,8 @@ async function submitContactForm(e) {
   if (window.turnstile && window.contactTurnstileWidgetId) {
     turnstileToken = window.turnstile.getResponse(window.contactTurnstileWidgetId);
   }
-  
-  if (!turnstileToken) {
-    showToast("Please complete the security check.");
-    return;
-  }
+
+  // Note: Turnstile is optional for the contact form — backend rate limiting handles spam
   
   btn.innerHTML = '<span>Sending...</span><div class="loading-dots" style="margin-top:0;"><span></span><span></span><span></span></div>';
   btn.style.pointerEvents = 'none';
