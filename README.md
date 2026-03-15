@@ -1,171 +1,163 @@
-# Modih Mail — Premium Disposable Email @modih.in
+<div align="center">
+  <img src="public/phone-mail-bg.png" alt="Modih Mail Banner" width="100%" style="border-radius: 12px; margin-bottom: 20px;" />
 
-A cinematic, fully functional disposable email web app powered by Cloudflare Pages, Workers, D1, KV, and Email Routing.
+  # ✉️ Modih Mail
+  **Premium Disposable Email @modih.in**
+  
+  <p align="center">
+    A cinematic, fully functional disposable email web app powered entirely by Cloudflare infrastructure. Built for speed, privacy, and aesthetics.
+  </p>
 
-## Features
+  <div>
+    <img src="https://img.shields.io/badge/Cloudflare-F38020?style=for-the-badge&logo=Cloudflare&logoColor=white" alt="Cloudflare" />
+    <img src="https://img.shields.io/badge/Workers-F38020?style=for-the-badge&logo=Cloudflare&logoColor=white" alt="Cloudflare Workers" />
+    <img src="https://img.shields.io/badge/HTML5-E34F26?style=for-the-badge&logo=html5&logoColor=white" alt="HTML5" />
+    <img src="https://img.shields.io/badge/CSS3-1572B6?style=for-the-badge&logo=css3&logoColor=white" alt="CSS3" />
+    <img src="https://img.shields.io/badge/JavaScript-F7DF1E?style=for-the-badge&logo=javascript&logoColor=black" alt="JavaScript" />
+  </div>
 
-- **Instant Disposable Email** — Generate random `@modih.in` addresses (custom prefixes with Pro)
-- **3-Hour Auto-Expiry** — Free inboxes self-destruct after 3 hours (Pro: 7 days)
-- **Real Inbox** — Receive, read, and delete real emails
-- **OTP Detection** — Automatically extracts verification codes
-- **Cinematic UI** — Glassmorphism, video backgrounds, smooth animations
-- **Fully Responsive** — Desktop video background, mobile image backgrounds
-- **Abuse Prevention** — IP + browser token tracking, Cloudflare Turnstile CAPTCHA
-- **Rate Limiting** — IP-based via Cloudflare KV + D1 visitor tracking
-- **Safe Rendering** — Sanitized HTML email display, no scripts/iframes
+  <br />
+  <a href="https://modih.in"><strong>View Live Demo »</strong></a>
+</div>
 
-## Free-Tier Limits
+<br />
 
-| Limit | Value |
-|-------|-------|
-| Inbox creations per 24h | 3 |
-| Active inboxes | 1 |
-| Inbox retention | 3 hours |
-| Custom prefix | ❌ (Pro only) |
-| Turnstile CAPTCHA | After 2nd creation |
-| Hard block | After 3rd creation, resets after 24h |
+---
 
-## Architecture
+## ✨ Cinematic Aesthetics
+Modih Mail isn't just another utility; it's designed to be an experience.
+* **Glassmorphism UI:** Translucent frosted-glass panels over vivid, high-quality looping video backgrounds.
+* **Micro-interactions:** Smooth transitions, hover states, typewriter text effects, and popping count-down timers.
+* **Responsive Design:** Completely adaptive layout mapping a cinematic desktop experience down to a streamlined mobile app feel.
 
+---
+
+## 🚀 Core Features
+
+<table>
+  <tr>
+    <td width="50%">
+      <h3>📬 Instant Disposable Email</h3>
+      <p>Generate secure, random <b>@modih.in</b> addresses instantly. Upgrade to Pro to reserve your own custom prefixes.</p>
+    </td>
+    <td width="50%">
+      <h3>⏳ Auto-Destructing</h3>
+      <p>Privacy first: Free inboxes and all their contents self-destruct entirely after <b>3 hours</b> (Up to 7 days for Pro).</p>
+    </td>
+  </tr>
+  <tr>
+    <td width="50%">
+      <h3>🔑 Smart OTP Detection</h3>
+      <p>Automatically scans incoming emails and extracts <b>verification codes</b>, highlighting them for 1-click copying.</p>
+    </td>
+    <td width="50%">
+      <h3>🛡️ Safe Rendering Engine</h3>
+      <p>Incoming HTML emails are scrubbed server-side. Scripts, iframes, and remote tracking pixels are aggressively stripped.</p>
+    </td>
+  </tr>
+  <tr>
+    <td width="50%">
+      <h3>🔒 Enterprise-Grade Abuse Prevention</h3>
+      <p>Rate limits via <b>Cloudflare KV</b>, device fingerprint clustering via <b>D1</b>, and invisible CAPTCHA via <b>Turnstile</b>.</p>
+    </td>
+    <td width="50%">
+      <h3>⚡ 100% Edge Hosted</h3>
+      <p>No central servers. Hosted entirely on <b>Cloudflare Pages, Workers, KV, and D1</b> for 0ms cold starts worldwide.</p>
+    </td>
+  </tr>
+</table>
+
+---
+
+## 🏗️ Architecture Stack
+
+The entire stack lives on the Edge, utilizing Cloudflare's ecosystem to provide a database-backed, real-time application without a traditional backend server.
+
+```mermaid
+graph TD
+    User([User Browser]) --> CF_Pages[Cloudflare Pages Web App]
+    CF_Pages --> API[Pages Functions API]
+    API --> D1[(D1 SQLite Database)]
+    API --> KV[(KV Rate Limiting)]
+    
+    External_Mail([Sender]) --> Routing[CF Email Routing]
+    Routing --> Worker[Email Catch-all Worker]
+    Worker --> D1
 ```
-├── public/                 # Static frontend (Cloudflare Pages)
-│   ├── index.html          # Main HTML (hero, features, pricing, generate)
-│   ├── styles.css          # Cinematic styles + pricing section
-│   ├── app.js              # Application logic + pricing toggle
-│   └── [media assets]      # Video/image backgrounds
-├── functions/              # Cloudflare Pages Functions (API)
-│   └── api/
-│       ├── inbox.js        # POST/DELETE inbox + abuse prevention
-│       └── messages.js     # GET/DELETE messages endpoints
-├── email-worker/           # Separate Email Worker for inbound mail
-│   ├── index.js            # Email handler
-│   ├── wrangler.toml       # Worker config
-│   └── package.json        # Dependencies (postal-mime)
-├── final-desptop-tab.sql   # D1 database schema
-├── migrate-free-tier.sql   # Visitor tracking migration
-├── wrangler.toml           # Pages project config
-└── package.json            # Project dependencies
-```
 
-## Deployment Guide
+* **Frontend:** Vanilla JS + CSS (Zero frameworks for maximum speed).
+* **Backend API:** Cloudflare Pages Functions (`/api/inbox`, `/api/messages`, `/api/contact`).
+* **Database:** Cloudflare D1 (Serverless SQLite) storing active inboxes and encrypted messages.
+* **Mail Ingestion:** Cloudflare Email Routing → Email Worker (`postal-mime` parser).
+* **Security:** Cloudflare Turnstile & KV Rate Limiting.
+* **Support Contact Form:** Integrated with Resend API.
 
-### Prerequisites
+---
 
-- Cloudflare account with a domain (`modih.in`) added
-- Node.js 18+ installed
-- Wrangler CLI: `npm install -g wrangler`
+## 💻 Local Development
 
-### Step 1: Authenticate with Cloudflare
+1. **Clone the repository:**
+   ```bash
+   git clone https://github.com/Abhinavv-007/modih-email.git
+   cd modih-email
+   ```
 
+2. **Install dependencies:**
+   ```bash
+   npm install
+   ```
+
+3. **Start the local Cloudflare dev server:**
+   ```bash
+   npm run dev
+   ```
+   *The app will be available at `http://localhost:8788`. Note: Email receiving requires the production Cloudflare Email Routing setup to function.*
+
+---
+
+## 🚀 Deployment Guide
+
+### 1. Database & KV Setup
 ```bash
-wrangler login
-```
-
-### Step 2: Create D1 Database
-
-```bash
+# Create the D1 Database
 wrangler d1 create modih-mail-db
-```
 
-Copy the `database_id` from the output and update it in:
-- `wrangler.toml` → `database_id`
-- `email-worker/wrangler.toml` → `database_id`
-
-### Step 3: Initialize D1 Schema
-
-```bash
+# Initialize the schema
 wrangler d1 execute modih-mail-db --file=final-desptop-tab.sql
-```
 
-### Step 4: Run Free-Tier Migration
-
-```bash
-npm run db:migrate:free-tier
-```
-
-This creates the `visitor_actions` table for tracking inbox creation per visitor.
-
-### Step 5: Create KV Namespace
-
-```bash
+# Create the Rate Limit KV
 wrangler kv namespace create RATE_LIMIT
 ```
+*(Remember to map the resulting IDs into your `wrangler.toml` file.)*
 
-Copy the `id` from the output and update `wrangler.toml` → KV `id`.
-
-### Step 6: Set Up Cloudflare Turnstile
-
-1. Go to [Cloudflare Dashboard → Turnstile](https://dash.cloudflare.com/?to=/:account/turnstile)
-2. Create a new Turnstile widget for your domain
-3. Copy the **Site Key** and update `wrangler.toml` → `TURNSTILE_SITE_KEY`
-4. Set the **Secret Key** as a secret:
-
+### 2. Environment Secrets
+Run the following commands to securely add your API keys to the Pages project:
 ```bash
-wrangler secret put TURNSTILE_SECRET
+wrangler pages secret put TURNSTILE_SITE_KEY
+wrangler pages secret put TURNSTILE_SECRET
+wrangler pages secret put RESEND_API_KEY
 ```
 
-### Step 7: Deploy Pages (Frontend + API)
-
+### 3. Deploy Frontend & API
 ```bash
-npm install
-wrangler pages project create modih-mail
-wrangler pages deploy public --project-name=modih-mail
+wrangler pages deploy public --project-name=modih-email
 ```
 
-In the Cloudflare Dashboard, go to your Pages project → Settings → Functions → Bindings:
-- Add **D1 Database** binding: Variable name `DB`, select `modih-mail-db`
-- Add **KV Namespace** binding: Variable name `RATE_LIMIT`, select your KV namespace
-
-### Step 8: Deploy Email Worker
-
+### 4. Deploy Email Ingestion Worker
 ```bash
 cd email-worker
 npm install
 wrangler deploy
 ```
+*After deploying the worker, ensure you configure Cloudflare Email Routing to Catch-All and forward to the newly deployed `modih-mail-email-worker`.*
 
-### Step 9: Configure Email Routing
+---
 
-1. Go to Cloudflare Dashboard → `modih.in` → Email → Email Routing
-2. Enable Email Routing for your domain
-3. Under **Routing Rules**, add a **Catch-all** rule:
-   - Action: **Send to a Worker**
-   - Destination: `modih-mail-email-worker`
-4. This routes ALL `*@modih.in` emails to the worker
-
-### Step 10: Custom Domain (Optional)
-
-In Pages project settings, add a custom domain (e.g., `mail.modih.in`).
-
-## Local Development
-
-```bash
-npm install
-npm run dev
-```
-
-This starts a local dev server at `http://localhost:8788` with D1 and KV bindings.
-
-> **Note:** Email receiving only works in production with Cloudflare Email Routing.
-
-## API Endpoints
-
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| POST | `/api/inbox` | Create inbox (random only for free; sends `X-Browser-Token`) |
-| DELETE | `/api/inbox?id=x` | Delete inbox (requires `X-Owner-Token`) |
-| GET | `/api/messages?inbox_id=x` | List messages (requires `X-Owner-Token`) |
-| DELETE | `/api/messages?inbox_id=x` | Delete all messages |
-| DELETE | `/api/messages?inbox_id=x&id=y` | Delete single message |
-
-## Plans
-
-| Plan | Price | Highlights |
-|------|-------|------------|
-| Guest | Free | 3 inboxes/day, 1 active, 3h retention, random only |
-| Pro | $6/mo | Custom prefix, 10 active, 7-day retention, no captcha |
-| Developer | $29/mo | API keys, webhooks, 5k creates/mo, IP allowlist |
-
-## License
-
-Private project.
+<div align="center">
+  <p>Built with ❤️ by Abhinav.</p>
+  <p>
+    <a href="https://abhnv.in">Portfolio</a> •
+    <a href="https://linkedin.com/in/iamabhnv">LinkedIn</a> •
+    <a href="https://lnch.in">Launch</a>
+  </p>
+</div>
