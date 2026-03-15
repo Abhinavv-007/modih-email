@@ -1018,26 +1018,31 @@ function updateSavings(elementId, period, plan) {
 
 // ========== CONTACT MODAL & FORM ==========
 function openContactModal() {
-  const modal = document.getElementById('contact-modal');
-  modal.style.display = 'flex';
-  
-  // Render Turnstile if not already rendered
   try {
-    if (window.turnstile && !window.contactTurnstileWidgetId) {
-      window.contactTurnstileWidgetId = window.turnstile.render('#contact-turnstile-widget', {
-        sitekey: window.TURNSTILE_SITE_KEY || '0x4AAAAAAAAAAAAAAAAAAAAAAA',
-        theme: 'dark'
-      });
-    } else if (window.turnstile && window.contactTurnstileWidgetId) {
-      window.turnstile.reset(window.contactTurnstileWidgetId);
+    const modal = document.getElementById('contact-modal');
+    modal.style.display = 'flex';
+    
+    // Render Turnstile if not already rendered
+    try {
+      if (window.turnstile && !window.contactTurnstileWidgetId) {
+        window.contactTurnstileWidgetId = window.turnstile.render('#contact-turnstile-widget', {
+          sitekey: window.TURNSTILE_SITE_KEY || '0x4AAAAAAAAAAAAAAAAAAAAAAA',
+          theme: 'dark'
+        });
+      } else if (window.turnstile && window.contactTurnstileWidgetId) {
+        window.turnstile.reset(window.contactTurnstileWidgetId);
+      }
+    } catch (err) {
+      console.error("Turnstile failed to render:", err);
     }
-  } catch (err) {
-    console.error("Turnstile failed to render:", err);
+    
+    requestAnimationFrame(() => {
+      modal.classList.add('active');
+    });
+  } catch (e) {
+    console.error("Failed to open modal:", e);
+    alert("Could not open contact form. Please email us directly at hi@abhnv.in");
   }
-  
-  requestAnimationFrame(() => {
-    modal.classList.add('active');
-  });
 }
 
 function closeContactModal() {
