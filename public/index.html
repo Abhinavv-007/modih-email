@@ -479,10 +479,8 @@
       
       <form id="contact-form" onsubmit="submitContactForm(event)" style="margin-top: 1.5rem;">
         <div style="display: flex; flex-direction: column; gap: 0.85rem;">
-          <div style="display: flex; gap: 0.75rem;">
-            <input type="text" id="contact-name" placeholder="Your Name" required autocomplete="name" />
-            <input type="email" id="contact-email" placeholder="Your Email" required autocomplete="email" style="flex: 1.5;" />
-          </div>
+          <input type="text" id="contact-name" placeholder="Your Name" required autocomplete="name" />
+          <input type="email" id="contact-email" placeholder="Your Email" required autocomplete="email" />
           <textarea id="contact-message" placeholder="How can we help you?" rows="4" required></textarea>
           
           <button type="submit" id="btn-submit-contact" class="btn btn-primary glow-btn" style="width: 100%; justify-content: center; margin-top: 0.25rem;">

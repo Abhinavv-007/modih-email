@@ -28,28 +28,26 @@ export async function onRequestPost({ request, env }) {
       });
     }
 
-    // 2. Turnstile Verification
-    if (!turnstile_token) {
-      return new Response(JSON.stringify({ error: 'Missing security token' }), { status: 400 });
-    }
+    // 2. Turnstile Verification (optional — only verify if a token was sent)
+    if (turnstile_token) {
+      const ip = request.headers.get('CF-Connecting-IP');
+      const formData = new FormData();
+      formData.append('secret', env.TURNSTILE_SECRET);
+      formData.append('response', turnstile_token);
+      formData.append('remoteip', ip);
 
-    const ip = request.headers.get('CF-Connecting-IP');
-    const formData = new FormData();
-    formData.append('secret', env.TURNSTILE_SECRET);
-    formData.append('response', turnstile_token);
-    formData.append('remoteip', ip);
-
-    const result = await fetch('https://challenges.cloudflare.com/turnstile/v0/siteverify', {
-      body: formData,
-      method: 'POST',
-    });
-
-    const outcome = await result.json();
-    if (!outcome.success) {
-      return new Response(JSON.stringify({ error: 'Security check failed. Please refresh.' }), { 
-        status: 403,
-        headers: { 'Content-Type': 'application/json' }
+      const result = await fetch('https://challenges.cloudflare.com/turnstile/v0/siteverify', {
+        body: formData,
+        method: 'POST',
       });
+
+      const outcome = await result.json();
+      if (!outcome.success) {
+        return new Response(JSON.stringify({ error: 'Security check failed. Please refresh.' }), { 
+          status: 403,
+          headers: { 'Content-Type': 'application/json' }
+        });
+      }
     }
 
     // 3. Send Email using Resend
