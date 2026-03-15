@@ -1545,6 +1545,498 @@ body {
   gap: 0.75rem;
 }
 
+/* ========== PRICING SECTION ========== */
+.pricing-section .section-inner {
+  text-align: center;
+}
+
+/* Billing Toggle */
+.billing-toggle-wrapper {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 3rem;
+}
+
+.billing-toggle {
+  position: relative;
+  display: inline-flex;
+  background: rgba(20, 20, 30, 0.5);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 100px;
+  padding: 4px;
+  gap: 2px;
+}
+
+.billing-option {
+  position: relative;
+  z-index: 2;
+  background: transparent;
+  border: none;
+  color: var(--text-secondary);
+  padding: 0.6rem 1.5rem;
+  border-radius: 100px;
+  font-family: 'Inter', sans-serif;
+  font-size: 0.85rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: color 0.3s ease;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  white-space: nowrap;
+}
+
+.billing-option.active {
+  color: #fff;
+}
+
+.billing-option:hover:not(.active) {
+  color: var(--text-primary);
+}
+
+.billing-badge {
+  font-size: 0.65rem;
+  font-weight: 700;
+  padding: 0.15rem 0.45rem;
+  border-radius: 100px;
+  background: rgba(212, 167, 106, 0.2);
+  color: var(--accent);
+  border: 1px solid rgba(212, 167, 106, 0.3);
+}
+
+.billing-badge.best-badge {
+  background: rgba(52, 211, 153, 0.15);
+  color: var(--success);
+  border-color: rgba(52, 211, 153, 0.3);
+}
+
+.billing-slider {
+  position: absolute;
+  top: 4px;
+  left: 4px;
+  height: calc(100% - 8px);
+  background: rgba(255, 255, 255, 0.12);
+  border-radius: 100px;
+  transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  z-index: 1;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+}
+
+/* Pricing Grid */
+.pricing-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1.5rem;
+  margin-top: 1rem;
+  align-items: start;
+}
+
+.pricing-card {
+  position: relative;
+  padding: 2rem;
+  text-align: left;
+  transition: transform 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275), box-shadow 0.5s ease;
+  will-change: transform;
+  overflow: hidden;
+  border-radius: var(--radius-lg, 16px);
+  background: linear-gradient(180deg, rgba(35, 30, 20, 0.9) 0%, rgba(20, 15, 15, 0.95) 100%);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+/* Animated subtle texture overlay */
+}
+
+/* Moving gradient noise overlay */
+.pricing-card::after {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: radial-gradient(circle at 50% 0%, rgba(255, 255, 255, 0.03) 0%, transparent 60%),
+              url('data:image/svg+xml,%3Csvg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg"%3E%3Cfilter id="noiseFilter"%3E%3CfeTurbulence type="fractalNoise" baseFrequency="0.65" numOctaves="3" stitchTiles="stitch"/%3E%3C/filter%3E%3Crect width="100%25" height="100%25" filter="url(%23noiseFilter)"/%3E%3C/svg%3E');
+  opacity: 0.15;
+  mix-blend-mode: overlay;
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* Subtle glow that follows hover (using CSS hover state for simplicity instead of JS mouse tracking) */
+.pricing-card:hover {
+  transform: translateY(-8px) scale(1.02);
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.5), 0 0 20px rgba(255, 255, 255, 0.05) inset;
+  border-color: rgba(255, 255, 255, 0.2);
+  z-index: 10;
+}
+
+/* Featured Card (Pro) highly animated */
+.pricing-card-featured {
+  background: linear-gradient(180deg, rgba(35, 30, 20, 0.9) 0%, rgba(20, 15, 15, 0.95) 100%);
+  border-color: rgba(212, 167, 106, 0.2);
+  box-shadow: 0 10px 40px rgba(212, 167, 106, 0.1);
+}
+
+.pricing-card-featured::before {
+  content: '';
+  position: absolute;
+  top: -1px;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: linear-gradient(90deg, var(--accent), var(--accent-secondary), var(--accent-warm));
+  border-radius: var(--radius) var(--radius) 0 0;
+}
+
+/* Static top glow bar */
+.pricing-card-featured .pricing-recommended-badge {
+  z-index: 2;
+}
+.pricing-card-header, .pricing-price-wrapper, .pricing-features, .pricing-cta {
+  position: relative;
+  z-index: 2;
+}
+
+.pricing-card-featured:hover {
+  transform: translateY(-10px) scale(1.03);
+  box-shadow: 0 30px 60px rgba(212, 167, 106, 0.2), 0 0 40px rgba(212, 167, 106, 0.1) inset;
+  border-color: rgba(212, 167, 106, 0.5); 
+}
+
+.pricing-recommended-badge {
+  position: absolute;
+  top: 1rem;
+  right: 1rem;
+  background: linear-gradient(135deg, rgba(212, 167, 106, 0.2), rgba(212, 167, 106, 0.1));
+  border: 1px solid rgba(212, 167, 106, 0.35);
+  border-radius: 100px;
+  padding: 0.25rem 0.75rem;
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: var(--accent);
+  letter-spacing: 0.05em;
+  animation: badgePulse 3s ease-in-out infinite;
+}
+
+@keyframes badgePulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(212, 167, 106, 0.3); }
+  50% { box-shadow: 0 0 0 6px rgba(212, 167, 106, 0); }
+}
+
+/* Card Header */
+.pricing-card-header {
+  margin-bottom: 1.5rem;
+}
+
+.pricing-plan-icon {
+  font-size: 2rem;
+  display: block;
+  margin-bottom: 0.75rem;
+  filter: drop-shadow(0 2px 4px rgba(0,0,0,0.3));
+}
+
+.pricing-plan-name {
+  font-family: 'Cormorant Garamond', 'Playfair Display', serif;
+  font-size: 1.5rem;
+  font-weight: 700;
+  font-style: italic;
+  margin-bottom: 0.25rem;
+  text-shadow: 0 1px 6px rgba(0,0,0,0.3);
+}
+
+.pricing-plan-tagline {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
+
+/* Price Display */
+.pricing-price-wrapper {
+  margin-bottom: 1.5rem;
+  padding-bottom: 1.5rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.pricing-price {
+  display: inline-flex;
+  align-items: flex-start;
+}
+
+.pricing-currency {
+  font-family: 'Inter', sans-serif;
+  font-size: 1.2rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  margin-right: 2px;
+  margin-top: 0.4rem;
+}
+
+.pricing-amount {
+  font-family: 'Cormorant Garamond', serif;
+  font-size: 3.5rem;
+  font-weight: 700;
+  line-height: 1;
+  color: #fff;
+  text-shadow: 0 2px 8px rgba(0,0,0,0.3);
+  transition: color 0.3s ease;
+  position: relative;
+  z-index: 2;
+}
+
+.pricing-amount-wrapper {
+  position: relative;
+  display: inline-block;
+}
+
+.pricing-amount-slice {
+  position: absolute;
+  top: 50%;
+  left: -8%;
+  right: -8%;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, #ef4444, #f87171 50%, #ef4444, transparent);
+  box-shadow: 0 0 16px rgba(239, 68, 68, 1), 0 0 8px rgba(239, 68, 68, 0.8), 0 0 2px #fff;
+  transform: translateY(-50%) rotate(-8deg) scaleX(0); /* Leveled out slightly */
+  transform-origin: left center;
+  z-index: 5;
+  pointer-events: none;
+  opacity: 0;
+}
+
+.pricing-amount-wrapper.slicing .pricing-amount-slice {
+  animation: slashEffect 1.2s cubic-bezier(0.2, 0.8, 0.3, 1) forwards;
+}
+
+.pricing-amount-wrapper.slicing .pricing-amount {
+  /* Hide the original full text while halves animate */
+  color: transparent !important;
+  text-shadow: none !important;
+}
+
+/* Duplicated Halves for physical cut */
+.price-half {
+  position: absolute;
+  top: 0; left: 0; right: 0; bottom: 0;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  color: #fca5a5; /* Reddish damage color */
+  text-shadow: 0 2px 8px rgba(239, 68, 68, 0.5);
+  pointer-events: none;
+  z-index: 4;
+}
+
+.price-half-top {
+  clip-path: polygon(0 0, 100% 0, 100% calc(50% + 4px), 0 calc(50% - 4px));
+}
+
+.price-half-bottom {
+  clip-path: polygon(0 calc(50% - 4px), 100% calc(50% + 4px), 100% 100%, 0 100%);
+}
+
+.pricing-amount-wrapper.slicing .price-half-top {
+  animation: sliceTopDrop 1s cubic-bezier(0.5, 0, 1, 0.5) 0.15s forwards;
+}
+
+.pricing-amount-wrapper.slicing .price-half-bottom {
+  animation: sliceBottomDrop 1s cubic-bezier(0.5, 0, 1, 0.5) 0.15s forwards;
+}
+
+@keyframes slashEffect {
+  0% { transform: translateY(-50%) rotate(-8deg) scaleX(0); opacity: 1; filter: brightness(1); }
+  15% { transform: translateY(-50%) rotate(-8deg) scaleX(1.05); opacity: 1; filter: brightness(1.5) blur(1px); }
+  50% { transform: translateY(-50%) rotate(-8deg) scaleX(1.05); opacity: 0.9; filter: brightness(1.5) blur(1px); }
+  100% { transform: translateY(-50%) rotate(-8deg) scaleX(1.1); opacity: 0; filter: brightness(1); }
+}
+
+@keyframes sliceTopDrop {
+  0% { transform: translate(0, 0) rotate(0); opacity: 1; }
+  10% { transform: translate(-2px, -2px) rotate(-2deg); opacity: 1; }
+  100% { transform: translate(-15px, 30px) rotate(-15deg); opacity: 0; }
+}
+
+@keyframes sliceBottomDrop {
+  0% { transform: translate(0, 0) rotate(0); opacity: 1; }
+  10% { transform: translate(2px, 2px) rotate(2deg); opacity: 1; }
+  100% { transform: translate(15px, 40px) rotate(15deg); opacity: 0; }
+}
+
+.pricing-amount.price-increasing {
+  color: #10b981; /* emerald-500 */
+}
+
+.pricing-amount.price-dropping {
+  color: #ef4444; /* red-500 */
+}
+
+.pricing-period {
+  display: block;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  margin-top: 0.35rem;
+}
+
+/* Savings Badge */
+.pricing-savings {
+  margin-top: -1rem;
+  margin-bottom: 1.5rem;
+}
+
+.savings-text {
+  display: inline-block;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--success);
+  background: rgba(52, 211, 153, 0.1);
+  border: 1px solid rgba(52, 211, 153, 0.25);
+  border-radius: 100px;
+  padding: 0.2rem 0.7rem;
+}
+
+@keyframes savingsPop {
+  0% { opacity: 0; transform: scale(0.8) translateY(-4px); }
+  60% { transform: scale(1.05) translateY(0); }
+  100% { opacity: 1; transform: scale(1) translateY(0); }
+}
+
+/* Feature List */
+.pricing-features {
+  list-style: none;
+  margin-bottom: 2rem;
+}
+
+.pricing-features li {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.5rem 0;
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+}
+
+.pricing-features li:last-child {
+  border-bottom: none;
+}
+
+.feature-check {
+  color: var(--success);
+  font-weight: 700;
+  font-size: 0.9rem;
+  flex-shrink: 0;
+  width: 18px;
+  text-align: center;
+}
+
+.feature-x {
+  color: rgba(255, 255, 255, 0.25);
+  font-weight: 700;
+  font-size: 0.9rem;
+  flex-shrink: 0;
+  width: 18px;
+  text-align: center;
+}
+
+.feature-excluded {
+  color: var(--text-muted);
+}
+
+/* CTA Buttons */
+.pricing-cta {
+  width: 100%;
+  justify-content: center;
+  padding: 0.9rem;
+}
+
+.pricing-cta-featured {
+  background: rgba(212, 167, 106, 0.15);
+  border-color: rgba(212, 167, 106, 0.35);
+  color: var(--accent-secondary);
+}
+
+.pricing-cta-featured:hover {
+  background: rgba(212, 167, 106, 0.25);
+  border-color: rgba(212, 167, 106, 0.5);
+  box-shadow: 0 8px 30px rgba(212, 167, 106, 0.15);
+}
+
+/* ========== UPGRADE PROMPT ========== */
+.upgrade-prompt {
+  margin-top: 1rem;
+  animation: slideUp 0.4s ease;
+}
+
+.upgrade-prompt-inner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.75rem;
+  text-align: center;
+}
+
+.upgrade-icon {
+  font-size: 1.5rem;
+  filter: drop-shadow(0 2px 4px rgba(0,0,0,0.3));
+}
+
+.upgrade-prompt-inner p {
+  font-size: 0.9rem;
+  color: var(--text-secondary);
+  line-height: 1.6;
+}
+
+.upgrade-btn {
+  padding: 0.7rem 1.5rem;
+  font-size: 0.85rem;
+}
+
+/* ========== CREATION COUNTER ========== */
+.creation-counter {
+  margin-bottom: 1rem;
+  text-align: center;
+}
+
+.creation-counter span {
+  display: inline-block;
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: var(--text-muted);
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 100px;
+  padding: 0.25rem 0.8rem;
+}
+
+/* ========== TURNSTILE CONTAINER ========== */
+#turnstile-container {
+  display: none;
+  justify-content: center;
+  margin-top: 1rem;
+}
+
+/* ========== PRICING RESPONSIVE ========== */
+@media (max-width: 900px) {
+  .pricing-grid {
+    grid-template-columns: 1fr;
+    max-width: 420px;
+    margin-left: auto;
+    margin-right: auto;
+  }
+
+  .pricing-card-featured {
+    order: -1;
+  }
+}
+
+@media (max-width: 600px) {
+  .billing-option {
+    padding: 0.5rem 1rem;
+    font-size: 0.78rem;
+  }
+
+  .pricing-amount {
+    font-size: 2.8rem;
+  }
+}
+
 /* ========== TOAST ========== */
 .toast {
   position: fixed;

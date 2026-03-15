@@ -10,3 +10,6 @@ database_id = "fe8a5416-6c8b-4c4f-b0a5-b59aecd7cc02"
 [[kv_namespaces]]
 binding = "RATE_LIMIT"
 id = "409cea79fc9d4da792355be82abbd044"
+
+[vars]
+TURNSTILE_SITE_KEY = "YOUR_TURNSTILE_SITE_KEY_HERE"

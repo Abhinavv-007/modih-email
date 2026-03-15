@@ -4,25 +4,26 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Modih Mail | Free Disposable Email @modih.in</title>
-  <meta name="description" content="Grab your free @modih.in disposable email. Premium private inbox that auto-expires in 24 hours." />
+  <meta name="description" content="Free @modih.in disposable email. Private inbox that auto-expires in 3 hours. No signup required." />
   <!-- Open Graph / Social Preview -->
   <meta property="og:type" content="website" />
   <meta property="og:url" content="https://modih.in" />
   <meta property="og:title" content="Modih Mail | Free Disposable Email @modih.in" />
-  <meta property="og:description" content="Grab your free @modih.in disposable email. Premium private inbox that auto-expires in 24 hours." />
+  <meta property="og:description" content="Free @modih.in disposable email. Private inbox that auto-expires in 3 hours. No signup required." />
   <meta property="og:image" content="https://modih.in/og-preview.jpg" />
   <meta property="og:image:width" content="1200" />
   <meta property="og:image:height" content="630" />
   <!-- Twitter Card -->
   <meta name="twitter:card" content="summary_large_image" />
   <meta name="twitter:title" content="Modih Mail | Free Disposable Email @modih.in" />
-  <meta name="twitter:description" content="Grab your free @modih.in disposable email. Premium private inbox that auto-expires in 24 hours." />
+  <meta name="twitter:description" content="Free @modih.in disposable email. Private inbox that auto-expires in 3 hours. No signup required." />
   <meta name="twitter:image" content="https://modih.in/og-preview.jpg" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;0,600;0,700;1,300;1,400;1,500;1,600;1,700&family=Playfair+Display:ital,wght@0,400;0,700;1,400;1,700&family=Inter:wght@300;400;500;600;700&family=Dancing+Script:wght@400;500;600;700&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="/styles.css" />
   <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>✉️</text></svg>" />
+  <script src="https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit" async defer></script>
 </head>
 <body>
   <!-- ========== BACKGROUND MEDIA ========== -->
@@ -53,6 +54,7 @@
       <div class="nav-links">
         <a href="#hero" class="nav-link" data-section="hero">Home</a>
         <a href="#features" class="nav-link" data-section="features">Features</a>
+        <a href="#pricing" class="nav-link" data-section="pricing">Plans</a>
         <a href="#generate" class="nav-link" data-section="generate">Get Email</a>
       </div>
       <button class="nav-cta" onclick="scrollToSection('generate')">
@@ -101,7 +103,7 @@
           </div>
           <div class="bubble-line"></div>
           <div class="bubble-stat">
-            <span class="stat-number">24h</span>
+            <span class="stat-number">3h</span>
             <span class="stat-label">Auto-Expire</span>
           </div>
           <div class="bubble-line"></div>
@@ -131,14 +133,14 @@
             <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>
           </div>
           <h3>Zero Knowledge</h3>
-          <p>No signup, no personal data. Your inbox is private and yours alone for 24 hours, then vanishes.</p>
+          <p>No signup, no personal data. Your inbox is private and yours alone for 3 hours, then vanishes.</p>
         </div>
         <div class="feature-card glass-card">
           <div class="feature-icon">
             <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
           </div>
           <h3>Instant Setup</h3>
-          <p>One click to generate. Choose a custom prefix or let us pick something unique for you.</p>
+          <p>One click to generate a random address. Upgrade to Pro to choose your own custom prefix.</p>
         </div>
         <div class="feature-card glass-card">
           <div class="feature-icon">
@@ -151,8 +153,8 @@
           <div class="feature-icon">
             <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
           </div>
-          <h3>24h Auto-Destruct</h3>
-          <p>Every inbox self-destructs after 24 hours, or delete it manually anytime. No trace left behind.</p>
+          <h3>3h Auto-Destruct</h3>
+          <p>Free inboxes self-destruct after 3 hours. Upgrade to Pro for 7-day retention.</p>
         </div>
         <div class="feature-card glass-card">
           <div class="feature-icon">
@@ -172,12 +174,139 @@
     </div>
   </section>
 
+  <!-- ========== PRICING SECTION ========== -->
+  <section id="pricing" class="section pricing-section">
+    <div class="section-inner fade-up">
+      <p class="section-tag glass-pill">✦ Plans & Pricing</p>
+      <h2 class="section-title">Choose your <span class="cursive-accent">plan.</span></h2>
+      <p class="section-desc" style="margin-left:auto;margin-right:auto;text-align:center;">Simple, transparent pricing. Start free, upgrade when you need more power.</p>
+
+      <!-- Billing Toggle -->
+      <div class="billing-toggle-wrapper">
+        <div class="billing-toggle">
+          <button class="billing-option active" data-period="monthly" onclick="switchBillingPeriod('monthly')">Monthly</button>
+          <button class="billing-option" data-period="quarterly" onclick="switchBillingPeriod('quarterly')">
+            Quarterly
+            <span class="billing-badge best-badge">-20%</span>
+          </button>
+          <button class="billing-option" data-period="yearly" onclick="switchBillingPeriod('yearly')">
+            Yearly
+            <span class="billing-badge best-badge">-60%</span>
+          </button>
+          <div class="billing-slider" id="billing-slider"></div>
+        </div>
+      </div>
+
+      <!-- Pricing Cards -->
+      <div class="pricing-grid">
+        <div class="pricing-card glass-card">
+          <div class="pricing-card-header">
+            <h3 class="pricing-plan-name">Free</h3>
+            <p class="pricing-plan-tagline">Quick & anonymous</p>
+          </div>
+          <div class="pricing-price-wrapper">
+            <span class="pricing-price" data-monthly="0" data-quarterly="0" data-yearly="0">
+              <span class="pricing-currency">$</span>
+              <span class="pricing-amount" id="price-guest">0</span>
+            </span>
+            <span class="pricing-period">/ forever free</span>
+          </div>
+          <ul class="pricing-features">
+            <li class="feature-included"><span class="feature-check">✓</span> Random inbox only</li>
+            <li class="feature-included"><span class="feature-check">✓</span> 3 inboxes per day</li>
+            <li class="feature-included"><span class="feature-check">✓</span> 1 active inbox</li>
+            <li class="feature-included"><span class="feature-check">✓</span> 3-hour retention</li>
+            <li class="feature-included"><span class="feature-check">✓</span> OTP detection</li>
+            <li class="feature-excluded"><span class="feature-x">✗</span> Custom prefix</li>
+            <li class="feature-excluded"><span class="feature-x">✗</span> Reserved aliases</li>
+            <li class="feature-excluded"><span class="feature-x">✗</span> Message export</li>
+          </ul>
+          <button class="btn btn-secondary pricing-cta" onclick="scrollToSection('generate')">
+            <span>Current Plan</span>
+          </button>
+        </div>
+
+        <!-- Pro — Recommended -->
+        <div class="pricing-card glass-card pricing-card-featured">
+          <div class="pricing-recommended-badge">
+            <span>★ Recommended</span>
+          </div>
+          <div class="pricing-card-header">
+            <h3 class="pricing-plan-name">Pro</h3>
+            <p class="pricing-plan-tagline">For power users</p>
+          </div>
+          <div class="pricing-price-wrapper">
+            <span class="pricing-price">
+              <span class="pricing-currency">$</span>
+              <span class="pricing-amount-wrapper">
+                <span class="pricing-amount" id="price-pro" data-monthly="5" data-quarterly="4" data-yearly="2">5</span>
+                <span class="pricing-amount-slice" id="price-pro-slice"></span>
+              </span>
+            </span>
+            <span class="pricing-period" id="period-pro">/ month</span>
+          </div>
+          <div class="pricing-savings" id="savings-pro" style="display:none;">
+            <span class="savings-text"></span>
+          </div>
+          <ul class="pricing-features">
+            <li class="feature-included"><span class="feature-check">✓</span> Custom name@modih.in</li>
+            <li class="feature-included"><span class="feature-check">✓</span> 25 inboxes per day</li>
+            <li class="feature-included"><span class="feature-check">✓</span> 10 active inboxes</li>
+            <li class="feature-included"><span class="feature-check">✓</span> 7-day retention</li>
+            <li class="feature-included"><span class="feature-check">✓</span> 3 reserved aliases</li>
+            <li class="feature-included"><span class="feature-check">✓</span> No captcha</li>
+            <li class="feature-included"><span class="feature-check">✓</span> Export .txt / .eml</li>
+            <li class="feature-included"><span class="feature-check">✓</span> Sender blocklist</li>
+            <li class="feature-included"><span class="feature-check">✓</span> Sync across devices</li>
+          </ul>
+          <button class="btn btn-primary glow-btn pricing-cta pricing-cta-featured">
+            <span>Upgrade to Pro ↗</span>
+          </button>
+        </div>
+
+        <!-- Developer / API -->
+        <div class="pricing-card glass-card">
+          <div class="pricing-card-header">
+            <h3 class="pricing-plan-name">Developer</h3>
+            <p class="pricing-plan-tagline">API & automation</p>
+          </div>
+          <div class="pricing-price-wrapper">
+            <span class="pricing-price">
+              <span class="pricing-currency">$</span>
+              <span class="pricing-amount-wrapper">
+                <span class="pricing-amount" id="price-dev" data-monthly="30" data-quarterly="25" data-yearly="15">30</span>
+                <span class="pricing-amount-slice" id="price-dev-slice"></span>
+              </span>
+            </span>
+            <span class="pricing-period" id="period-dev">/ month</span>
+          </div>
+          <div class="pricing-savings" id="savings-dev" style="display:none;">
+            <span class="savings-text"></span>
+          </div>
+          <ul class="pricing-features">
+            <li class="feature-included"><span class="feature-check">✓</span> Everything in Pro</li>
+            <li class="feature-included"><span class="feature-check">✓</span> API keys + webhooks</li>
+            <li class="feature-included"><span class="feature-check">✓</span> 5k inbox creates/mo</li>
+            <li class="feature-included"><span class="feature-check">✓</span> 50k reads/mo</li>
+            <li class="feature-included"><span class="feature-check">✓</span> IP allowlist on keys</li>
+            <li class="feature-included"><span class="feature-check">✓</span> Key rotate & revoke</li>
+            <li class="feature-included"><span class="feature-check">✓</span> Usage dashboard</li>
+            <li class="feature-included"><span class="feature-check">✓</span> 30-day logs</li>
+          </ul>
+          <button class="btn btn-secondary pricing-cta">
+            <span>Contact Sales ↗</span>
+          </button>
+        </div>
+      </div>
+    </div>
+  </section>
+
   <!-- ========== GENERATE SECTION ========== -->
   <section id="generate" class="section generate-section">
     <div class="section-inner fade-up">
       <p class="section-tag glass-pill">✦ Get Your Email</p>
       <h2 class="section-title"><span class="cursive-accent">Create</span> your inbox</h2>
-      <p class="section-desc">Choose a custom prefix or generate a random address. Your inbox will be ready instantly.</p>
+      <p class="section-desc">Generate a random address — your inbox will be ready instantly. Free plan: 3 inboxes per day.</p>
       
       <div class="generate-box glass-card-large">
         <div class="input-group">
@@ -186,23 +315,38 @@
               type="text" 
               id="email-prefix" 
               class="email-input" 
-              placeholder="Name" 
+              placeholder="Custom prefix — Pro only 🔒" 
               maxlength="30"
               autocomplete="off"
               spellcheck="false"
+              disabled
             />
             <span class="email-domain">@modih.in</span>
           </div>
         </div>
         <div class="generate-actions">
-          <button class="btn btn-primary glow-btn" id="btn-custom" onclick="createInbox('custom')">
-            <span>Use Custom</span>
+          <button class="btn btn-secondary" id="btn-custom" onclick="createInbox('custom')">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>
+            <span>Custom — Pro</span>
           </button>
-          <button class="btn btn-secondary" id="btn-random" onclick="createInbox('random')">
-            <span>Random</span>
+          <button class="btn btn-primary glow-btn" id="btn-random" onclick="createInbox('random')">
+            <span>Random ✦</span>
           </button>
         </div>
+        <!-- Turnstile Widget Container -->
+        <div id="turnstile-container" style="display:none; margin-top: 1rem; display: flex; justify-content: center;">
+          <div id="turnstile-widget"></div>
+        </div>
         <div id="generate-error" class="error-msg" style="display:none;"></div>
+        <div id="generate-upgrade" class="upgrade-prompt" style="display:none;">
+          <div class="upgrade-prompt-inner glass-card-mini">
+            <span class="upgrade-icon">⚡</span>
+            <p>Unlock custom prefixes, 10 active inboxes, and 7-day retention with <strong>Pro</strong>.</p>
+            <button class="btn btn-primary glow-btn upgrade-btn" onclick="scrollToSection('pricing')">
+              <span>View Plans ↗</span>
+            </button>
+          </div>
+        </div>
       </div>
 
       <!-- Generated Email Display -->
@@ -211,7 +355,7 @@
           <span class="result-label">Your private inbox</span>
           <div id="countdown-display" class="countdown">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
-            <span id="countdown-timer">24:00:00</span>
+            <span id="countdown-timer">03:00:00</span>
           </div>
         </div>
         <div class="result-email-row">
@@ -219,6 +363,9 @@
           <button class="icon-btn" onclick="copyEmail()" title="Copy email">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>
           </button>
+        </div>
+        <div id="creation-counter" class="creation-counter" style="display:none;">
+          <span id="creation-count-text"></span>
         </div>
         <div class="result-actions">
           <button class="btn btn-primary glow-btn" onclick="openMailWindow()">
@@ -229,7 +376,7 @@
             <span>New Address</span>
           </button>
         </div>
-        <p class="result-hint">Your inbox will auto-expire after 24 hours, or you can delete it anytime.</p>
+        <p class="result-hint">Your inbox will auto-expire after 3 hours. Upgrade to Pro for 7-day retention.</p>
       </div>
     </div>
   </section>
@@ -247,7 +394,7 @@
             <span class="mail-header-email" id="mail-header-email"></span>
             <div class="mail-header-timer">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
-              <span id="mail-countdown">24:00:00</span>
+              <span id="mail-countdown">03:00:00</span>
             </div>
           </div>
         </div>

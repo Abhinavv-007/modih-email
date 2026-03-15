@@ -7,7 +7,8 @@
     "deploy": "wrangler pages deploy public --project-name=modih-email",
     "deploy:worker": "cd email-worker && npx wrangler deploy",
     "db:init": "wrangler d1 execute modih-mail-db --remote --file=final-desptop-tab.sql",
-    "db:migrate": "wrangler d1 execute modih-mail-db --remote --file=migrate-add-owner-token.sql"
+    "db:migrate": "wrangler d1 execute modih-mail-db --remote --file=migrate-add-owner-token.sql",
+    "db:migrate:free-tier": "wrangler d1 execute modih-mail-db --remote --file=migrate-free-tier.sql"
   },
   "devDependencies": {
     "wrangler": "^3.60.0"

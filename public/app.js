@@ -9,6 +9,26 @@ let currentMessageId = null;
 let countdownInterval = null;
 let refreshInterval = null;
 let isMailWindowOpen = false;
+let turnstileWidgetId = null;
+let turnstileRequired = false;
+
+// ========== BROWSER TOKEN (anonymous visitor tracking) ==========
+function getBrowserToken() {
+  let token = localStorage.getItem("modih_browser_token");
+  if (!token) {
+    token = crypto.randomUUID ? crypto.randomUUID() : generateFallbackUUID();
+    localStorage.setItem("modih_browser_token", token);
+  }
+  return token;
+}
+
+function generateFallbackUUID() {
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+    const r = Math.random() * 16 | 0;
+    const v = c === 'x' ? r : (r & 0x3 | 0x8);
+    return v.toString(16);
+  });
+}
 
 // ========== VIDEO CONTROLLER (play once → freeze at end) ==========
 function initVideoController() {
@@ -45,7 +65,7 @@ function initTypewriter() {
     const text = el.textContent;
     el.textContent = '';
     el.style.visibility = 'visible';
-    const delay = idx * 800; // stagger each element
+    const delay = idx * 800;
     let charIdx = 0;
 
     setTimeout(() => {
@@ -68,6 +88,10 @@ document.addEventListener("DOMContentLoaded", () => {
   initSectionObserver();
   initVideoController();
   initTypewriter();
+  initBillingToggle();
+
+  // Initialize browser token early
+  getBrowserToken();
 
   // Enter key on input
   document.getElementById("email-prefix").addEventListener("keydown", (e) => {
@@ -82,7 +106,6 @@ document.addEventListener("DOMContentLoaded", () => {
 function initScrollAnimations() {
   const elements = document.querySelectorAll(".fade-up");
 
-  // Immediately show elements already in viewport (fixes refresh shift bug)
   elements.forEach((el) => {
     const rect = el.getBoundingClientRect();
     if (rect.top < window.innerHeight) {
@@ -147,23 +170,56 @@ function authHeaders() {
   return { "X-Owner-Token": token };
 }
 
+// ========== TURNSTILE ==========
+function showTurnstile() {
+  const container = document.getElementById("turnstile-container");
+  container.style.display = "flex";
+
+  // If widget already rendered, reset it
+  if (turnstileWidgetId !== null && window.turnstile) {
+    window.turnstile.reset(turnstileWidgetId);
+    return;
+  }
+
+  // Render turnstile widget
+  if (window.turnstile) {
+    turnstileWidgetId = window.turnstile.render('#turnstile-widget', {
+      sitekey: window.TURNSTILE_SITE_KEY || '0x4AAAAAAAAAAAAAAAAAAAAAAA', // placeholder, replaced by config
+      theme: 'dark',
+      callback: function(token) {
+        // Token is automatically picked up on next creation
+      },
+    });
+  }
+}
+
+function hideTurnstile() {
+  const container = document.getElementById("turnstile-container");
+  container.style.display = "none";
+}
+
+function getTurnstileToken() {
+  if (turnstileWidgetId !== null && window.turnstile) {
+    return window.turnstile.getResponse(turnstileWidgetId) || "";
+  }
+  return "";
+}
+
 // ========== INBOX CREATION ==========
 async function createInbox(type) {
-  const prefixInput = document.getElementById("email-prefix");
   const errorEl = document.getElementById("generate-error");
+  const upgradeEl = document.getElementById("generate-upgrade");
   const btnCustom = document.getElementById("btn-custom");
   const btnRandom = document.getElementById("btn-random");
 
   errorEl.style.display = "none";
+  upgradeEl.style.display = "none";
 
-  const body = {};
+  // ========== FREE TIER: Block custom prefix ==========
   if (type === "custom") {
-    const prefix = prefixInput.value.trim();
-    if (!prefix || prefix.length < 2) {
-      showError("Please enter at least 2 characters for your prefix.");
-      return;
-    }
-    body.prefix = prefix;
+    upgradeEl.style.display = "block";
+    upgradeEl.scrollIntoView({ behavior: "smooth", block: "center" });
+    return;
   }
 
   // Loading state
@@ -171,8 +227,20 @@ async function createInbox(type) {
   btnRandom.classList.add("loading");
 
   try {
-    const headers = { "Content-Type": "application/json" };
-    // Include owner_token if we have one (for re-claiming own inbox)
+    const body = {};
+
+    // Include Turnstile token if widget is visible
+    const turnstileToken = getTurnstileToken();
+    if (turnstileToken) {
+      body.turnstile_token = turnstileToken;
+    }
+
+    const headers = {
+      "Content-Type": "application/json",
+      "X-Browser-Token": getBrowserToken(),
+    };
+
+    // Include owner_token if we have one
     if (currentInbox && currentInbox.owner_token) {
       headers["X-Owner-Token"] = currentInbox.owner_token;
     }
@@ -186,13 +254,21 @@ async function createInbox(type) {
     const data = await res.json();
 
     if (!res.ok) {
-      if (res.status === 409) {
-        showError("That email is already taken. Try another prefix.");
-      } else if (res.status === 403) {
-        showError(data.error || "This name is reserved.");
-      } else {
-        showError(data.error || "Failed to create inbox.");
+      // Handle specific free-tier errors
+      if (data.upgrade_required) {
+        showUpgradeError(data.error, data.feature);
+        return;
       }
+      if (data.turnstile_required) {
+        showError(data.error || "Please complete the verification challenge.");
+        showTurnstile();
+        return;
+      }
+      if (res.status === 429) {
+        showError(data.error || "Rate limit exceeded. Try again later.");
+        return;
+      }
+      showError(data.error || "Failed to create inbox.");
       return;
     }
 
@@ -200,6 +276,19 @@ async function createInbox(type) {
     currentInbox = data;
     currentMessages = [];
     saveSession();
+
+    // Update creation counter
+    if (data.creations_today !== undefined) {
+      showCreationCounter(data.creations_today, data.max_creations);
+    }
+
+    // Show/hide turnstile based on server response
+    if (data.turnstile_required) {
+      turnstileRequired = true;
+      showTurnstile();
+    } else {
+      hideTurnstile();
+    }
 
     // Show result
     showEmailResult(data);
@@ -218,8 +307,40 @@ function showError(msg) {
   errorEl.style.display = "block";
 }
 
+function showUpgradeError(msg, feature) {
+  const upgradeEl = document.getElementById("generate-upgrade");
+  const errorEl = document.getElementById("generate-error");
+  errorEl.style.display = "none";
+
+  // Show upgrade prompt with contextual message
+  upgradeEl.style.display = "block";
+  const inner = upgradeEl.querySelector(".upgrade-prompt-inner p");
+  if (inner) {
+    if (feature === "custom_prefix") {
+      inner.innerHTML = 'Custom prefixes are a <strong>Pro</strong> feature. Upgrade to choose your own email name.';
+    } else if (feature === "active_limit") {
+      inner.innerHTML = 'Free accounts are limited to <strong>1 active inbox</strong>. Upgrade to Pro for up to 10.';
+    } else if (feature === "creation_limit") {
+      inner.innerHTML = "You've hit today's limit. Upgrade to <strong>Pro</strong> for 25 inboxes per day.";
+    } else {
+      inner.innerHTML = msg || 'Upgrade to <strong>Pro</strong> for more features.';
+    }
+  }
+  upgradeEl.scrollIntoView({ behavior: "smooth", block: "center" });
+}
+
+function showCreationCounter(count, max) {
+  const counterEl = document.getElementById("creation-counter");
+  const textEl = document.getElementById("creation-count-text");
+  if (counterEl && textEl) {
+    counterEl.style.display = "block";
+    textEl.textContent = `${count} of ${max} free inboxes used today`;
+  }
+}
+
 function showEmailResult(inbox) {
   document.getElementById("generate-error").style.display = "none";
+  document.getElementById("generate-upgrade").style.display = "none";
 
   const resultEl = document.getElementById("email-result");
   const addressEl = document.getElementById("result-email-address");
@@ -351,7 +472,6 @@ async function fetchMessages() {
     const data = await res.json();
 
     if (res.status === 403 || res.status === 404) {
-      // Session invalid — inbox deleted or token mismatch
       handleSessionInvalid();
       return;
     }
@@ -402,7 +522,6 @@ async function refreshInbox() {
 
 // ========== RENDER MAIL LIST ==========
 function renderMailList() {
-  // Don't re-render the list if we're viewing a message detail
   if (currentMessageId) return;
 
   const listEl = document.getElementById("mail-list");
@@ -454,29 +573,24 @@ function openMessage(msgId) {
 
   currentMessageId = msgId;
 
-  // Hide list, show detail
   document.getElementById("mail-list").style.display = "none";
   document.getElementById("mail-empty").style.display = "none";
   const detail = document.getElementById("mail-detail");
   detail.style.display = "block";
 
-  // Fill in detail
   document.getElementById("detail-subject").textContent = msg.subject;
   document.getElementById("detail-from").textContent = msg.from_name
     ? `${msg.from_name} <${msg.from_address}>`
     : msg.from_address;
   document.getElementById("detail-time").textContent = formatTime(msg.received_at);
 
-  // Render body
   const bodyEl = document.getElementById("detail-body");
   if (msg.body_html) {
-    // Render sanitized HTML in a sandboxed way
     bodyEl.innerHTML = sanitizeRenderedHtml(msg.body_html);
   } else {
     bodyEl.innerHTML = `<pre style="white-space:pre-wrap;font-family:inherit;">${escapeHtml(msg.body_text)}</pre>`;
   }
 
-  // OTP detection
   const otp = extractOTP(msg.subject + " " + msg.body_text + " " + msg.body_html);
   const otpEl = document.getElementById("detail-otp");
   if (otp) {
@@ -508,7 +622,6 @@ async function deleteAddressAndReset() {
     console.error("Delete inbox error:", e);
   }
 
-  // Clear everything
   currentInbox = null;
   currentMessages = [];
   currentMessageId = null;
@@ -516,16 +629,13 @@ async function deleteAddressAndReset() {
   if (countdownInterval) clearInterval(countdownInterval);
   stopAutoRefresh();
 
-  // Close mail window if open
   if (isMailWindowOpen) {
     closeMailWindow();
   }
 
-  // Hide the result section
   const resultEl = document.getElementById("email-result");
   if (resultEl) resultEl.style.display = "none";
 
-  // Scroll back to generate section
   setTimeout(() => {
     scrollToSection('generate');
     showToast("Address deleted. Create a new one!");
@@ -609,7 +719,6 @@ function copyOTP() {
 function extractOTP(text) {
   if (!text) return null;
 
-  // Common OTP patterns
   const patterns = [
     /\b(?:otp|code|verify|verification|pin|passcode|token)[:\s]*(\d{4,8})\b/i,
     /\b(\d{4,8})\s*(?:is your|is the|is|as your)\s*(?:otp|code|verification|pin|passcode)/i,
@@ -636,7 +745,6 @@ function escapeHtml(text) {
 }
 
 function sanitizeRenderedHtml(html) {
-  // Additional client-side sanitization
   return html
     .replace(/<script[\s\S]*?<\/script>/gi, "")
     .replace(/<style[\s\S]*?<\/style>/gi, "")
@@ -673,9 +781,8 @@ function showToast(msg) {
   msgEl.textContent = msg;
   toast.style.display = "block";
 
-  // Reset animation
   toast.style.animation = "none";
-  toast.offsetHeight; // trigger reflow
+  toast.offsetHeight;
   toast.style.animation = "toastIn 0.3s ease";
 
   clearTimeout(toast._timeout);
@@ -708,13 +815,11 @@ async function restoreSession() {
 
     const inbox = JSON.parse(saved);
 
-    // Must have an owner_token to be valid
     if (!inbox.owner_token) {
       clearSession();
       return;
     }
 
-    // Check client-side if expired
     if (inbox.expires_at) {
       const now = Math.floor(Date.now() / 1000);
       if (inbox.expires_at < now) {
@@ -723,14 +828,12 @@ async function restoreSession() {
       }
     }
 
-    // Validate with the server
     const res = await fetch(`/api/messages?inbox_id=${inbox.id}`, {
       headers: { "X-Owner-Token": inbox.owner_token },
     });
 
     if (res.ok) {
       const data = await res.json();
-      // Update expires_at from server if available
       if (data.inbox && data.inbox.expires_at) {
         inbox.expires_at = data.inbox.expires_at;
       }
@@ -742,4 +845,203 @@ async function restoreSession() {
   } catch (e) {
     clearSession();
   }
+}
+
+// ========== PRICING — BILLING PERIOD TOGGLE ==========
+const PRICING = {
+  pro: { monthly: 5, quarterly: 4, yearly: 2 },
+  dev: { monthly: 30, quarterly: 25, yearly: 15 },
+};
+
+let currentPeriod = 'monthly';
+
+function initBillingToggle() {
+  updateBillingSlider('monthly');
+}
+
+function switchBillingPeriod(period) {
+  if (period === currentPeriod) return;
+  currentPeriod = period;
+
+  // Update active button
+  document.querySelectorAll('.billing-option').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.period === period);
+  });
+
+  // Update slider position
+  updateBillingSlider(period);
+
+  // Animate prices
+  animatePrice('price-pro', PRICING.pro[period]);
+  animatePrice('price-dev', PRICING.dev[period]);
+
+  // Update period labels
+  const periodLabel = period === 'monthly' ? '/ month' : period === 'quarterly' ? '/ month, billed quarterly' : '/ month, billed yearly';
+  const periodProEl = document.getElementById('period-pro');
+  const periodDevEl = document.getElementById('period-dev');
+  if (periodProEl) periodProEl.textContent = periodLabel;
+  if (periodDevEl) periodDevEl.textContent = periodLabel;
+
+  // Update savings badges
+  updateSavings('savings-pro', period, 'pro');
+  updateSavings('savings-dev', period, 'dev');
+}
+
+function updateBillingSlider(period) {
+  const slider = document.getElementById('billing-slider');
+  const buttons = document.querySelectorAll('.billing-option');
+  let targetBtn = null;
+
+  buttons.forEach(btn => {
+    if (btn.dataset.period === period) targetBtn = btn;
+  });
+
+  if (targetBtn && slider) {
+    const parent = targetBtn.parentElement;
+    const parentRect = parent.getBoundingClientRect();
+    const btnRect = targetBtn.getBoundingClientRect();
+    slider.style.width = btnRect.width + 'px';
+    slider.style.transform = `translateX(${btnRect.left - parentRect.left}px)`;
+  }
+}
+
+function animatePrice(elementId, targetValue) {
+  const el = document.getElementById(elementId);
+  if (!el) return;
+
+  const startValue = parseFloat(el.textContent) || 0;
+  const diff = targetValue - startValue;
+  const duration = 1500; // Match 1.5s CSS
+  const startTime = performance.now();
+
+  const isDropping = diff < 0;
+  const isIncreasing = diff > 0;
+  const wrapper = el.parentElement;
+
+  if (isDropping && wrapper.classList.contains('pricing-amount-wrapper')) {
+    wrapper.classList.remove('slicing');
+    void wrapper.offsetWidth; 
+    wrapper.classList.add('slicing');
+    
+    // Create physical halves of the OLD price that will fall away
+    const oldPriceText = startValue === Math.floor(startValue) ? startValue.toString() : startValue.toFixed(2);
+    
+    const topHalf = document.createElement('span');
+    topHalf.className = 'price-half price-half-top';
+    topHalf.textContent = oldPriceText;
+    
+    const bottomHalf = document.createElement('span');
+    bottomHalf.className = 'price-half price-half-bottom';
+    bottomHalf.textContent = oldPriceText;
+    
+    wrapper.appendChild(topHalf);
+    wrapper.appendChild(bottomHalf);
+    
+    // The main element will instantly become the NEW lower price
+    // but its color is set to transparent in CSS while slicing
+    const newPriceText = targetValue === Math.floor(targetValue) ? targetValue.toString() : targetValue.toFixed(2);
+    el.textContent = newPriceText;
+    
+    createSparkles(el);
+  } else if (isIncreasing) {
+    el.classList.add('price-increasing');
+  }
+
+  function tick(now) {
+    const elapsed = now - startTime;
+    const progress = Math.min(elapsed / duration, 1);
+
+    const eased = 1 - Math.pow(1 - progress, 3);
+    const current = startValue + diff * eased;
+
+    // We only animate the number if it's increasing.
+    // If it's dropping, the CSS physically cuts the old number and the new number is already set.
+    if (!isDropping) {
+      if (targetValue === 0) {
+        el.textContent = '0';
+      } else {
+        el.textContent = current.toFixed(2).replace(/\.00$/, '');
+      }
+    }
+
+    if (progress < 1) {
+      requestAnimationFrame(tick);
+    } else {
+      el.classList.remove('price-increasing');
+      if (wrapper.classList.contains('pricing-amount-wrapper')) {
+        // Clear slicing state and clean up the falling halves after animation
+        setTimeout(() => {
+          wrapper.classList.remove('slicing');
+          wrapper.querySelectorAll('.price-half').forEach(half => half.remove());
+        }, 100);
+      }
+      
+      if (targetValue === Math.floor(targetValue)) {
+        el.textContent = targetValue.toString();
+      } else {
+        el.textContent = targetValue.toFixed(2);
+      }
+    }
+  }
+
+  requestAnimationFrame(tick);
+}
+
+function createSparkles(element) {
+  const rect = element.getBoundingClientRect();
+  const centerX = rect.left + rect.width / 2;
+  const centerY = rect.top + rect.height / 2;
+  
+  const particleCount = 12;
+  for (let i = 0; i < particleCount; i++) {
+    const sparkle = document.createElement('div');
+    sparkle.style.position = 'fixed';
+    sparkle.style.width = '4px';
+    sparkle.style.height = '4px';
+    sparkle.style.backgroundColor = '#fca5a5';
+    sparkle.style.borderRadius = '50%';
+    sparkle.style.pointerEvents = 'none';
+    sparkle.style.zIndex = '9999';
+    sparkle.style.left = centerX + 'px';
+    sparkle.style.top = centerY + 'px';
+    document.body.appendChild(sparkle);
+
+    // Radiate out and fall down slightly
+    const angle = (Math.random() * Math.PI) + Math.PI; // Upwards hemisphere
+    const velocity = 30 + Math.random() * 50;
+    const tx = Math.cos(angle) * velocity;
+    const ty = (Math.sin(angle) * velocity) + 60; // Bias downwards gravity
+
+    sparkle.animate([
+      { transform: `translate(-50%, -50%) scale(1)`, opacity: 1 },
+      { transform: `translate(calc(-50% + ${tx}px), calc(-50% + ${ty}px)) scale(0)`, opacity: 0 }
+    ], {
+      duration: 600 + Math.random() * 300,
+      easing: 'cubic-bezier(0.25, 1, 0.5, 1)',
+      fill: 'forwards'
+    }).onfinish = () => sparkle.remove();
+  }
+}
+
+function updateSavings(elementId, period, plan) {
+  const el = document.getElementById(elementId);
+  if (!el) return;
+
+  if (period === 'monthly') {
+    el.style.display = 'none';
+    return;
+  }
+
+  const monthlyPrice = PRICING[plan].monthly;
+  const periodPrice = PRICING[plan][period];
+  const savedPerMonth = monthlyPrice - periodPrice;
+  const savedTotal = period === 'quarterly' ? savedPerMonth * 3 : savedPerMonth * 12;
+
+  el.style.display = 'block';
+  el.querySelector('.savings-text').textContent = `Save $${savedTotal.toFixed(0)} ${period === 'quarterly' ? '/ quarter' : '/ year'}`;
+
+  // Animate in
+  el.style.animation = 'none';
+  el.offsetHeight;
+  el.style.animation = 'savingsPop 0.4s ease both';
 }
