@@ -1022,13 +1022,17 @@ function openContactModal() {
   modal.style.display = 'flex';
   
   // Render Turnstile if not already rendered
-  if (window.turnstile && !window.contactTurnstileWidgetId) {
-    window.contactTurnstileWidgetId = window.turnstile.render('#contact-turnstile-widget', {
-      sitekey: window.TURNSTILE_SITE_KEY || '0x4AAAAAAAAAAAAAAAAAAAAAAA',
-      theme: 'dark'
-    });
-  } else if (window.turnstile && window.contactTurnstileWidgetId) {
-    window.turnstile.reset(window.contactTurnstileWidgetId);
+  try {
+    if (window.turnstile && !window.contactTurnstileWidgetId) {
+      window.contactTurnstileWidgetId = window.turnstile.render('#contact-turnstile-widget', {
+        sitekey: window.TURNSTILE_SITE_KEY || '0x4AAAAAAAAAAAAAAAAAAAAAAA',
+        theme: 'dark'
+      });
+    } else if (window.turnstile && window.contactTurnstileWidgetId) {
+      window.turnstile.reset(window.contactTurnstileWidgetId);
+    }
+  } catch (err) {
+    console.error("Turnstile failed to render:", err);
   }
   
   requestAnimationFrame(() => {
