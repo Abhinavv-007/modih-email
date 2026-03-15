@@ -67,10 +67,10 @@ export async function onRequestPost({ request, env }) {
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({
-        from: 'Modih Mail Support <contact-form@modih.in>',
-        to: 'hi@abhnv.in', // User's primary email address
+        from: 'Modih Plan Support <contact-form@modih.in>',
+        to: 'abhnv@abhnv.in', // User's primary email address
         reply_to: email, // Extremely helpful so the user can just hit "Reply" to the email!
-        subject: `New Contact Message from ${name}`,
+        subject: `New Plan Purchase Request from ${name}`,
         html: `
           <h3>New message via Modih Mail Contact Form</h3>
           <p><strong>Name:</strong> ${name}</p>
