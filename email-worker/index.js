@@ -5,13 +5,18 @@ import PostalMime from 'postal-mime';
 
 export default {
   async email(message, env, ctx) {
-    const to = message.to;
-    const from = message.from;
+    const to = (message.to || "").toLowerCase().trim();
+    const from = message.from || "";
+
+    if (!to) {
+      message.setReject("No recipient");
+      return;
+    }
 
     try {
-      // Check if inbox exists and is not expired
+      // Check if inbox exists
       const inbox = await env.DB.prepare(
-        "SELECT * FROM inboxes WHERE email = ?"
+        "SELECT id, expires_at FROM inboxes WHERE email = ?"
       )
         .bind(to)
         .first();
@@ -23,7 +28,7 @@ export default {
 
       // Reject if expired
       const now = Math.floor(Date.now() / 1000);
-      if (inbox.expires_at > 0 && inbox.expires_at < now) {
+      if (inbox.expires_at && inbox.expires_at > 0 && inbox.expires_at < now) {
         message.setReject("Mailbox expired");
         return;
       }
@@ -34,8 +39,8 @@ export default {
       const parsed = await parser.parse(rawEmail);
 
       const subject = parsed.subject || "(no subject)";
-      const fromName = parsed.from?.name || "";
-      const fromAddress = parsed.from?.address || from;
+      const fromName = (parsed.from && parsed.from.name) ? parsed.from.name : "";
+      const fromAddress = (parsed.from && parsed.from.address) ? parsed.from.address : from;
 
       let bodyHtml = parsed.html || "";
       let bodyText = parsed.text || "";
@@ -74,6 +79,7 @@ export default {
 
     } catch (e) {
       console.error("Email worker error:", e);
+      // Do not re-throw — swallow errors to avoid uncaught exceptions in Cloudflare
     }
   },
 };
