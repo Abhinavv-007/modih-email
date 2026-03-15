@@ -3,9 +3,10 @@
    ======================================== */
 
 // ========== STATE ==========
-let currentInbox = null; // { id, email, created_at, owner_token }
+let currentInbox = null; // { id, email, created_at, expires_at, owner_token }
 let currentMessages = [];
 let currentMessageId = null;
+let countdownInterval = null;
 let refreshInterval = null;
 let isMailWindowOpen = false;
 
@@ -226,8 +227,59 @@ function showEmailResult(inbox) {
   addressEl.textContent = inbox.email;
   resultEl.style.display = "block";
 
+  // Start countdown if we have an expiry
+  if (inbox.expires_at) {
+    startCountdown(inbox.expires_at);
+  }
+
   // Smooth scroll to result
   resultEl.scrollIntoView({ behavior: "smooth", block: "center" });
+}
+
+// ========== COUNTDOWN TIMER ==========
+function startCountdown(expiresAt) {
+  if (countdownInterval) clearInterval(countdownInterval);
+
+  function update() {
+    const now = Math.floor(Date.now() / 1000);
+    const remaining = expiresAt - now;
+
+    if (remaining <= 0) {
+      clearInterval(countdownInterval);
+      handleExpired();
+      return;
+    }
+
+    const hours = Math.floor(remaining / 3600);
+    const minutes = Math.floor((remaining % 3600) / 60);
+    const seconds = remaining % 60;
+    const timeStr = `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
+
+    // Update all countdown displays
+    const timerEl = document.getElementById("countdown-timer");
+    const mailTimerEl = document.getElementById("mail-countdown");
+
+    if (timerEl) timerEl.textContent = timeStr;
+    if (mailTimerEl) mailTimerEl.textContent = timeStr;
+  }
+
+  update();
+  countdownInterval = setInterval(update, 1000);
+}
+
+function handleExpired() {
+  currentInbox = null;
+  currentMessages = [];
+  clearSession();
+
+  if (isMailWindowOpen) {
+    closeMailWindow();
+  }
+
+  const resultEl = document.getElementById("email-result");
+  if (resultEl) resultEl.style.display = "none";
+
+  showToast("Inbox expired. Create a new one!");
 }
 
 // ========== MAIL WINDOW ==========
@@ -461,6 +513,7 @@ async function deleteAddressAndReset() {
   currentMessages = [];
   currentMessageId = null;
   clearSession();
+  if (countdownInterval) clearInterval(countdownInterval);
   stopAutoRefresh();
 
   // Close mail window if open
@@ -638,6 +691,7 @@ function saveSession() {
       id: currentInbox.id,
       email: currentInbox.email,
       created_at: currentInbox.created_at,
+      expires_at: currentInbox.expires_at,
       owner_token: currentInbox.owner_token,
     }));
   }
@@ -654,22 +708,35 @@ async function restoreSession() {
 
     const inbox = JSON.parse(saved);
 
-    // Must have an owner_token to be valid (old sessions without token are cleared)
+    // Must have an owner_token to be valid
     if (!inbox.owner_token) {
       clearSession();
       return;
     }
 
-    // Validate with the server by trying to fetch messages
+    // Check client-side if expired
+    if (inbox.expires_at) {
+      const now = Math.floor(Date.now() / 1000);
+      if (inbox.expires_at < now) {
+        clearSession();
+        return;
+      }
+    }
+
+    // Validate with the server
     const res = await fetch(`/api/messages?inbox_id=${inbox.id}`, {
       headers: { "X-Owner-Token": inbox.owner_token },
     });
 
     if (res.ok) {
+      const data = await res.json();
+      // Update expires_at from server if available
+      if (data.inbox && data.inbox.expires_at) {
+        inbox.expires_at = data.inbox.expires_at;
+      }
       currentInbox = inbox;
       showEmailResult(inbox);
     } else {
-      // Token invalid or inbox deleted
       clearSession();
     }
   } catch (e) {

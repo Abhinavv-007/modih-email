@@ -20,12 +20,18 @@ export async function onRequestGet(context) {
   }
 
   try {
-    const inbox = await env.DB.prepare("SELECT id, email, owner_token, created_at FROM inboxes WHERE id = ?")
+    const inbox = await env.DB.prepare("SELECT id, email, owner_token, created_at, expires_at FROM inboxes WHERE id = ?")
       .bind(inboxId)
       .first();
 
     if (!inbox) {
       return Response.json({ error: "Inbox not found.", expired: true }, { status: 404 });
+    }
+
+    // Check if expired
+    const now = Math.floor(Date.now() / 1000);
+    if (inbox.expires_at > 0 && inbox.expires_at < now) {
+      return Response.json({ error: "Inbox expired.", expired: true }, { status: 404 });
     }
 
     if (inbox.owner_token !== ownerToken) {
@@ -43,6 +49,7 @@ export async function onRequestGet(context) {
         id: inbox.id,
         email: inbox.email,
         created_at: inbox.created_at,
+        expires_at: inbox.expires_at,
       },
       messages: messages.results || [],
     });
@@ -67,12 +74,17 @@ export async function onRequestDelete(context) {
   }
 
   try {
-    const inbox = await env.DB.prepare("SELECT id, owner_token FROM inboxes WHERE id = ?")
+    const inbox = await env.DB.prepare("SELECT id, owner_token, expires_at FROM inboxes WHERE id = ?")
       .bind(inboxId)
       .first();
 
     if (!inbox) {
       return Response.json({ error: "Inbox not found." }, { status: 404 });
+    }
+
+    const now = Math.floor(Date.now() / 1000);
+    if (inbox.expires_at > 0 && inbox.expires_at < now) {
+      return Response.json({ error: "Inbox expired." }, { status: 404 });
     }
 
     if (inbox.owner_token !== ownerToken) {

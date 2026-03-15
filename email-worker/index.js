@@ -9,7 +9,7 @@ export default {
     const from = message.from;
 
     try {
-      // Check if inbox exists
+      // Check if inbox exists and is not expired
       const inbox = await env.DB.prepare(
         "SELECT * FROM inboxes WHERE email = ?"
       )
@@ -18,6 +18,13 @@ export default {
 
       if (!inbox) {
         message.setReject("Mailbox not found");
+        return;
+      }
+
+      // Reject if expired
+      const now = Math.floor(Date.now() / 1000);
+      if (inbox.expires_at > 0 && inbox.expires_at < now) {
+        message.setReject("Mailbox expired");
         return;
       }
 
@@ -57,12 +64,12 @@ export default {
 
       // Generate message ID
       const msgId = crypto.randomUUID().replace(/-/g, "").substring(0, 16);
-      const now = Math.floor(Date.now() / 1000);
+      const receivedAt = Math.floor(Date.now() / 1000);
 
       await env.DB.prepare(
         "INSERT INTO messages (id, inbox_id, from_address, from_name, subject, body_html, body_text, received_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
       )
-        .bind(msgId, inbox.id, fromAddress, fromName, subject, bodyHtml, bodyText, now)
+        .bind(msgId, inbox.id, fromAddress, fromName, subject, bodyHtml, bodyText, receivedAt)
         .run();
 
     } catch (e) {

@@ -2,9 +2,20 @@
 // DELETE /api/inbox  - Delete an inbox (requires owner_token)
 
 const DOMAIN = "modih.in";
+const INBOX_TTL = 24 * 60 * 60; // 24 hours in seconds
 const RATE_LIMIT_MAX = 10;
 const RATE_LIMIT_WINDOW = 3600;
 const MAX_RANDOM_RETRIES = 5;
+
+async function cleanupExpired(db) {
+  const now = Math.floor(Date.now() / 1000);
+  try {
+    await db.prepare("DELETE FROM messages WHERE inbox_id IN (SELECT id FROM inboxes WHERE expires_at > 0 AND expires_at < ?)").bind(now).run();
+    await db.prepare("DELETE FROM inboxes WHERE expires_at > 0 AND expires_at < ?").bind(now).run();
+  } catch (e) {
+    console.error("Cleanup error:", e);
+  }
+}
 
 // ========== BLOCKED PREFIXES ==========
 // Exact names + operational names. Matching is normalized (lowercase, stripped).
@@ -80,6 +91,9 @@ export async function onRequestPost(context) {
       return Response.json({ error: "Rate limit exceeded. Try again later." }, { status: 429 });
     }
 
+    // Cleanup expired inboxes (frees up addresses)
+    await cleanupExpired(env.DB);
+
     const body = await request.json().catch(() => ({}));
     const callerToken = request.headers.get("X-Owner-Token") || "";
     const isCustom = !!body.prefix;
@@ -99,33 +113,42 @@ export async function onRequestPost(context) {
     if (isCustom) {
       const email = `${prefix}@${DOMAIN}`;
 
-      // Check if it already exists
-      const existing = await env.DB.prepare("SELECT id, email, created_at, owner_token FROM inboxes WHERE email = ?")
+      // Check if it already exists and is not expired
+      const now = Math.floor(Date.now() / 1000);
+      const existing = await env.DB.prepare("SELECT id, email, created_at, expires_at, owner_token FROM inboxes WHERE email = ?")
         .bind(email)
         .first();
 
       if (existing) {
-        // Re-claim: caller must prove ownership
-        if (callerToken && callerToken === existing.owner_token) {
-          return Response.json({
-            id: existing.id,
-            email: existing.email,
-            created_at: existing.created_at,
-            owner_token: existing.owner_token,
-          });
+        // If expired, delete it so the address can be re-used
+        if (existing.expires_at > 0 && existing.expires_at < now) {
+          await env.DB.prepare("DELETE FROM messages WHERE inbox_id = ?").bind(existing.id).run();
+          await env.DB.prepare("DELETE FROM inboxes WHERE id = ?").bind(existing.id).run();
+          // Fall through to create new inbox below
+        } else {
+          // Re-claim: caller must prove ownership
+          if (callerToken && callerToken === existing.owner_token) {
+            return Response.json({
+              id: existing.id,
+              email: existing.email,
+              created_at: existing.created_at,
+              expires_at: existing.expires_at,
+              owner_token: existing.owner_token,
+            });
+          }
+          // No token or wrong token → reject
+          return Response.json({ error: "Email already taken. Try another prefix." }, { status: 409 });
         }
-        // No token or wrong token → reject
-        return Response.json({ error: "Email already taken. Try another prefix." }, { status: 409 });
       }
 
       // Insert new inbox
       const id = generateId();
       const ownerToken = generateOwnerToken();
-      const now = Math.floor(Date.now() / 1000);
+      const expiresAt = now + INBOX_TTL;
 
       try {
-        await env.DB.prepare("INSERT INTO inboxes (id, email, owner_token, created_at, expires_at) VALUES (?, ?, ?, ?, 0)")
-          .bind(id, email, ownerToken, now)
+        await env.DB.prepare("INSERT INTO inboxes (id, email, owner_token, created_at, expires_at) VALUES (?, ?, ?, ?, ?)")
+          .bind(id, email, ownerToken, now, expiresAt)
           .run();
       } catch (e) {
         // UNIQUE constraint race — another request inserted between our SELECT and INSERT
@@ -139,6 +162,7 @@ export async function onRequestPost(context) {
         id,
         email,
         created_at: now,
+        expires_at: expiresAt,
         owner_token: ownerToken,
       });
     }
@@ -150,16 +174,18 @@ export async function onRequestPost(context) {
       const id = generateId();
       const ownerToken = generateOwnerToken();
       const now = Math.floor(Date.now() / 1000);
+      const expiresAt = now + INBOX_TTL;
 
       try {
-        await env.DB.prepare("INSERT INTO inboxes (id, email, owner_token, created_at, expires_at) VALUES (?, ?, ?, ?, 0)")
-          .bind(id, email, ownerToken, now)
+        await env.DB.prepare("INSERT INTO inboxes (id, email, owner_token, created_at, expires_at) VALUES (?, ?, ?, ?, ?)")
+          .bind(id, email, ownerToken, now, expiresAt)
           .run();
 
         return Response.json({
           id,
           email,
           created_at: now,
+          expires_at: expiresAt,
           owner_token: ownerToken,
         });
       } catch (e) {

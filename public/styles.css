@@ -1150,14 +1150,14 @@ body {
   color: var(--text-muted);
 }
 
-.inbox-status-badge {
+.countdown {
   display: flex;
   align-items: center;
   gap: 0.4rem;
-  color: var(--success);
-  font-size: 0.8rem;
+  color: var(--accent);
+  font-size: 0.9rem;
   font-weight: 600;
-  letter-spacing: 0.03em;
+  font-variant-numeric: tabular-nums;
 }
 
 .result-email-row {
@@ -1249,13 +1249,13 @@ body {
   font-size: 0.95rem;
 }
 
-.mail-header-status {
+.mail-header-timer {
   display: flex;
   align-items: center;
   gap: 0.35rem;
-  font-size: 0.75rem;
-  color: var(--success);
-  font-weight: 500;
+  font-size: 0.8rem;
+  color: var(--accent);
+  font-variant-numeric: tabular-nums;
 }
 
 .mail-header-actions {
