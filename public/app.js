@@ -437,10 +437,22 @@ async function createInbox(type) {
       "X-Browser-Token": getBrowserToken(),
     };
 
+    // Pass Firebase token so backend can verify plan (Pro/Dev features)
+    if (firebaseAuth?.currentUser) {
+      try {
+        const token = await firebaseAuth.currentUser.getIdToken();
+        headers["Authorization"] = `Bearer ${token}`;
+      } catch (e) {
+        // Non-fatal — backend will default to free plan
+        console.warn("[Inbox] Could not get auth token:", e.message);
+      }
+    }
+
     // Include owner_token if we have one
     if (currentInbox && currentInbox.owner_token) {
       headers["X-Owner-Token"] = currentInbox.owner_token;
     }
+
 
     const res = await fetch("/api/inbox", {
       method: "POST",

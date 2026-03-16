@@ -1,19 +1,67 @@
 // POST /api/inbox   - Create a new inbox (returns owner_token once)
 // DELETE /api/inbox  - Delete an inbox (requires owner_token)
 
+import { verifyFirebaseToken } from "../_auth-helper.js";
+
 const DOMAIN = "modih.in";
-const INBOX_TTL = 3 * 60 * 60; // 3 hours in seconds (free tier)
 const RATE_LIMIT_MAX = 10;
 const RATE_LIMIT_WINDOW = 3600;
 const MAX_RANDOM_RETRIES = 5;
 
-// ========== FREE TIER LIMITS ==========
-const FREE_MAX_CREATIONS_24H = 3;
-const FREE_MAX_ACTIVE_INBOXES = 1;
-const FREE_TURNSTILE_THRESHOLD = 2; // require turnstile after 2nd creation in 24h
-const TWENTY_FOUR_HOURS = 24 * 60 * 60;
+// ========== PLAN LIMITS ==========
+const PLAN_CONFIG = {
+  free: {
+    ttl:          3 * 60 * 60,   // 3 hours
+    maxDaily:     3,
+    maxActive:    1,
+    turnstileAt:  2,             // require captcha after 2nd creation
+    customPrefix: false,
+    noTurnstile:  false,
+  },
+  pro: {
+    ttl:          7 * 24 * 60 * 60,  // 7 days
+    maxDaily:     25,
+    maxActive:    10,
+    turnstileAt:  99999,
+    customPrefix: true,
+    noTurnstile:  true,
+  },
+  developer: {
+    ttl:          7 * 24 * 60 * 60,  // 7 days
+    maxDaily:     999999,
+    maxActive:    999999,
+    turnstileAt:  99999,
+    customPrefix: true,
+    noTurnstile:  true,
+  },
+};
 
+const TWENTY_FOUR_HOURS = 24 * 60 * 60;
 const TURNSTILE_VERIFY_URL = "https://challenges.cloudflare.com/turnstile/v0/siteverify";
+
+// Resolve plan for incoming request (reads Firebase token if present, looks up D1)
+async function getPlan(request, db) {
+  try {
+    const authHeader = request.headers.get("Authorization") || "";
+    if (!authHeader.startsWith("Bearer ")) return "free";
+    const token = authHeader.slice(7).trim();
+    if (!token) return "free";
+
+    const user = await verifyFirebaseToken(token);
+    if (!user?.uid) return "free";
+
+    const row = await db.prepare(
+      "SELECT plan FROM user_plans WHERE uid = ?"
+    ).bind(user.uid).first();
+
+    const plan = row?.plan || "free";
+    return ["pro", "developer"].includes(plan) ? plan : "free";
+  } catch (e) {
+    console.error("getPlan error:", e.message);
+    return "free";
+  }
+}
+
 
 async function cleanupExpired(db) {
   const now = Math.floor(Date.now() / 1000);
@@ -171,11 +219,14 @@ export async function onRequestPost(context) {
     await cleanupExpired(env.DB);
 
     const body = await request.json().catch(() => ({}));
-    const callerToken = request.headers.get("X-Owner-Token") || "";
     const isCustom = !!body.prefix;
 
-    // ========== FREE TIER: Block custom prefixes ==========
-    if (isCustom) {
+    // ── Resolve user plan ──────────────────────────────────────────────────
+    const plan = await getPlan(request, env.DB);
+    const limits = PLAN_CONFIG[plan] || PLAN_CONFIG.free;
+
+    // ── Custom prefix gate ─────────────────────────────────────────────────
+    if (isCustom && !limits.customPrefix) {
       return Response.json({
         error: "Custom prefixes are a Pro feature. Upgrade to choose your own email name.",
         upgrade_required: true,
@@ -183,99 +234,137 @@ export async function onRequestPost(context) {
       }, { status: 403 });
     }
 
-    // ========== FREE TIER: Check visitor limits ==========
-    const creationsToday = await getVisitorCreationCount(env.DB, ip, browserToken);
-
-    // Hard block after max creations
-    if (creationsToday >= FREE_MAX_CREATIONS_24H) {
-      return Response.json({
-        error: `You've reached the free limit of ${FREE_MAX_CREATIONS_24H} inboxes per day. Upgrade to Pro for more.`,
-        upgrade_required: true,
-        feature: "creation_limit",
-        creations_today: creationsToday,
-        max_creations: FREE_MAX_CREATIONS_24H,
-      }, { status: 429 });
-    }
-
-    // Check active inbox limit
-    const activeCount = await getActiveInboxCount(env.DB, ip, browserToken);
-    if (activeCount >= FREE_MAX_ACTIVE_INBOXES) {
-      return Response.json({
-        error: "Free accounts are limited to 1 active inbox. Delete your current inbox or wait for it to expire, or upgrade to Pro.",
-        upgrade_required: true,
-        feature: "active_limit",
-        active_count: activeCount,
-        max_active: FREE_MAX_ACTIVE_INBOXES,
-      }, { status: 429 });
-    }
-
-    // Require Turnstile after threshold
-    const turnstileRequired = creationsToday >= (FREE_TURNSTILE_THRESHOLD - 1);
-    if (turnstileRequired) {
-      const turnstileToken = body.turnstile_token || "";
-      const turnstileSecret = env.TURNSTILE_SECRET || "";
-
-      if (!turnstileToken) {
+    // ── For paid plans skip visitor usage checks ───────────────────────────
+    if (plan === "free") {
+      // Check daily creation limit (free only)
+      const creationsToday = await getVisitorCreationCount(env.DB, ip, browserToken);
+      if (creationsToday >= limits.maxDaily) {
         return Response.json({
-          error: "Please complete the verification challenge.",
-          turnstile_required: true,
+          error: `You've reached the free limit of ${limits.maxDaily} inboxes per day. Upgrade to Pro for more.`,
+          upgrade_required: true,
+          feature: "creation_limit",
           creations_today: creationsToday,
-          max_creations: FREE_MAX_CREATIONS_24H,
-        }, { status: 428 });
+          max_creations: limits.maxDaily,
+        }, { status: 429 });
       }
 
-      const valid = await verifyTurnstile(turnstileSecret, turnstileToken, ip);
-      if (!valid) {
+      // Check active inbox limit (free only)
+      const activeCount = await getActiveInboxCount(env.DB, ip, browserToken);
+      if (activeCount >= limits.maxActive) {
         return Response.json({
-          error: "Verification failed. Please try again.",
-          turnstile_required: true,
-        }, { status: 403 });
+          error: "Free accounts are limited to 1 active inbox. Delete your current inbox or wait for it to expire, or upgrade to Pro.",
+          upgrade_required: true,
+          feature: "active_limit",
+          active_count: activeCount,
+          max_active: limits.maxActive,
+        }, { status: 429 });
       }
-    }
 
-    // --- Random prefix path (with retry) ---
-    for (let attempt = 0; attempt < MAX_RANDOM_RETRIES; attempt++) {
-      const randomPrefix = generateRandomPrefix();
-      const email = `${randomPrefix}@${DOMAIN}`;
-      const id = generateId();
-      const ownerToken = generateOwnerToken();
-      const now = Math.floor(Date.now() / 1000);
-      const expiresAt = now + INBOX_TTL;
-
-      try {
-        await env.DB.prepare(
-          "INSERT INTO inboxes (id, email, owner_token, creator_ip, creator_token, created_at, expires_at) VALUES (?, ?, ?, ?, ?, ?, ?)"
-        )
-          .bind(id, email, ownerToken, ip, browserToken, now, expiresAt)
-          .run();
-
-        // Log this creation for visitor tracking
-        await logVisitorAction(env.DB, ip, browserToken);
-
-        return Response.json({
-          id,
-          email,
-          created_at: now,
-          expires_at: expiresAt,
-          owner_token: ownerToken,
-          creations_today: creationsToday + 1,
-          max_creations: FREE_MAX_CREATIONS_24H,
-          turnstile_required: (creationsToday + 1) >= (FREE_TURNSTILE_THRESHOLD - 1),
-        });
-      } catch (e) {
-        if (e.message && e.message.includes("UNIQUE")) {
-          continue;
+      // Turnstile check (free only after threshold)
+      const turnstileRequired = creationsToday >= (limits.turnstileAt - 1);
+      if (turnstileRequired) {
+        const turnstileToken = body.turnstile_token || "";
+        const turnstileSecret = env.TURNSTILE_SECRET || "";
+        if (!turnstileToken) {
+          return Response.json({
+            error: "Please complete the verification challenge.",
+            turnstile_required: true,
+            creations_today: creationsToday,
+            max_creations: limits.maxDaily,
+          }, { status: 428 });
         }
-        throw e;
+        const valid = await verifyTurnstile(turnstileSecret, turnstileToken, ip);
+        if (!valid) {
+          return Response.json({
+            error: "Verification failed. Please try again.",
+            turnstile_required: true,
+          }, { status: 403 });
+        }
       }
+
+      // ── Free: random prefix only ─────────────────────────────────────────
+      for (let attempt = 0; attempt < MAX_RANDOM_RETRIES; attempt++) {
+        const randomPrefix = generateRandomPrefix();
+        const email = `${randomPrefix}@${DOMAIN}`;
+        const id = generateId();
+        const ownerToken = generateOwnerToken();
+        const now = Math.floor(Date.now() / 1000);
+        const expiresAt = now + limits.ttl;
+
+        try {
+          await env.DB.prepare(
+            "INSERT INTO inboxes (id, email, owner_token, creator_ip, creator_token, created_at, expires_at) VALUES (?, ?, ?, ?, ?, ?, ?)"
+          ).bind(id, email, ownerToken, ip, browserToken, now, expiresAt).run();
+
+          await logVisitorAction(env.DB, ip, browserToken);
+
+          return Response.json({
+            id, email, created_at: now, expires_at: expiresAt, owner_token: ownerToken,
+            creations_today: creationsToday + 1,
+            max_creations: limits.maxDaily,
+            turnstile_required: (creationsToday + 1) >= (limits.turnstileAt - 1),
+          });
+        } catch (e) {
+          if (e.message?.includes("UNIQUE")) continue;
+          throw e;
+        }
+      }
+      return Response.json({ error: "Failed to generate a unique address. Please try again." }, { status: 500 });
     }
 
-    return Response.json({ error: "Failed to generate a unique address. Please try again." }, { status: 500 });
+    // ── Pro / Developer: custom or random ────────────────────────────────
+    const now = Math.floor(Date.now() / 1000);
+    const expiresAt = now + limits.ttl;
+    const id = generateId();
+    const ownerToken = generateOwnerToken();
+
+    let prefix;
+    if (isCustom) {
+      prefix = sanitizePrefix(body.prefix);
+      if (!prefix || prefix.length < 2) {
+        return Response.json({ error: "Custom prefix must be at least 2 characters." }, { status: 400 });
+      }
+      if (isBlockedPrefix(prefix)) {
+        return Response.json({ error: "That prefix is reserved. Please choose a different one." }, { status: 400 });
+      }
+    } else {
+      // Pro/Dev random — try a few times
+      for (let attempt = 0; attempt < MAX_RANDOM_RETRIES; attempt++) {
+        prefix = generateRandomPrefix();
+        const email = `${prefix}@${DOMAIN}`;
+        try {
+          await env.DB.prepare(
+            "INSERT INTO inboxes (id, email, owner_token, creator_ip, creator_token, created_at, expires_at) VALUES (?, ?, ?, ?, ?, ?, ?)"
+          ).bind(id, email, ownerToken, ip, browserToken, now, expiresAt).run();
+          return Response.json({ id, email, created_at: now, expires_at: expiresAt, owner_token: ownerToken, plan });
+        } catch (e) {
+          if (e.message?.includes("UNIQUE")) continue;
+          throw e;
+        }
+      }
+      return Response.json({ error: "Failed to generate a unique address. Please try again." }, { status: 500 });
+    }
+
+    // Custom prefix path for Pro/Dev
+    const email = `${prefix}@${DOMAIN}`;
+    try {
+      await env.DB.prepare(
+        "INSERT INTO inboxes (id, email, owner_token, creator_ip, creator_token, created_at, expires_at) VALUES (?, ?, ?, ?, ?, ?, ?)"
+      ).bind(id, email, ownerToken, ip, browserToken, now, expiresAt).run();
+      return Response.json({ id, email, created_at: now, expires_at: expiresAt, owner_token: ownerToken, plan });
+    } catch (e) {
+      if (e.message?.includes("UNIQUE")) {
+        return Response.json({ error: "That email prefix is already taken. Please try a different one." }, { status: 409 });
+      }
+      throw e;
+    }
+
   } catch (e) {
     console.error("Create inbox error:", e);
     return Response.json({ error: "Failed to create inbox." }, { status: 500 });
   }
 }
+
 
 // ========== DELETE /api/inbox — Delete inbox & cascaded messages ==========
 export async function onRequestDelete(context) {
