@@ -253,6 +253,13 @@ export async function onRequestPost(context) {
       }, { status: 403 });
     }
 
+    if (isCustom) {
+      const reserved = ['admin', 'privacy', 'support', 'legal', 'abhinav', 'root', 'postmaster', 'webmaster', 'billing', 'contact', 'help'];
+      if (reserved.includes(body.prefix.toLowerCase())) {
+        return Response.json({ error: "This prefix is reserved and cannot be used." }, { status: 403 });
+      }
+    }
+
     // ── For paid plans skip visitor usage checks ───────────────────────────
     if (plan === "free") {
       // Check daily creation limit (free only)
