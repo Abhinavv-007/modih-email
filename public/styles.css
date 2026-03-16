@@ -1376,6 +1376,7 @@ body {
   font-size: clamp(1.3rem, 4vw, 1.8rem);
   font-weight: 700;
   font-style: italic;
+  color: var(--accent); /* fallback so it's never black */
   background: linear-gradient(135deg, var(--accent), #f5e6c8);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;

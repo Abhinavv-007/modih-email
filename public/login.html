@@ -97,6 +97,10 @@
         <div class="auth-error" id="login-error"></div>
 
         <button type="submit" class="auth-submit" id="login-btn">Sign In</button>
+
+        <div style="text-align:center; margin-top:1rem;">
+          <button type="button" onclick="signInMagicLink()" style="background:none;border:none;color:var(--text-muted);font-size:0.82rem;cursor:pointer;text-decoration:underline;font-family:inherit;">Sign in with email link instead</button>
+        </div>
       </form>
 
       <!-- Verification warning (shown if email not verified) -->
@@ -239,6 +243,72 @@
         btn.innerHTML = originalText;
         errEl.textContent = friendlyError(err.code) || err.message;
         errEl.classList.add('visible');
+      }
+    }
+
+    // ========== MAGIC LINK SIGN IN ==========
+    async function signInMagicLink() {
+      const email = document.getElementById('login-email').value.trim();
+      const errEl = document.getElementById('login-error');
+      const btn = document.getElementById('login-btn');
+      errEl.classList.remove('visible');
+
+      if (!email) {
+        errEl.textContent = 'Please enter your email address first.';
+        errEl.classList.add('visible');
+        document.getElementById('login-email').focus();
+        return;
+      }
+
+      const originalText = btn.innerHTML;
+      btn.disabled = true;
+      btn.innerHTML = '<span class="spin">⟳</span> Sending link...';
+
+      const actionCodeSettings = {
+        url: window.location.origin + '/login.html?emailLink=1&redirect=' + encodeURIComponent(redirectTo),
+        handleCodeInApp: true,
+      };
+
+      try {
+        await auth.sendSignInLinkToEmail(email, actionCodeSettings);
+        window.localStorage.setItem('emailForSignIn', email);
+        btn.innerHTML = 'Link sent to ' + email + ' ✓';
+        btn.style.background = 'transparent';
+        btn.style.border = '1px solid #34d399';
+        btn.style.color = '#34d399';
+        setTimeout(() => {
+          btn.innerHTML = originalText;
+          btn.style.background = '';
+          btn.style.border = '';
+          btn.style.color = '';
+          btn.disabled = false;
+        }, 4000);
+      } catch (err) {
+        btn.disabled = false;
+        btn.innerHTML = originalText;
+        errEl.textContent = friendlyError(err.code) || err.message;
+        errEl.classList.add('visible');
+      }
+    }
+
+    // ========== HANDLE MAGIC LINK COMPLETION (on page load) ==========
+    if (auth.isSignInWithEmailLink(window.location.href)) {
+      let email = window.localStorage.getItem('emailForSignIn');
+      if (!email) {
+        email = window.prompt('Please confirm your email address:');
+      }
+      if (email) {
+        auth.signInWithEmailLink(email, window.location.href)
+          .then(async (cred) => {
+            window.localStorage.removeItem('emailForSignIn');
+            await syncUserPlan(cred.user);
+            window.location.replace(redirectTo);
+          })
+          .catch((err) => {
+            const errEl = document.getElementById('login-error');
+            errEl.textContent = 'Magic link sign-in failed: ' + friendlyError(err.code);
+            errEl.classList.add('visible');
+          });
       }
     }
 

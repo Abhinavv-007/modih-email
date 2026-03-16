@@ -113,6 +113,10 @@
 
           <div class="auth-error" id="signup-error"></div>
           <button type="submit" class="auth-submit" id="signup-btn">Create Account</button>
+
+          <div style="text-align:center; margin-top:0.75rem;">
+            <button type="button" onclick="signUpMagicLink()" style="background:none;border:none;color:var(--text-muted);font-size:0.82rem;cursor:pointer;text-decoration:underline;font-family:inherit;">Sign up / in with email link (no password)</button>
+          </div>
         </form>
 
         <p class="auth-footer-link">
@@ -271,6 +275,45 @@
         if (err.code !== 'auth/popup-closed-by-user') {
           showError(friendlyError(err.code));
         }
+      }
+    }
+
+    // ========== MAGIC LINK SIGN UP ==========
+    async function signUpMagicLink() {
+      const email = document.getElementById('signup-email').value.trim();
+      const errEl = document.getElementById('signup-error');
+      const btn = document.getElementById('signup-btn');
+      errEl.classList.remove('visible');
+
+      if (!email) {
+        errEl.textContent = 'Please enter your email address above first.';
+        errEl.classList.add('visible');
+        document.getElementById('signup-email').focus();
+        return;
+      }
+
+      const originalText = btn.innerHTML;
+      btn.disabled = true;
+      btn.innerHTML = '<span class="spin">⟳</span> Sending link...';
+
+      const actionCodeSettings = {
+        url: window.location.origin + '/login.html?emailLink=1&redirect=' + encodeURIComponent(redirectTo),
+        handleCodeInApp: true,
+      };
+
+      try {
+        await auth.sendSignInLinkToEmail(email, actionCodeSettings);
+        window.localStorage.setItem('emailForSignIn', email);
+        // Show sent state
+        document.getElementById('signup-form').parentElement.style.display = 'none';
+        const sent = document.getElementById('sent-state');
+        sent.style.display = 'block';
+        document.getElementById('sent-email-display').textContent = email;
+      } catch (err) {
+        btn.disabled = false;
+        btn.innerHTML = originalText;
+        errEl.textContent = 'Could not send link: ' + (friendlyError(err.code) || err.message);
+        errEl.classList.add('visible');
       }
     }
 

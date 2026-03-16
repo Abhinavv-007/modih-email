@@ -3,7 +3,8 @@
    ======================================== */
 
 // ========== STATE ==========
-let currentInbox = null; // { id, email, created_at, expires_at, owner_token }
+let currentInbox = null;      // { id, email, created_at, expires_at, owner_token }
+let sessionInboxes = [];      // All inboxes created this session (Pro/Dev multi-inbox)
 let currentMessages = [];
 let currentMessageId = null;
 let countdownInterval = null;
@@ -11,7 +12,7 @@ let refreshInterval = null;
 let isMailWindowOpen = false;
 let turnstileWidgetId = null;
 let turnstileRequired = false;
-let currentUser = null; // Firebase user { uid, email, plan }
+let currentUser = null;       // Firebase user { uid, email, plan }
 
 // ========== FIREBASE AUTH ==========
 const FIREBASE_CONFIG = {
@@ -89,6 +90,12 @@ function renderNavAuth() {
   const plan = currentUser?.plan || 'free';
   updatePricingUI(plan);
   updatePrefixUI(plan);
+
+  // Update auto-expire stat bubble
+  const expireStat = document.getElementById('stat-expire-label');
+  if (expireStat) {
+    expireStat.textContent = (plan === 'pro' || plan === 'developer') ? '7d' : '3h';
+  }
 }
 
 // ========== PLAN-AWARE PRICING UI ==========
@@ -484,6 +491,19 @@ async function createInbox(type) {
     // Save state (includes owner_token)
     currentInbox = data;
     currentMessages = [];
+
+    // Track this inbox in sessionInboxes for Pro/Dev multi-inbox support
+    const plan = currentUser?.plan || 'free';
+    if (plan === 'pro' || plan === 'developer') {
+      // Add if not already in the list
+      if (!sessionInboxes.find(i => i.id === data.id)) {
+        sessionInboxes.push(data);
+      }
+    } else {
+      // Free: only track the current one
+      sessionInboxes = [data];
+    }
+
     saveSession();
 
     // Update creation counter
@@ -557,6 +577,9 @@ function showEmailResult(inbox) {
   addressEl.textContent = inbox.email;
   resultEl.style.display = "block";
 
+  // Render the inbox tab strip (for Pro/Dev with multiple inboxes)
+  renderInboxTabs();
+
   // Start countdown if we have an expiry
   if (inbox.expires_at) {
     startCountdown(inbox.expires_at);
@@ -564,6 +587,58 @@ function showEmailResult(inbox) {
 
   // Smooth scroll to result
   resultEl.scrollIntoView({ behavior: "smooth", block: "center" });
+}
+
+// ========== INBOX TAB SWITCHER (Pro/Dev) ==========
+function renderInboxTabs() {
+  // Only show tabs if there are 2+ inboxes
+  let tabEl = document.getElementById("inbox-tabs");
+
+  if (sessionInboxes.length < 2) {
+    if (tabEl) tabEl.style.display = "none";
+    return;
+  }
+
+  if (!tabEl) {
+    // Create the container and inject it above the result
+    const resultEl = document.getElementById("email-result");
+    tabEl = document.createElement("div");
+    tabEl.id = "inbox-tabs";
+    resultEl.parentNode.insertBefore(tabEl, resultEl);
+  }
+
+  tabEl.style.display = "flex";
+  tabEl.innerHTML = `
+    <span style="font-size:0.75rem;color:var(--text-muted);margin-right:0.5rem;align-self:center;">Inboxes:</span>
+    ${sessionInboxes.map(inbox => {
+      const prefix = inbox.email.split("@")[0];
+      const isActive = currentInbox?.id === inbox.id;
+      return `<button
+        onclick="switchToInbox('${inbox.id}')"
+        style="
+          background:${isActive ? 'rgba(212,167,106,0.2)' : 'rgba(255,255,255,0.05)'};
+          border:1px solid ${isActive ? 'var(--accent)' : 'rgba(255,255,255,0.15)'};
+          color:${isActive ? 'var(--accent)' : 'var(--text-muted)'};
+          padding:0.25rem 0.75rem;
+          border-radius:100px;
+          font-size:0.75rem;
+          cursor:pointer;
+          transition:all 0.2s;
+          font-family:inherit;
+        "
+      >${prefix}</button>`;
+    }).join("")}
+  `;
+}
+
+function switchToInbox(inboxId) {
+  const inbox = sessionInboxes.find(i => i.id === inboxId);
+  if (!inbox || currentInbox?.id === inboxId) return;
+  currentInbox = inbox;
+  currentMessages = [];
+  saveSession();
+  showEmailResult(inbox);
+  fetchMessages();
 }
 
 // ========== COUNTDOWN TIMER ==========
