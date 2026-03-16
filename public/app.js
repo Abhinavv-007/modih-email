@@ -501,8 +501,18 @@ async function createInbox(type) {
     currentMessages = [];
 
     // Use plan from backend response OR currentUser (whichever is available)
-    const isPaid = data.plan === 'pro' || data.plan === 'developer' ||
-                   currentUser?.plan === 'pro' || currentUser?.plan === 'developer';
+    const backendPlan = data.plan || 'free';
+    const currentPlan = currentUser?.plan || 'free';
+    
+    // If backend knows we are pro but frontend didn't (e.g. admin upgrade without reload),
+    // instantly update the frontend state so the UI (like "3 inboxes per day" text) updates!
+    if (backendPlan !== 'free' && currentUser && currentPlan === 'free') {
+      currentUser.plan = backendPlan;
+      renderNavAuth(); // Instantly clears the "Free plan: 3 inboxes per day" text!
+    }
+
+    const finalPlan = currentUser?.plan || backendPlan;
+    const isPaid = finalPlan === 'pro' || finalPlan === 'developer';
 
     if (isPaid) {
       // Pro/Dev: accumulate inboxes instead of replacing
@@ -1094,52 +1104,97 @@ function showToast(msg) {
 // ========== SESSION PERSISTENCE ==========
 function saveSession() {
   if (currentInbox) {
-    localStorage.setItem("modih_inbox", JSON.stringify({
-      id: currentInbox.id,
-      email: currentInbox.email,
-      created_at: currentInbox.created_at,
-      expires_at: currentInbox.expires_at,
-      owner_token: currentInbox.owner_token,
+    const dataToSave = sessionInboxes.map(inbox => ({
+      id: inbox.id,
+      email: inbox.email,
+      created_at: inbox.created_at,
+      expires_at: inbox.expires_at,
+      owner_token: inbox.owner_token,
     }));
+    localStorage.setItem("modih_inboxes_v2", JSON.stringify(dataToSave));
+    localStorage.setItem("modih_active_inbox_id", currentInbox.id);
   }
 }
 
 function clearSession() {
-  localStorage.removeItem("modih_inbox");
+  localStorage.removeItem("modih_inboxes_v2");
+  localStorage.removeItem("modih_active_inbox_id");
+  localStorage.removeItem("modih_inbox"); // legacy cleanup
+  sessionInboxes = [];
+  currentInbox = null;
 }
 
 async function restoreSession() {
   try {
-    const saved = localStorage.getItem("modih_inbox");
-    if (!saved) return;
+    // 1. Try V2 persistence (array of inboxes)
+    const savedV2 = localStorage.getItem("modih_inboxes_v2");
+    const activeId = localStorage.getItem("modih_active_inbox_id");
+    
+    // 2. Fallback to older V1 persistence
+    const savedV1 = localStorage.getItem("modih_inbox");
+    
+    let inboxesToRestore = [];
+    let inboxToActivate = null;
 
-    const inbox = JSON.parse(saved);
+    if (savedV2) {
+      inboxesToRestore = JSON.parse(savedV2);
+      if (activeId) {
+        inboxToActivate = inboxesToRestore.find(i => i.id === activeId) || inboxesToRestore[0];
+      } else {
+        inboxToActivate = inboxesToRestore[0];
+      }
+    } else if (savedV1) {
+      const legacyInbox = JSON.parse(savedV1);
+      inboxesToRestore = [legacyInbox];
+      inboxToActivate = legacyInbox;
+    } else {
+      return;
+    }
 
-    if (!inbox.owner_token) {
+    if (!inboxToActivate || !inboxToActivate.owner_token) {
       clearSession();
       return;
     }
 
-    if (inbox.expires_at) {
-      const now = Math.floor(Date.now() / 1000);
-      if (inbox.expires_at < now) {
-        clearSession();
-        return;
+    // Filter out expired inboxes from the array
+    const now = Math.floor(Date.now() / 1000);
+    const validInboxes = [];
+    for (const ibx of inboxesToRestore) {
+      if (!ibx.expires_at || ibx.expires_at > now) {
+        validInboxes.push(ibx);
       }
     }
 
-    const res = await fetch(`/api/messages?inbox_id=${inbox.id}`, {
-      headers: { "X-Owner-Token": inbox.owner_token },
+    if (validInboxes.length === 0) {
+      clearSession();
+      return;
+    }
+
+    // If active one expired, pick the first valid one
+    if (!validInboxes.find(i => i.id === inboxToActivate.id)) {
+      inboxToActivate = validInboxes[0];
+    }
+    
+    sessionInboxes = validInboxes;
+
+    // Validate the active inbox by calling backend
+    const res = await fetch(`/api/messages?inbox_id=${inboxToActivate.id}`, {
+      headers: { "X-Owner-Token": inboxToActivate.owner_token },
     });
 
     if (res.ok) {
       const data = await res.json();
       if (data.inbox && data.inbox.expires_at) {
-        inbox.expires_at = data.inbox.expires_at;
+        inboxToActivate.expires_at = data.inbox.expires_at;
+        // Also update it in the array
+        const idx = sessionInboxes.findIndex(i => i.id === inboxToActivate.id);
+        if (idx >= 0) sessionInboxes[idx].expires_at = data.inbox.expires_at;
       }
-      currentInbox = inbox;
-      showEmailResult(inbox);
+      currentInbox = inboxToActivate;
+      showEmailResult(currentInbox);
     } else {
+      // If the backend call fails, just use the validInboxes we have but maybe the server wiped it
+      // In a robust implementation we'd check each inbox, but for now just clear if the active one is dead
       clearSession();
     }
   } catch (e) {

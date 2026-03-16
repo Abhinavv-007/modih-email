@@ -54,7 +54,26 @@ async function getPlan(request, db) {
       "SELECT plan FROM user_plans WHERE uid = ?"
     ).bind(user.uid).first();
 
-    const plan = row?.plan || "free";
+    let plan = row?.plan || "free";
+
+    // Fallback: check by email if UID was not synced yet (e.g. admin upgrade without reload)
+    if (user.email) {
+      const emailRows = await db.prepare(
+        "SELECT plan FROM user_plans WHERE LOWER(email) = LOWER(?)"
+      ).bind(user.email).all();
+      
+      let emailBest = "free";
+      for (const r of (emailRows.results || [])) {
+        if (r.plan === "developer") emailBest = "developer";
+        else if (r.plan === "pro" && emailBest !== "developer") emailBest = "pro";
+      }
+
+      const planRank = { developer: 3, pro: 2, free: 1 };
+      if ((planRank[emailBest] || 0) > (planRank[plan] || 0)) {
+        plan = emailBest;
+      }
+    }
+
     return ["pro", "developer"].includes(plan) ? plan : "free";
   } catch (e) {
     console.error("getPlan error:", e.message);
