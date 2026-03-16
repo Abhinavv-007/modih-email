@@ -37,24 +37,28 @@
       overflow-x: hidden;
     }
 
-    /* ===== BG ===== */
+    /* ===== BG IMAGE ===== */
     .admin-bg {
       position: fixed; inset: 0; z-index: 0;
-      background:
-        radial-gradient(ellipse 80% 60% at 50% -10%, rgba(212,167,106,0.08) 0%, transparent 60%),
-        radial-gradient(ellipse 60% 80% at 100% 100%, rgba(100,80,180,0.05) 0%, transparent 60%);
-    }
-    .admin-bg-video {
-      position: fixed; inset: 0; z-index: -1;
-      width: 100%; height: 100%;
-      object-fit: cover;
-      opacity: 0.08;
-      filter: blur(2px);
+      background-image: url('/deskton-mail-bg.png');
+      background-size: cover;
+      background-position: center center;
+      background-repeat: no-repeat;
+      -webkit-transform: translateZ(0);
       transform: translateZ(0);
+      will-change: transform;
+    }
+    /* Mobile: swap to phone BG */
+    @media (max-width: 768px) {
+      .admin-bg {
+        background-image: url('/phone-mail-bg.png');
+        background-position: 50% 30%;
+      }
     }
     .admin-overlay {
       position: fixed; inset: 0; z-index: 0;
-      background: rgba(7,7,13,0.82);
+      /* Dark tint — lets image show through subtly */
+      background: rgba(5, 4, 10, 0.78);
     }
 
     /* ===== LAYOUT ===== */
@@ -130,7 +134,7 @@
 
     /* ===== CONTROLS ===== */
     .controls-row { display: flex; gap: 0.75rem; margin-bottom: 1.5rem; flex-wrap: wrap; align-items: center; }
-    .search-input { flex: 1; min-width: 220px; padding: 0.7rem 1rem; background: rgba(255,255,255,0.05); border: 1px solid var(--glass-border); border-radius: 10px; color: var(--text); font-size: 0.92rem; font-family: inherit; outline: none; transition: var(--t); }
+    .search-input { flex: 1; min-width: 180px; padding: 0.7rem 1rem; background: rgba(255,255,255,0.05); border: 1px solid var(--glass-border); border-radius: 10px; color: var(--text); font-size: 0.92rem; font-family: inherit; outline: none; transition: var(--t); }
     .search-input:focus { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-glow); }
     .search-input::placeholder { color: var(--text-3); }
     .filter-btn { padding: 0.7rem 1.2rem; border-radius: 10px; font-size: 0.85rem; font-weight: 500; font-family: inherit; cursor: pointer; border: 1px solid var(--glass-border); background: rgba(255,255,255,0.04); color: var(--text-2); transition: var(--t); }
@@ -138,6 +142,49 @@
     .filter-btn.active { border-color: var(--accent); color: var(--accent); background: rgba(212,167,106,0.1); }
     .refresh-btn { padding: 0.7rem 1rem; border-radius: 10px; font-size: 0.85rem; font-family: inherit; cursor: pointer; border: 1px solid var(--glass-border); background: rgba(255,255,255,0.04); color: var(--text-3); transition: var(--t); display: flex; align-items: center; gap: 0.4rem; }
     .refresh-btn:hover { color: var(--text-2); border-color: rgba(255,255,255,0.2); }
+    .add-user-btn { padding: 0.7rem 1.1rem; border-radius: 10px; font-size: 0.85rem; font-weight: 600; font-family: inherit; cursor: pointer; border: 1px solid rgba(212,167,106,0.35); background: rgba(212,167,106,0.12); color: var(--accent); transition: var(--t); display: flex; align-items: center; gap: 0.4rem; white-space: nowrap; }
+    .add-user-btn:hover { background: rgba(212,167,106,0.22); border-color: rgba(212,167,106,0.55); transform: translateY(-1px); }
+
+    /* ===== ADD USER MODAL ===== */
+    .modal-backdrop {
+      position: fixed; inset: 0; z-index: 500;
+      background: rgba(5,4,10,0.72);
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
+      display: flex; align-items: center; justify-content: center;
+      padding: 1.5rem;
+      opacity: 0; pointer-events: none;
+      transition: opacity 0.25s ease;
+    }
+    .modal-backdrop.open { opacity: 1; pointer-events: auto; }
+    .modal-card {
+      width: 100%; max-width: 440px;
+      background: rgba(12,9,7,0.9);
+      backdrop-filter: blur(40px); -webkit-backdrop-filter: blur(40px);
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 20px;
+      padding: 2rem;
+      box-shadow: 0 30px 80px rgba(0,0,0,0.6), 0 1px 0 rgba(255,255,255,0.04) inset;
+      transform: translateY(16px) scale(0.97);
+      transition: transform 0.3s cubic-bezier(0.34,1.56,0.64,1);
+    }
+    .modal-backdrop.open .modal-card { transform: none; }
+    .modal-title { font-family: 'Cormorant Garamond', serif; font-size: 1.6rem; font-weight: 600; font-style: italic; margin-bottom: 0.3rem; }
+    .modal-sub { font-size: 0.82rem; color: var(--text-3); margin-bottom: 1.5rem; }
+    .modal-field { display: flex; flex-direction: column; gap: 0.35rem; margin-bottom: 1rem; }
+    .modal-label { font-size: 0.78rem; font-weight: 500; color: rgba(255,255,255,0.65); letter-spacing: 0.03em; }
+    .modal-input { width: 100%; padding: 0.8rem 1rem; background: rgba(255,255,255,0.06); border: 1px solid var(--glass-border); border-radius: 10px; color: var(--text); font-size: 0.92rem; font-family: inherit; outline: none; transition: var(--t); }
+    .modal-input:focus { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-glow); }
+    .modal-input::placeholder { color: var(--text-3); }
+    .modal-select { appearance: none; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='rgba(255,255,255,0.4)' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 0.9rem center; padding-right: 2.5rem; cursor: pointer; }
+    .modal-actions { display: flex; gap: 0.75rem; margin-top: 1.5rem; }
+    .modal-submit { flex: 1; padding: 0.85rem; border-radius: 10px; font-size: 0.95rem; font-weight: 600; font-family: inherit; cursor: pointer; border: none; background: linear-gradient(135deg, rgba(212,167,106,0.95), rgba(200,149,106,0.9)); color: #0a0a0f; transition: var(--t); }
+    .modal-submit:hover { transform: translateY(-1px); box-shadow: 0 6px 20px rgba(212,167,106,0.4); }
+    .modal-submit:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+    .modal-cancel { padding: 0.85rem 1.2rem; border-radius: 10px; font-size: 0.92rem; font-family: inherit; cursor: pointer; border: 1px solid var(--glass-border); background: rgba(255,255,255,0.04); color: var(--text-3); transition: var(--t); }
+    .modal-cancel:hover { color: var(--text-2); border-color: rgba(255,255,255,0.2); }
+    .modal-error { padding: 0.65rem 0.9rem; background: rgba(248,113,113,0.1); border: 1px solid rgba(248,113,113,0.22); border-radius: 8px; color: #fca5a5; font-size: 0.82rem; margin-top: 0.75rem; display: none; }
+    .modal-error.visible { display: block; }
 
     /* ===== TABLE ===== */
     .table-wrap {
@@ -215,10 +262,8 @@
 </head>
 <body>
 
+  <!-- BG layer: actual site poster images, dark-tinted -->
   <div class="admin-bg"></div>
-  <video class="admin-bg-video" muted playsinline loop autoplay>
-    <source src="/desktop-bg-loop.mp4" type="video/mp4" />
-  </video>
   <div class="admin-overlay"></div>
 
   <div class="admin-root">
@@ -287,6 +332,10 @@
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/></svg>
           Refresh
         </button>
+        <button class="add-user-btn" onclick="openAddModal()">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          Add User
+        </button>
       </div>
 
       <!-- Table -->
@@ -307,6 +356,38 @@
 
   </div>
 
+  <!-- Add User Modal -->
+  <div class="modal-backdrop" id="add-modal" onclick="handleModalBackdropClick(event)">
+    <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+      <h2 class="modal-title" id="modal-title">Add <span style="background:linear-gradient(135deg,#d4a76a,#f5e6c8);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;">User</span></h2>
+      <p class="modal-sub">Manually create a subscription record by Firebase UID</p>
+
+      <div class="modal-field">
+        <label class="modal-label" for="add-uid">Firebase UID <span style="color:var(--danger)">*</span></label>
+        <input type="text" class="modal-input" id="add-uid" placeholder="e.g. abc123XYZ…" autocomplete="off" />
+      </div>
+      <div class="modal-field">
+        <label class="modal-label" for="add-email">Email</label>
+        <input type="email" class="modal-input" id="add-email" placeholder="user@example.com" />
+      </div>
+      <div class="modal-field">
+        <label class="modal-label" for="add-plan">Plan</label>
+        <select class="modal-input modal-select" id="add-plan">
+          <option value="free">Free</option>
+          <option value="pro">Pro</option>
+          <option value="developer">Developer</option>
+        </select>
+      </div>
+
+      <div class="modal-error" id="add-error"></div>
+
+      <div class="modal-actions">
+        <button class="modal-cancel" onclick="closeAddModal()">Cancel</button>
+        <button class="modal-submit" id="add-submit" onclick="submitAddUser()">Add User</button>
+      </div>
+    </div>
+  </div>
+
   <!-- Toast container -->
   <div id="toast-el" style="display:none"></div>
 
@@ -316,6 +397,69 @@
     let allUsers = [];
     let currentFilter = 'all';
     let searchTimeout = null;
+
+    // ===== ADD USER MODAL =====
+    function openAddModal() {
+      document.getElementById('add-uid').value = '';
+      document.getElementById('add-email').value = '';
+      document.getElementById('add-plan').value = 'free';
+      document.getElementById('add-error').classList.remove('visible');
+      document.getElementById('add-submit').disabled = false;
+      document.getElementById('add-submit').textContent = 'Add User';
+      document.getElementById('add-modal').classList.add('open');
+      setTimeout(() => document.getElementById('add-uid').focus(), 150);
+    }
+
+    function closeAddModal() {
+      document.getElementById('add-modal').classList.remove('open');
+    }
+
+    function handleModalBackdropClick(e) {
+      if (e.target === document.getElementById('add-modal')) closeAddModal();
+    }
+
+    async function submitAddUser() {
+      const uid = document.getElementById('add-uid').value.trim();
+      const email = document.getElementById('add-email').value.trim();
+      const plan = document.getElementById('add-plan').value;
+      const errEl = document.getElementById('add-error');
+      const btn = document.getElementById('add-submit');
+
+      errEl.classList.remove('visible');
+      if (!uid) { errEl.textContent = 'Firebase UID is required.'; errEl.classList.add('visible'); return; }
+
+      btn.disabled = true;
+      btn.textContent = '⟳ Adding…';
+
+      try {
+        const res = await fetch('/api/admin/users', {
+          method: 'POST',
+          headers: { 'X-Admin-Secret': adminSecret, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ uid, email: email || '', plan })
+        });
+        const data = await res.json();
+        if (res.ok) {
+          showToast('✅ User added successfully');
+          closeAddModal();
+          loadUsers(currentFilter !== 'all' ? currentFilter : undefined);
+        } else {
+          errEl.textContent = data.error || 'Failed to add user.';
+          errEl.classList.add('visible');
+          btn.disabled = false;
+          btn.textContent = 'Add User';
+        }
+      } catch (e) {
+        errEl.textContent = 'Network error. Please try again.';
+        errEl.classList.add('visible');
+        btn.disabled = false;
+        btn.textContent = 'Add User';
+      }
+    }
+
+    // Close modal on Escape
+    document.addEventListener('keydown', e => {
+      if (e.key === 'Escape') closeAddModal();
+    });
 
     // ===== GATE =====
     async function unlockAdmin() {

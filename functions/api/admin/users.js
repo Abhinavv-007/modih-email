@@ -1,4 +1,5 @@
 // GET /api/admin/users — list all users (requires X-Admin-Secret)
+// POST /api/admin/users — create/upsert a user record { uid, email, plan }
 // PATCH /api/admin/users — update plan { uid, plan }
 // DELETE /api/admin/users?uid=... — delete user record
 
@@ -64,6 +65,42 @@ export async function onRequestGet(context) {
     return Response.json({ error: "Internal server error" }, { status: 500 });
   }
 }
+
+export async function onRequestPost(context) {
+  const { env, request } = context;
+  if (!isAdmin(request, env)) return adminUnauth();
+
+  try {
+    const { uid, email, plan } = await request.json();
+    if (!uid) return Response.json({ error: "uid is required" }, { status: 400 });
+    if (plan && !["free", "pro", "developer"].includes(plan)) {
+      return Response.json({ error: "Invalid plan. Choose: free, pro, developer" }, { status: 400 });
+    }
+
+    const now = Math.floor(Date.now() / 1000);
+    const finalPlan = plan || "free";
+    const finalEmail = email || "";
+
+    // Check if already exists
+    const existing = await env.DB.prepare(
+      "SELECT uid FROM user_plans WHERE uid = ?"
+    ).bind(uid).first();
+
+    if (existing) {
+      return Response.json({ error: "A user with this UID already exists. Use the upgrade/downgrade buttons to change their plan." }, { status: 409 });
+    }
+
+    await env.DB.prepare(
+      "INSERT INTO user_plans (uid, email, plan, created_at, updated_at) VALUES (?, ?, ?, ?, ?)"
+    ).bind(uid, finalEmail, finalPlan, now, now).run();
+
+    return Response.json({ success: true, uid, email: finalEmail, plan: finalPlan }, { status: 201 });
+  } catch (e) {
+    console.error("Admin create user error:", e);
+    return Response.json({ error: "Internal server error" }, { status: 500 });
+  }
+}
+
 
 export async function onRequestPatch(context) {
   const { env, request } = context;
