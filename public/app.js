@@ -647,14 +647,17 @@ function renderInboxTabs() {
             justify-content:space-between;
             align-items:center;
             padding:0.75rem 1rem;
-            background:${isActive ? 'rgba(212,167,106,0.08)' : 'rgba(255,255,255,0.03)'};
-            border:1px solid ${isActive ? 'rgba(212,167,106,0.4)' : 'rgba(255,255,255,0.08)'};
+            background:${isActive ? 'rgba(40,40,50,0.6)' : 'rgba(30,30,40,0.45)'};
+            backdrop-filter:blur(10px);
+            -webkit-backdrop-filter:blur(10px);
+            border:1px solid ${isActive ? 'rgba(212,167,106,0.5)' : 'rgba(255,255,255,0.12)'};
             border-radius:12px;
             cursor:pointer;
             transition:all 0.2s ease;
+            box-shadow:0 4px 12px rgba(0,0,0,0.2);
           "
-          onmouseover="this.style.background='rgba(255,255,255,0.08)';"
-          onmouseout="this.style.background='${isActive ? 'rgba(212,167,106,0.08)' : 'rgba(255,255,255,0.03)'}';"
+          onmouseover="this.style.background='rgba(50,50,60,0.65)';"
+          onmouseout="this.style.background='${isActive ? 'rgba(40,40,50,0.6)' : 'rgba(30,30,40,0.45)'}';"
         >
           <div style="display:flex;flex-direction:column;gap:0.2rem;">
             <span style="font-family:'Cormorant Garamond',serif;font-size:1.2rem;font-weight:700;color:${isActive ? 'var(--accent)' : 'var(--text)'};">${inbox.email}</span>
