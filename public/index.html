@@ -319,7 +319,7 @@
     <div class="section-inner fade-up">
       <p class="section-tag glass-pill">✦ Get Your Email</p>
       <h2 class="section-title"><span class="cursive-accent">Create</span> your inbox</h2>
-      <p class="section-desc">Generate a random address — your inbox will be ready instantly. Free plan: 3 inboxes per day.</p>
+      <p class="section-desc" id="generate-section-desc">Generate a random address — your inbox will be ready instantly. Free plan: 3 inboxes per day.</p>
       
       <div class="generate-box glass-card-large">
         <div class="input-group">
@@ -362,6 +362,9 @@
           </div>
         </div>
       </div>
+
+      <!-- Inbox tab switcher (shown for Pro/Dev with multiple inboxes) -->
+      <div id="inbox-tabs" style="display:none; align-items:center; gap:0.5rem; flex-wrap:wrap; margin-bottom:0.75rem; padding:0 0.25rem;"></div>
 
       <!-- Generated Email Display -->
       <div id="email-result" class="email-result glass-card-large" style="display:none;">

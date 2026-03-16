@@ -96,6 +96,14 @@ function renderNavAuth() {
   if (expireStat) {
     expireStat.textContent = (plan === 'pro' || plan === 'developer') ? '7d' : '3h';
   }
+
+  // Update generate section description
+  const genDesc = document.getElementById('generate-section-desc');
+  if (genDesc) {
+    genDesc.textContent = (plan === 'pro' || plan === 'developer')
+      ? 'Generate a random address or enter a custom prefix — your inbox stays active for 7 days.'
+      : 'Generate a random address — your inbox will be ready instantly. Free plan: 3 inboxes per day.';
+  }
 }
 
 // ========== PLAN-AWARE PRICING UI ==========
@@ -604,44 +612,27 @@ function showEmailResult(inbox) {
 
 // ========== INBOX TAB SWITCHER (Pro/Dev) ==========
 function renderInboxTabs() {
-  // Only show tabs if there are 2+ inboxes
-  let tabEl = document.getElementById("inbox-tabs");
+  const tabEl = document.getElementById('inbox-tabs');
+  if (!tabEl) return;
 
   if (sessionInboxes.length < 2) {
-    if (tabEl) tabEl.style.display = "none";
+    tabEl.style.display = 'none';
     return;
   }
 
-  if (!tabEl) {
-    // Create the container and inject it above the result
-    const resultEl = document.getElementById("email-result");
-    tabEl = document.createElement("div");
-    tabEl.id = "inbox-tabs";
-    resultEl.parentNode.insertBefore(tabEl, resultEl);
-  }
-
-  tabEl.style.display = "flex";
-  tabEl.innerHTML = `
-    <span style="font-size:0.75rem;color:var(--text-muted);margin-right:0.5rem;align-self:center;">Inboxes:</span>
-    ${sessionInboxes.map(inbox => {
-      const prefix = inbox.email.split("@")[0];
+  tabEl.style.display = 'flex';
+  tabEl.innerHTML =
+    '<span style="font-size:0.75rem;color:var(--text-muted);margin-right:0.5rem;align-self:center;">Inboxes:</span>' +
+    sessionInboxes.map(inbox => {
+      const prefix = inbox.email.split('@')[0];
       const isActive = currentInbox?.id === inbox.id;
-      return `<button
-        onclick="switchToInbox('${inbox.id}')"
-        style="
-          background:${isActive ? 'rgba(212,167,106,0.2)' : 'rgba(255,255,255,0.05)'};
-          border:1px solid ${isActive ? 'var(--accent)' : 'rgba(255,255,255,0.15)'};
-          color:${isActive ? 'var(--accent)' : 'var(--text-muted)'};
-          padding:0.25rem 0.75rem;
-          border-radius:100px;
-          font-size:0.75rem;
-          cursor:pointer;
-          transition:all 0.2s;
-          font-family:inherit;
-        "
-      >${prefix}</button>`;
-    }).join("")}
-  `;
+      return `<button onclick="switchToInbox('${inbox.id}')" style="` +
+        `background:${isActive ? 'rgba(212,167,106,0.2)' : 'rgba(255,255,255,0.05)'};` +
+        `border:1px solid ${isActive ? 'var(--accent)' : 'rgba(255,255,255,0.15)'};` +
+        `color:${isActive ? 'var(--accent)' : 'var(--text-muted)'};` +
+        `padding:0.25rem 0.7rem;border-radius:100px;font-size:0.75rem;` +
+        `cursor:pointer;transition:all 0.2s;font-family:inherit;">${prefix}</button>`;
+    }).join('');
 }
 
 function switchToInbox(inboxId) {
