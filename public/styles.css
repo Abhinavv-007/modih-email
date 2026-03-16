@@ -2378,7 +2378,18 @@ body {
     font-size: 1.4rem;
   }
 
+  .nav-inner {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+
+  #nav-auth-area {
+    margin-left: auto;
+  }
+
   .nav-links {
+    display: none; /* Hide center links on mobile for now since they break layout */
     padding: 0.4rem 1rem;
     gap: 1rem;
   }
