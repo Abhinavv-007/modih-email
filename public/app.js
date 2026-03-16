@@ -16,7 +16,7 @@ let currentUser = null; // Firebase user { uid, email, plan }
 // ========== FIREBASE AUTH ==========
 const FIREBASE_CONFIG = {
   apiKey: "AIzaSyA9smn_wjvJ9F8Oe-wZzLzOGqHKwAXXXCA",
-  authDomain: "modih.in",
+  authDomain: "modih-in.firebaseapp.com",
   projectId: "modih-in",
   storageBucket: "modih-in.firebasestorage.app",
   messagingSenderId: "172328662562",
