@@ -36,12 +36,17 @@ export async function onRequest(context) {
   // Inject the site key script tag just before </head>
   const injectionScript = `<script>window.TURNSTILE_SITE_KEY = ${JSON.stringify(siteKey)};</script>`;
 
+  // Create a new Headers object from the original, but remove Content-Length
+  // as the transformation will change the body size.
+  const newHeaders = new Headers(response.headers);
+  newHeaders.delete('content-length');
+
   const html = await response.text();
   const transformed = html.replace('</head>', `${injectionScript}\n</head>`);
 
   return new Response(transformed, {
     status: response.status,
     statusText: response.statusText,
-    headers: response.headers,
+    headers: newHeaders,
   });
 }
