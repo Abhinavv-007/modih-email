@@ -631,17 +631,43 @@ function renderInboxTabs() {
   }
 
   tabEl.style.display = 'flex';
-  tabEl.innerHTML =
-    '<span style="font-size:0.75rem;color:var(--text-muted);margin-right:0.5rem;align-self:center;">Inboxes:</span>' +
-    sessionInboxes.map(inbox => {
-      const prefix = inbox.email.split('@')[0];
+  
+  // Sort inboxes newest first
+  const sorted = [...sessionInboxes].sort((a, b) => b.created_at - a.created_at);
+
+  tabEl.innerHTML = `
+    <div style="font-size:0.8rem;color:var(--text-muted);margin-bottom:0.25rem;font-weight:600;letter-spacing:0.05em;text-transform:uppercase;">Your Active Inboxes</div>
+    ` + sorted.map(inbox => {
       const isActive = currentInbox?.id === inbox.id;
-      return `<button onclick="switchToInbox('${inbox.id}')" style="` +
-        `background:${isActive ? 'rgba(212,167,106,0.2)' : 'rgba(255,255,255,0.05)'};` +
-        `border:1px solid ${isActive ? 'var(--accent)' : 'rgba(255,255,255,0.15)'};` +
-        `color:${isActive ? 'var(--accent)' : 'var(--text-muted)'};` +
-        `padding:0.25rem 0.7rem;border-radius:100px;font-size:0.75rem;` +
-        `cursor:pointer;transition:all 0.2s;font-family:inherit;">${prefix}</button>`;
+      return `
+        <div 
+          onclick="switchToInbox('${inbox.id}')"
+          style="
+            display:flex;
+            justify-content:space-between;
+            align-items:center;
+            padding:0.75rem 1rem;
+            background:${isActive ? 'rgba(212,167,106,0.08)' : 'rgba(255,255,255,0.03)'};
+            border:1px solid ${isActive ? 'rgba(212,167,106,0.4)' : 'rgba(255,255,255,0.08)'};
+            border-radius:12px;
+            cursor:pointer;
+            transition:all 0.2s ease;
+          "
+          onmouseover="this.style.background='rgba(255,255,255,0.08)';"
+          onmouseout="this.style.background='${isActive ? 'rgba(212,167,106,0.08)' : 'rgba(255,255,255,0.03)'}';"
+        >
+          <div style="display:flex;flex-direction:column;gap:0.2rem;">
+            <span style="font-family:'Cormorant Garamond',serif;font-size:1.2rem;font-weight:700;color:${isActive ? 'var(--accent)' : 'var(--text)'};">${inbox.email}</span>
+            <span style="font-size:0.7rem;color:var(--text-muted);">Created ${new Date(inbox.created_at * 1000).toLocaleDateString()}</span>
+          </div>
+          <div>
+            ${isActive 
+              ? `<span style="font-size:0.65rem;text-transform:uppercase;letter-spacing:0.1em;background:var(--accent);color:#000;padding:2px 6px;border-radius:4px;font-weight:700;">Viewing</span>`
+              : `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="color:var(--text-muted);"><polyline points="9 18 15 12 9 6"/></svg>`
+            }
+          </div>
+        </div>
+      `;
     }).join('');
 }
 
