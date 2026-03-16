@@ -20,8 +20,9 @@ export async function onRequestGet(context) {
   const { env, request } = context;
 
   const user = await getAuthUser(request);
+  const NO_CACHE = { "Cache-Control": "no-store, no-cache, must-revalidate", "Pragma": "no-cache" };
   if (!user) {
-    return Response.json({ error: "Unauthorized" }, { status: 401 });
+    return Response.json({ error: "Unauthorized" }, { status: 401, headers: NO_CACHE });
   }
 
   const { uid, email, email_verified } = user;
@@ -57,7 +58,7 @@ export async function onRequestGet(context) {
       email,
       email_verified,
       plan,
-    });
+    }, { headers: NO_CACHE });
   } catch (e) {
     console.error("Auth me error:", e);
     return Response.json({ error: "Internal server error" }, { status: 500 });

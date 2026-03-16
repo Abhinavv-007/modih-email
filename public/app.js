@@ -35,9 +35,11 @@ function initFirebase() {
       firebaseAuth.onAuthStateChanged(async (user) => {
         if (user) {
           try {
-            const token = await user.getIdToken();
+            // forceRefresh=true ensures we always get a valid, non-stale token
+            const token = await user.getIdToken(true);
             const res = await fetch('/api/auth/me', {
-              headers: { 'Authorization': `Bearer ${token}` }
+              headers: { 'Authorization': `Bearer ${token}` },
+              cache: 'no-store'   // never serve cached plan from browser
             });
             if (res.ok) {
               const data = await res.json();
@@ -77,7 +79,7 @@ function renderNavAuth() {
   } else {
     area.innerHTML = `
       <div style="display:flex;gap:0.5rem;align-items:center;">
-        <a href="/login.html" class="nav-sign-in-btn">Sign In</a>
+        <a href="/signup.html" class="nav-sign-in-btn">Sign Up</a>
       </div>`;
   }
 }
