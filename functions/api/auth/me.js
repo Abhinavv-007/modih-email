@@ -16,81 +16,81 @@ function isDisposable(email) {
   return domain ? DISPOSABLE_DOMAINS.has(domain) : false;
 }
 
+// Plan tier ranking — higher number = higher plan
+const PLAN_RANK = { developer: 3, pro: 2, free: 1 };
+
+function bestOfTwo(a, b) {
+  return (PLAN_RANK[a] || 0) >= (PLAN_RANK[b] || 0) ? a : b;
+}
+
 export async function onRequestGet(context) {
   const { env, request } = context;
+  const NO_CACHE = {
+    "Cache-Control": "no-store, no-cache, must-revalidate",
+    "Pragma": "no-cache",
+  };
 
   const user = await getAuthUser(request);
-  const NO_CACHE = { "Cache-Control": "no-store, no-cache, must-revalidate", "Pragma": "no-cache" };
   if (!user) {
     return Response.json({ error: "Unauthorized" }, { status: 401, headers: NO_CACHE });
   }
 
   const { uid, email, email_verified } = user;
 
-  // Block disposable email signups from getting a plan record
   if (isDisposable(email)) {
-    return Response.json({ error: "Disposable email addresses are not allowed for premium accounts." }, { status: 403 });
+    return Response.json(
+      { error: "Disposable email addresses are not allowed for premium accounts." },
+      { status: 403, headers: NO_CACHE }
+    );
   }
 
   const now = Math.floor(Date.now() / 1000);
 
   try {
-    // Find existing row by exact Firebase UID
-    let existing = await env.DB.prepare(
+    // ── Step 1: Look up by exact UID ──────────────────────────────────────
+    const byUID = await env.DB.prepare(
       "SELECT uid, email, plan FROM user_plans WHERE uid = ?"
     ).bind(uid).first();
 
+    // ── Step 2: Look up highest plan by email (catches admin-upgraded rows) ─
+    let emailBestPlan = "free";
     if (email) {
-      // Search all rows with this email (important if Admin created a fake-UID row for this email)
-      const rowsResult = await env.DB.prepare(
-        "SELECT uid, plan FROM user_plans WHERE LOWER(email) = LOWER(?)"
+      const emailRows = await env.DB.prepare(
+        "SELECT plan FROM user_plans WHERE LOWER(email) = LOWER(?)"
       ).bind(email).all();
-      
-      const rows = rowsResult.results || [];
-      const hasDev = rows.some(r => r.plan === 'developer');
-      const hasPro = rows.some(r => r.plan === 'pro');
-      const bestPlan = hasDev ? 'developer' : (hasPro ? 'pro' : 'free');
-
-      if (!existing) {
-        // First time this exact UID is seen — insert it with the best plan found across the email
-        await env.DB.prepare(
-          "INSERT INTO user_plans (uid, email, plan, created_at, updated_at) VALUES (?, ?, ?, ?, ?)"
-        ).bind(uid, email, bestPlan, now, now).run();
-        existing = { uid, email, plan: bestPlan };
-      } else {
-        // Row exists. Make sure it has the best plan and correct email.
-        if (existing.plan !== bestPlan || existing.email !== email) {
-          await env.DB.prepare(
-            "UPDATE user_plans SET plan = ?, email = ?, updated_at = ? WHERE uid = ?"
-          ).bind(bestPlan, email, now, uid).run();
-          existing.plan = bestPlan;
-        }
+      for (const row of (emailRows.results || [])) {
+        emailBestPlan = bestOfTwo(emailBestPlan, row.plan);
       }
-
-      // Cleanup: delete any leftover fake-UID rows made by the Admin panel
-      if (rows.length > 0) {
-        await env.DB.prepare(
-          "DELETE FROM user_plans WHERE LOWER(email) = LOWER(?) AND uid != ?"
-        ).bind(email, uid).run();
-      }
-    } else if (!existing) {
-      // No email, completely new anonymous/phone user
-      await env.DB.prepare(
-        "INSERT INTO user_plans (uid, email, plan, created_at, updated_at) VALUES (?, '', 'free', ?, ?)"
-      ).bind(uid, now, now).run();
-      existing = { uid, email: "", plan: "free" };
     }
 
-    const plan = existing.plan;
+    // ── Step 3: Resolve final plan ─────────────────────────────────────────
+    // Take the highest of: the UID row's plan OR the best plan found by email
+    const finalPlan = bestOfTwo(byUID?.plan || "free", emailBestPlan);
 
-    return Response.json({
-      uid,
-      email,
-      email_verified,
-      plan,
-    }, { headers: NO_CACHE });
+    // ── Step 4: Sync the DB so UID row always holds the canonical plan ─────
+    if (!byUID) {
+      // First login for this UID — insert with best plan found (could be pro if admin added them by email)
+      await env.DB.prepare(
+        "INSERT INTO user_plans (uid, email, plan, created_at, updated_at) VALUES (?, ?, ?, ?, ?)"
+      ).bind(uid, email || "", finalPlan, now, now).run();
+    } else if (byUID.plan !== finalPlan || (email && byUID.email !== email)) {
+      // Upgrade the UID row to the better plan (never downgrade via this path)
+      const upgradedPlan = bestOfTwo(byUID.plan, finalPlan);
+      await env.DB.prepare(
+        "UPDATE user_plans SET plan = ?, email = ?, updated_at = ? WHERE uid = ?"
+      ).bind(upgradedPlan, email || byUID.email, now, uid).run();
+    }
+
+    // ── Step 5: Clean up orphan rows with same email but different UID ──────
+    if (email) {
+      await env.DB.prepare(
+        "DELETE FROM user_plans WHERE LOWER(email) = LOWER(?) AND uid != ?"
+      ).bind(email, uid).run();
+    }
+
+    return Response.json({ uid, email, email_verified, plan: finalPlan }, { headers: NO_CACHE });
   } catch (e) {
-    console.error("Auth me error:", e);
-    return Response.json({ error: "Internal server error" }, { status: 500 });
+    console.error("Auth me error:", e?.message || e);
+    return Response.json({ error: "Internal server error" }, { status: 500, headers: NO_CACHE });
   }
 }

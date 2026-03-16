@@ -34,19 +34,22 @@ function initFirebase() {
       firebaseAuth.onAuthStateChanged(async (user) => {
         if (user) {
           try {
-            // forceRefresh=true ensures we always get a valid, non-stale token
-            const token = await user.getIdToken(true);
+            const token = await user.getIdToken(); // cached token — reliable, no network required
             const res = await fetch('/api/auth/me', {
               headers: { 'Authorization': `Bearer ${token}` },
-              cache: 'no-store'   // never serve cached plan from browser
+              cache: 'no-store'
             });
             if (res.ok) {
               const data = await res.json();
               currentUser = { uid: data.uid, email: data.email, plan: data.plan };
+              console.log('[Auth] Plan from backend:', data.plan);
             } else {
+              const errData = await res.json().catch(() => ({}));
+              console.error('[Auth] /api/auth/me error:', res.status, errData);
               currentUser = { uid: user.uid, email: user.email, plan: 'free' };
             }
           } catch (e) {
+            console.error('[Auth] Token fetch failed:', e);
             currentUser = { uid: user.uid, email: user.email, plan: 'free' };
           }
         } else {
