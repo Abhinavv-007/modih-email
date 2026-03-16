@@ -91,48 +91,46 @@ function renderNavAuth() {
 
 // ========== PLAN-AWARE PRICING UI ==========
 function updatePricingUI(plan) {
-  const ctaPro = document.getElementById('cta-pro');
-  const ctaDev = document.getElementById('cta-developer');
+  const ctaFree = document.getElementById('cta-free');
+  const ctaPro  = document.getElementById('cta-pro');
+  const ctaDev  = document.getElementById('cta-developer');
 
-  // Helper — replace button with a "Current Plan" badge
-  function setCurrentPlan(btn) {
+  function markCurrent(btn) {
     if (!btn) return;
     btn.onclick = null;
-    btn.style.background = 'rgba(52,211,153,0.12)';
-    btn.style.border = '1px solid rgba(52,211,153,0.35)';
-    btn.style.color = '#34d399';
-    btn.style.cursor = 'default';
-    btn.style.flexDirection = 'row';
-    btn.style.gap = '0.4rem';
-    btn.innerHTML = '<span>✓ Current Plan</span>';
+    btn.style.cssText = 'background:rgba(52,211,153,0.12);border:1px solid rgba(52,211,153,0.35);color:#34d399;cursor:default;';
+    btn.innerHTML = '<span>\u2713 Current Plan</span>';
   }
 
-  // Helper — restore default upgrade state
-  function setUpgradeState(btn, plan) {
+  function markFreeDefault(btn) {
     if (!btn) return;
-    btn.onclick = () => handleUpgradeClick(plan);
-    btn.style.background = '';
-    btn.style.border = '';
-    btn.style.color = '';
-    btn.style.cursor = '';
-    if (plan === 'pro') {
-      btn.innerHTML = '<span>Upgrade to Pro ↗</span><span style="font-size:0.65rem;font-weight:400;opacity:0.7;">(Contact Sales)</span>';
-    } else {
-      btn.innerHTML = '<span>Contact Sales ↗</span>';
-    }
+    btn.onclick = () => scrollToSection('generate');
+    btn.style.cssText = '';
+    btn.innerHTML = '<span>Get Started Free</span>';
+  }
+
+  function markUpgrade(btn, planKey) {
+    if (!btn) return;
+    btn.onclick = () => handleUpgradeClick(planKey);
+    btn.style.cssText = '';
+    btn.innerHTML = planKey === 'pro'
+      ? '<span>Upgrade to Pro \u2197</span><span style="font-size:0.65rem;font-weight:400;opacity:0.7;">(Contact Sales)</span>'
+      : '<span>Contact Sales \u2197</span>';
   }
 
   if (plan === 'pro') {
-    setCurrentPlan(ctaPro);
-    setUpgradeState(ctaDev, 'developer');
+    markFreeDefault(ctaFree);
+    markCurrent(ctaPro);
+    markUpgrade(ctaDev, 'developer');
   } else if (plan === 'developer') {
-    setCurrentPlan(ctaDev);
-    // Pro is a downgrade for dev, so show it as upgrade path
-    setUpgradeState(ctaPro, 'pro');
+    markFreeDefault(ctaFree);
+    markUpgrade(ctaPro, 'pro');
+    markCurrent(ctaDev);
   } else {
-    // Free — both show upgrade CTAs
-    setUpgradeState(ctaPro, 'pro');
-    setUpgradeState(ctaDev, 'developer');
+    // Free (default / not logged in)
+    markCurrent(ctaFree);
+    markUpgrade(ctaPro, 'pro');
+    markUpgrade(ctaDev, 'developer');
   }
 }
 
@@ -396,11 +394,14 @@ async function createInbox(type) {
   errorEl.style.display = "none";
   upgradeEl.style.display = "none";
 
-  // ========== FREE TIER: Block custom prefix ==========
+  // Block custom prefix for free users only
   if (type === "custom") {
-    upgradeEl.style.display = "block";
-    upgradeEl.scrollIntoView({ behavior: "smooth", block: "center" });
-    return;
+    const plan = currentUser?.plan || 'free';
+    if (plan !== 'pro' && plan !== 'developer') {
+      upgradeEl.style.display = "block";
+      upgradeEl.scrollIntoView({ behavior: "smooth", block: "center" });
+      return;
+    }
   }
 
   // Loading state
