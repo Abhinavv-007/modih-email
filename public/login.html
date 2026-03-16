@@ -89,6 +89,9 @@
               </svg>
             </button>
           </div>
+          <div style="text-align: right; margin-top: 0.5rem;">
+            <a href="#" onclick="handleForgotPassword(event)" style="font-size: 0.75rem; color: var(--text-3); text-decoration: none; transition: 0.2s;">Forgot password?</a>
+          </div>
         </div>
 
         <div class="auth-error" id="login-error"></div>
@@ -120,12 +123,12 @@
   <script>
     // ========== FIREBASE INIT ==========
     const firebaseConfig = {
-      apiKey: "AIzaSyA9smn_wjvJ9F8Oe-wZzLzOGqHKwAXXXCA",
-      authDomain: "modih-in.firebaseapp.com",
-      projectId: "modih-in",
-      storageBucket: "modih-in.firebasestorage.app",
-      messagingSenderId: "172328662562",
-      appId: "1:172328662562:web:0958aa8212b91fbc10bc7b",
+      apiKey: "AIzaSyDzUpWLWZDn20MlacZHjeBXDe8yyI1QSp4",
+      authDomain: "modih-mail.firebaseapp.com",
+      projectId: "modih-mail",
+      storageBucket: "modih-mail.firebasestorage.app",
+      messagingSenderId: "333202273259",
+      appId: "1:333202273259:web:279c458fa1c57b99d81fae",
       measurementId: "G-TC5Y6S67ZC"
     };
     firebase.initializeApp(firebaseConfig);
@@ -195,6 +198,46 @@
         btn.disabled = false;
         btn.innerHTML = 'Sign In';
         errEl.textContent = friendlyError(err.code);
+        errEl.classList.add('visible');
+      }
+    }
+
+    // ========== FORGOT PASSWORD ==========
+    async function handleForgotPassword(e) {
+      e.preventDefault();
+      const email = document.getElementById('login-email').value.trim();
+      const errEl = document.getElementById('login-error');
+      const btn = document.getElementById('login-btn');
+      errEl.classList.remove('visible');
+
+      if (!email) {
+        errEl.textContent = 'Please enter your email address first.';
+        errEl.classList.add('visible');
+        document.getElementById('login-email').focus();
+        return;
+      }
+
+      btn.disabled = true;
+      const originalText = btn.innerHTML;
+      btn.innerHTML = '<span class="spin">⟳</span> Sending...';
+
+      try {
+        await auth.sendPasswordResetEmail(email);
+        btn.innerHTML = 'Reset link sent ✓';
+        btn.style.background = 'transparent';
+        btn.style.border = '1px solid #34d399';
+        btn.style.color = '#34d399';
+        setTimeout(() => {
+          btn.innerHTML = originalText;
+          btn.style.background = '';
+          btn.style.border = '';
+          btn.style.color = '';
+          btn.disabled = false;
+        }, 3000);
+      } catch (err) {
+        btn.disabled = false;
+        btn.innerHTML = originalText;
+        errEl.textContent = friendlyError(err.code) || err.message;
         errEl.classList.add('visible');
       }
     }

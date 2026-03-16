@@ -15,13 +15,12 @@ let currentUser = null; // Firebase user { uid, email, plan }
 
 // ========== FIREBASE AUTH ==========
 const FIREBASE_CONFIG = {
-  apiKey: "AIzaSyA9smn_wjvJ9F8Oe-wZzLzOGqHKwAXXXCA",
-  authDomain: "modih-in.firebaseapp.com",
-  projectId: "modih-in",
-  storageBucket: "modih-in.firebasestorage.app",
-  messagingSenderId: "172328662562",
-  appId: "1:172328662562:web:0958aa8212b91fbc10bc7b",
-  measurementId: "G-TC5Y6S67ZC"
+  apiKey: "AIzaSyDzUpWLWZDn20MlacZHjeBXDe8yyI1QSp4",
+  authDomain: "modih-mail.firebaseapp.com",
+  projectId: "modih-mail",
+  storageBucket: "modih-mail.firebasestorage.app",
+  messagingSenderId: "333202273259",
+  appId: "1:333202273259:web:279c458fa1c57b99d81fae"
 };
 
 let firebaseAuth = null;
@@ -410,6 +409,19 @@ async function createInbox(type) {
 
   try {
     const body = {};
+
+    // For custom inboxes, grab the text from the prefix input
+    if (type === "custom") {
+      const prefixInput = document.getElementById("email-prefix");
+      const requestedPrefix = prefixInput ? prefixInput.value.trim() : "";
+      if (!requestedPrefix) {
+        showError("Please enter a custom prefix.");
+        btnCustom.classList.remove("loading");
+        btnRandom.classList.remove("loading");
+        return;
+      }
+      body.prefix = requestedPrefix;
+    }
 
     // Include Turnstile token if widget is visible
     const turnstileToken = getTurnstileToken();
