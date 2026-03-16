@@ -53,15 +53,29 @@ body {
   top: 0;
   left: 0;
   width: 100%;
+  /* Use dvh (dynamic viewport height) to stay locked even when iOS toolbar appears/disappears */
   height: 100%;
+  height: 100dvh;
   z-index: 0;
   overflow: hidden;
+  /* Force GPU compositing layer — prevents iOS Safari repaint/jump on scroll */
+  -webkit-transform: translateZ(0);
+  transform: translateZ(0);
+  will-change: transform;
+  -webkit-backface-visibility: hidden;
+  backface-visibility: hidden;
 }
 
 .bg-video {
   width: 100%;
   height: 100%;
   object-fit: cover;
+  object-position: center center;
+  /* Keep video on its own GPU layer */
+  -webkit-transform: translateZ(0);
+  transform: translateZ(0);
+  will-change: transform;
+  display: block;
 }
 
 .bg-desktop {
@@ -102,7 +116,10 @@ body {
 
 @media (max-width: 768px) {
   .bg-desktop { display: none; }
-  .bg-mobile { display: block; }
+  .bg-mobile {
+    display: block;
+    object-position: 50% 50%; /* Keep mobile video centred */
+  }
 }
 
 /* ========== GLASS UTILITIES (only for cards/buttons) ========== */
@@ -335,6 +352,84 @@ body {
 @media (max-width: 768px) {
   .nav-links { display: none; }
   .nav-cta { display: none; }
+  .nav-auth-pill { display: none; }
+}
+
+/* ========== NAV AUTH ELEMENTS ========== */
+.nav-auth-pill {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  background: rgba(255, 255, 255, 0.08);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 100px;
+  padding: 0.35rem 0.35rem 0.35rem 0.9rem;
+  transition: var(--transition);
+}
+
+.nav-user-email {
+  font-size: 0.82rem;
+  font-weight: 500;
+  color: var(--text-secondary);
+  max-width: 140px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.nav-plan-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--success);
+  box-shadow: 0 0 6px rgba(52,211,153,0.6);
+  flex-shrink: 0;
+}
+
+.nav-plan-dot.pro { background: var(--warning); box-shadow: 0 0 6px rgba(251,191,36,0.6); }
+.nav-plan-dot.developer { background: #a78bfa; box-shadow: 0 0 6px rgba(167,139,250,0.6); }
+
+.nav-sign-out-btn {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  background: rgba(0,0,0,0.3);
+  border: 1px solid rgba(255,255,255,0.12);
+  border-radius: 100px;
+  padding: 0.3rem 0.8rem;
+  cursor: pointer;
+  font-family: inherit;
+  transition: var(--transition);
+}
+
+.nav-sign-out-btn:hover {
+  color: var(--text-primary);
+  border-color: rgba(255,255,255,0.3);
+}
+
+.nav-sign-in-btn {
+  background: rgba(255, 255, 255, 0.9);
+  color: #111;
+  padding: 0.6rem 1.2rem;
+  border-radius: 100px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  border: none;
+  transition: var(--transition);
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.nav-sign-in-btn:hover {
+  background: #fff;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 16px rgba(0,0,0,0.25);
 }
 
 /* ========== SECTIONS ========== */

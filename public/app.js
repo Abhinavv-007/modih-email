@@ -11,6 +11,96 @@ let refreshInterval = null;
 let isMailWindowOpen = false;
 let turnstileWidgetId = null;
 let turnstileRequired = false;
+let currentUser = null; // Firebase user { uid, email, plan }
+
+// ========== FIREBASE AUTH ==========
+const FIREBASE_CONFIG = {
+  apiKey: "AIzaSyA9smn_wjvJ9F8Oe-wZzLzOGqHKwAXXXCA",
+  authDomain: "modih-in.firebaseapp.com",
+  projectId: "modih-in",
+  storageBucket: "modih-in.firebasestorage.app",
+  messagingSenderId: "172328662562",
+  appId: "1:172328662562:web:0958aa8212b91fbc10bc7b",
+  measurementId: "G-TC5Y6S67ZC"
+};
+
+let firebaseAuth = null;
+
+function initFirebase() {
+  try {
+    if (typeof firebase !== 'undefined') {
+      if (!firebase.apps.length) firebase.initializeApp(FIREBASE_CONFIG);
+      firebaseAuth = firebase.auth();
+
+      firebaseAuth.onAuthStateChanged(async (user) => {
+        if (user) {
+          try {
+            const token = await user.getIdToken();
+            const res = await fetch('/api/auth/me', {
+              headers: { 'Authorization': `Bearer ${token}` }
+            });
+            if (res.ok) {
+              const data = await res.json();
+              currentUser = { uid: data.uid, email: data.email, plan: data.plan };
+            } else {
+              currentUser = { uid: user.uid, email: user.email, plan: 'free' };
+            }
+          } catch (e) {
+            currentUser = { uid: user.uid, email: user.email, plan: 'free' };
+          }
+        } else {
+          currentUser = null;
+        }
+        renderNavAuth();
+      });
+    }
+  } catch (e) {
+    console.error('Firebase init error:', e);
+  }
+}
+
+function renderNavAuth() {
+  const area = document.getElementById('nav-auth-area');
+  if (!area) return;
+
+  if (currentUser) {
+    const planClass = currentUser.plan === 'pro' ? 'pro' : currentUser.plan === 'developer' ? 'developer' : '';
+    const short = currentUser.email ? currentUser.email.split('@')[0].slice(0, 14) : 'Account';
+    const planLabel = currentUser.plan === 'developer' ? 'Dev' : currentUser.plan === 'pro' ? 'Pro' : 'Free';
+    area.innerHTML = `
+      <div class="nav-auth-pill">
+        <span class="nav-plan-dot ${planClass}" title="${currentUser.plan} plan"></span>
+        <span class="nav-user-email" title="${currentUser.email}">${short}</span>
+        <span style="font-size:0.68rem;color:var(--text-muted);border-left:1px solid rgba(255,255,255,0.1);padding-left:0.5rem;">${planLabel}</span>
+        <button class="nav-sign-out-btn" onclick="handleSignOut()">Sign Out</button>
+      </div>`;
+  } else {
+    area.innerHTML = `
+      <div style="display:flex;gap:0.5rem;align-items:center;">
+        <a href="/login.html" class="nav-sign-in-btn">Sign In</a>
+      </div>`;
+  }
+}
+
+async function handleSignOut() {
+  if (firebaseAuth) {
+    await firebaseAuth.signOut();
+  }
+  currentUser = null;
+  renderNavAuth();
+  showToast('Signed out');
+}
+
+// ========== UPGRADE CLICK HANDLER ==========
+// If user is logged in → open contact modal (contact sales)
+// If not logged in → redirect to signup with plan param
+function handleUpgradeClick(plan) {
+  if (currentUser) {
+    openContactModal(plan);
+  } else {
+    window.location.href = `/signup.html?plan=${plan}&redirect=${encodeURIComponent(window.location.pathname)}`;
+  }
+}
 
 // ========== BROWSER TOKEN (anonymous visitor tracking) ==========
 function getBrowserToken() {
@@ -89,6 +179,7 @@ document.addEventListener("DOMContentLoaded", () => {
   initVideoController();
   initTypewriter();
   initBillingToggle();
+  initFirebase(); // Firebase auth + nav rendering
 
   // Initialize browser token early
   getBrowserToken();
@@ -1050,6 +1141,12 @@ function openContactModal(plan) {
     } else {
       badge.style.display = 'none';
       desc.textContent = 'Have a question or want to get early access? Send us a message.';
+    }
+
+    // Auto-fill email if logged in
+    const emailField = document.getElementById('contact-email');
+    if (emailField && currentUser && currentUser.email && !emailField.value) {
+      emailField.value = currentUser.email;
     }
     
     requestAnimationFrame(() => {

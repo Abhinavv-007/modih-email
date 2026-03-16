@@ -1,0 +1,360 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Sign Up — Modih Mail</title>
+  <meta name="description" content="Create your Modih Mail premium account." />
+  <meta name="robots" content="noindex" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link rel="stylesheet" href="/auth.css" />
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>✉️</text></svg>" />
+
+  <style>
+    /* Password strength bar */
+    .strength-bar { margin-top: 0.5rem; height: 3px; border-radius: 2px; background: rgba(255,255,255,0.1); overflow: hidden; }
+    .strength-bar-fill { height: 100%; border-radius: 2px; transition: width 0.3s ease, background 0.3s ease; width: 0; }
+    .strength-text { font-size: 0.75rem; margin-top: 0.3rem; color: var(--text-muted); }
+    /* Sent state */
+    .email-sent-state { text-align: center; }
+    .email-sent-icon { font-size: 3.5rem; margin-bottom: 1rem; display: block; filter: drop-shadow(0 4px 12px rgba(52,211,153,0.4)); }
+    .email-sent-title { font-family: 'Cormorant Garamond', serif; font-size: 1.8rem; font-weight: 600; font-style: italic; margin-bottom: 0.6rem; }
+    .email-sent-sub { color: var(--text-muted); font-size: 0.92rem; line-height: 1.6; margin-bottom: 1.5rem; }
+    .email-sent-sub strong { color: var(--accent-secondary); }
+    .resend-btn { background: none; border: 1px solid rgba(255,255,255,0.15); border-radius: 10px; color: var(--text-secondary); padding: 0.65rem 1.4rem; font-size: 0.9rem; font-family: inherit; cursor: pointer; transition: var(--transition); width: 100%; }
+    .resend-btn:hover { border-color: var(--accent); color: var(--accent); }
+    .resend-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+    .resend-countdown { font-size: 0.78rem; color: var(--text-muted); margin-top: 0.5rem; text-align: center; }
+    .back-link { display: inline-flex; align-items: center; gap: 0.4rem; font-size: 0.85rem; color: var(--text-muted); text-decoration: none; margin-top: 1.25rem; transition: color 0.2s; }
+    .back-link:hover { color: var(--accent); }
+  </style>
+</head>
+<body>
+
+  <!-- ========== BACKGROUND ========== -->
+  <div class="auth-bg">
+    <video muted playsinline loop autoplay preload="auto" poster="/deskton-mail-bg.png" id="auth-video">
+      <source src="/desktop-bg-loop.mp4" type="video/mp4" />
+    </video>
+    <div class="bg-overlay"></div>
+  </div>
+
+  <!-- ========== NAV ========== -->
+  <nav class="auth-nav">
+    <div class="auth-nav-inner">
+      <a href="/" class="auth-nav-brand">
+        <span style="font-size:1.6rem; filter:drop-shadow(0 2px 4px rgba(0,0,0,.3))">✉️</span>
+        <span class="auth-brand-text">modih.in</span>
+      </a>
+      <a href="/login.html" class="auth-nav-link">Sign In</a>
+    </div>
+  </nav>
+
+  <!-- ========== AUTH PAGE ========== -->
+  <main class="auth-page">
+    <div class="auth-card">
+
+      <!-- === SIGNUP FORM STATE === -->
+      <div id="form-state">
+        <div class="auth-header">
+          <span class="auth-icon">✨</span>
+          <h1 class="auth-title">Join <span class="accent">Modih</span></h1>
+          <p class="auth-subtitle">Create your premium account in seconds</p>
+        </div>
+
+        <!-- Plan badge -->
+        <div id="plan-badge" style="text-align:center; display:none; margin-bottom:1rem;">
+          <span class="auth-plan-badge">
+            <span class="dot"></span>
+            <span id="plan-badge-text"></span>
+          </span>
+        </div>
+
+        <!-- OAuth Buttons -->
+        <div class="oauth-group">
+          <button class="oauth-btn" onclick="signUpGoogle()">
+            <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+              <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
+              <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
+              <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/>
+              <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
+            </svg>
+            Continue with Google
+          </button>
+          <button class="oauth-btn" onclick="signUpGitHub()">
+            <svg viewBox="0 0 24 24" fill="currentColor">
+              <path d="M12 .297c-6.63 0-12 5.373-12 12 0 5.303 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61C4.422 18.07 3.633 17.7 3.633 17.7c-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.465-2.38 1.235-3.22-.135-.303-.54-1.523.105-3.176 0 0 1.005-.322 3.3 1.23.96-.267 1.98-.399 3-.405 1.02.006 2.04.138 3 .405 2.28-1.552 3.285-1.23 3.285-1.23.645 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.42.36.81 1.096.81 2.22 0 1.606-.015 2.896-.015 3.286 0 .315.21.69.825.57C20.565 22.092 24 17.592 24 12.297c0-6.627-5.373-12-12-12"/>
+            </svg>
+            Continue with GitHub
+          </button>
+        </div>
+
+        <div class="auth-divider"><span>or</span></div>
+
+        <form class="auth-form" id="signup-form" onsubmit="signUpEmail(event)">
+          <div class="auth-field">
+            <label class="auth-label" for="signup-email">Email Address</label>
+            <input type="email" id="signup-email" class="auth-input" placeholder="you@example.com" required autocomplete="email" />
+          </div>
+          <div class="auth-field">
+            <label class="auth-label" for="signup-password">Password</label>
+            <div class="auth-input-wrap">
+              <input type="password" id="signup-password" class="auth-input" placeholder="Min. 8 characters" required autocomplete="new-password" minlength="8" oninput="checkStrength(this.value)" />
+              <button type="button" class="auth-password-toggle" onclick="togglePassword()" aria-label="Show/hide password">
+                <svg id="eye-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>
+                </svg>
+              </button>
+            </div>
+            <div class="strength-bar"><div class="strength-bar-fill" id="strength-fill"></div></div>
+            <div class="strength-text" id="strength-text"></div>
+          </div>
+
+          <div class="auth-error" id="signup-error"></div>
+          <button type="submit" class="auth-submit" id="signup-btn">Create Account</button>
+        </form>
+
+        <p class="auth-footer-link">
+          Already have an account? <a href="/login.html" id="login-link">Sign in</a>
+        </p>
+        <p class="auth-note">By signing up you agree to our Terms of Service. Free plan requires no account.</p>
+      </div>
+
+      <!-- === EMAIL SENT STATE === -->
+      <div id="sent-state" style="display:none;">
+        <div class="email-sent-state">
+          <span class="email-sent-icon">📬</span>
+          <h2 class="email-sent-title">Check your <span style="background:linear-gradient(135deg,#d4a76a,#f5e6c8);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;">inbox</span></h2>
+          <p class="email-sent-sub">
+            We sent a verification link to<br/>
+            <strong id="sent-email-display"></strong>
+          </p>
+          <p class="auth-note" style="margin-bottom:1.25rem;">Click the link in the email to verify your account — then you can sign in.</p>
+          <button class="resend-btn" id="resend-btn" onclick="resendEmail()">Resend verification email</button>
+          <div class="resend-countdown" id="resend-countdown"></div>
+          <a href="/login.html" class="back-link">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+            Back to sign in
+          </a>
+        </div>
+      </div>
+
+    </div>
+  </main>
+
+  <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
+
+  <script>
+    const firebaseConfig = {
+      apiKey: "AIzaSyA9smn_wjvJ9F8Oe-wZzLzOGqHKwAXXXCA",
+      authDomain: "modih-in.firebaseapp.com",
+      projectId: "modih-in",
+      storageBucket: "modih-in.firebasestorage.app",
+      messagingSenderId: "172328662562",
+      appId: "1:172328662562:web:0958aa8212b91fbc10bc7b",
+      measurementId: "G-TC5Y6S67ZC"
+    };
+    firebase.initializeApp(firebaseConfig);
+    const auth = firebase.auth();
+
+    const params = new URLSearchParams(location.search);
+    const redirectTo = params.get('redirect') || '/';
+    const plan = params.get('plan');
+    let resendUser = null;
+    let resendTimer = null;
+
+    // Plan badge
+    if (plan) {
+      const badge = document.getElementById('plan-badge');
+      const text = document.getElementById('plan-badge-text');
+      badge.style.display = 'block';
+      text.textContent = plan === 'pro' ? '⭐ Upgrading to Pro' : '🔑 Upgrading to Developer';
+      document.getElementById('login-link').href = `/login.html?plan=${plan}&redirect=${encodeURIComponent(redirectTo)}`;
+    }
+
+    // Already logged in → redirect
+    auth.onAuthStateChanged(async (user) => {
+      if (user && user.emailVerified) {
+        window.location.replace(redirectTo);
+      }
+    });
+
+    // ========== PASSWORD TOGGLE ==========
+    let pwVisible = false;
+    function togglePassword() {
+      pwVisible = !pwVisible;
+      const input = document.getElementById('signup-password');
+      const icon = document.getElementById('eye-icon');
+      input.type = pwVisible ? 'text' : 'password';
+      icon.innerHTML = pwVisible
+        ? '<path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19m-6.72-1.07a3 3 0 11-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/>'
+        : '<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>';
+    }
+
+    // ========== PASSWORD STRENGTH ==========
+    function checkStrength(val) {
+      const fill = document.getElementById('strength-fill');
+      const text = document.getElementById('strength-text');
+      if (!val) { fill.style.width='0'; text.textContent=''; return; }
+      let score = 0;
+      if (val.length >= 8) score++;
+      if (val.length >= 12) score++;
+      if (/[A-Z]/.test(val)) score++;
+      if (/[0-9]/.test(val)) score++;
+      if (/[^a-zA-Z0-9]/.test(val)) score++;
+
+      const levels = [
+        { pct: '20%', color: '#f87171', label: 'Very weak' },
+        { pct: '40%', color: '#fb923c', label: 'Weak' },
+        { pct: '60%', color: '#fbbf24', label: 'Fair' },
+        { pct: '80%', color: '#34d399', label: 'Strong' },
+        { pct: '100%', color: '#10b981', label: 'Very strong' },
+      ];
+      const lvl = levels[Math.min(score - 1, 4)] || levels[0];
+      fill.style.width = lvl.pct;
+      fill.style.background = lvl.color;
+      text.textContent = lvl.label;
+      text.style.color = lvl.color;
+    }
+
+    // ========== EMAIL SIGN UP ==========
+    async function signUpEmail(e) {
+      e.preventDefault();
+      const email = document.getElementById('signup-email').value.trim();
+      const password = document.getElementById('signup-password').value;
+      const btn = document.getElementById('signup-btn');
+      const errEl = document.getElementById('signup-error');
+
+      errEl.classList.remove('visible');
+      btn.disabled = true;
+      btn.innerHTML = '<span class="spin">⟳</span> Creating account…';
+
+      try {
+        const cred = await auth.createUserWithEmailAndPassword(email, password);
+        await cred.user.sendEmailVerification();
+        await syncUserPlan(cred.user);
+        await auth.signOut();
+        resendUser = { email, password };
+        showSentState(email);
+      } catch (err) {
+        btn.disabled = false;
+        btn.innerHTML = 'Create Account';
+        errEl.textContent = friendlyError(err.code);
+        errEl.classList.add('visible');
+      }
+    }
+
+    // ========== GOOGLE SIGN UP ==========
+    async function signUpGoogle() {
+      try {
+        const provider = new firebase.auth.GoogleAuthProvider();
+        const cred = await auth.signInWithPopup(provider);
+        await syncUserPlan(cred.user);
+        window.location.replace(redirectTo);
+      } catch (err) {
+        if (err.code !== 'auth/popup-closed-by-user') {
+          showError(friendlyError(err.code));
+        }
+      }
+    }
+
+    // ========== GITHUB SIGN UP ==========
+    async function signUpGitHub() {
+      try {
+        const provider = new firebase.auth.GithubAuthProvider();
+        const cred = await auth.signInWithPopup(provider);
+        await syncUserPlan(cred.user);
+        window.location.replace(redirectTo);
+      } catch (err) {
+        if (err.code !== 'auth/popup-closed-by-user') {
+          showError(friendlyError(err.code));
+        }
+      }
+    }
+
+    // ========== SYNC TO BACKEND ==========
+    async function syncUserPlan(user) {
+      try {
+        const token = await user.getIdToken();
+        await fetch('/api/auth/me', {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+      } catch (e) {
+        console.error('Backend sync failed:', e);
+      }
+    }
+
+    // ========== SHOW SENT STATE ==========
+    function showSentState(email) {
+      document.getElementById('form-state').style.display = 'none';
+      document.getElementById('sent-state').style.display = 'block';
+      document.getElementById('sent-email-display').textContent = email;
+      startResendCooldown();
+    }
+
+    // ========== RESEND EMAIL ==========
+    async function resendEmail() {
+      const btn = document.getElementById('resend-btn');
+      btn.disabled = true;
+      if (resendUser) {
+        try {
+          const cred = await auth.signInWithEmailAndPassword(resendUser.email, resendUser.password);
+          await cred.user.sendEmailVerification();
+          await auth.signOut();
+        } catch (e) {
+          console.error('Resend failed:', e);
+        }
+      }
+      startResendCooldown();
+    }
+
+    function startResendCooldown() {
+      const btn = document.getElementById('resend-btn');
+      const countdown = document.getElementById('resend-countdown');
+      btn.disabled = true;
+      let seconds = 60;
+      countdown.textContent = `Resend available in ${seconds}s`;
+      clearInterval(resendTimer);
+      resendTimer = setInterval(() => {
+        seconds--;
+        if (seconds <= 0) {
+          clearInterval(resendTimer);
+          btn.disabled = false;
+          countdown.textContent = '';
+        } else {
+          countdown.textContent = `Resend available in ${seconds}s`;
+        }
+      }, 1000);
+    }
+
+    function showError(msg) {
+      const errEl = document.getElementById('signup-error');
+      errEl.textContent = msg;
+      errEl.classList.add('visible');
+    }
+
+    function friendlyError(code) {
+      const map = {
+        'auth/email-already-in-use': 'An account with that email already exists. Try signing in.',
+        'auth/invalid-email': 'Please enter a valid email address.',
+        'auth/weak-password': 'Password should be at least 8 characters.',
+        'auth/too-many-requests': 'Too many attempts. Please wait a moment.',
+        'auth/network-request-failed': 'Network error — check your connection.',
+        'auth/popup-blocked': 'Popup blocked. Please allow popups for this site.',
+        'auth/account-exists-with-different-credential': 'This email is linked to a different sign-in method.',
+      };
+      return map[code] || 'Something went wrong. Please try again.';
+    }
+
+    // ========== VIDEO AUTOPLAY ==========
+    const video = document.getElementById('auth-video');
+    if (video) {
+      video.play().catch(() => {
+        document.addEventListener('click', () => video.play().catch(()=>{}), { once: true });
+      });
+    }
+  </script>
+</body>
+</html>
