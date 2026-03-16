@@ -35,40 +35,53 @@ export async function onRequestGet(context) {
   const now = Math.floor(Date.now() / 1000);
 
   try {
-    // Upsert user_plans row
+    // Find existing row by exact Firebase UID
     let existing = await env.DB.prepare(
       "SELECT uid, email, plan FROM user_plans WHERE uid = ?"
     ).bind(uid).first();
 
-    // If no exact UID match, try finding by email (useful if Firebase project changed and UID changed, or admin manually added user)
-    if (!existing && email) {
-      const byEmail = await env.DB.prepare(
-        "SELECT uid, email, plan FROM user_plans WHERE email = ?"
-      ).bind(email).first();
+    if (email) {
+      // Search all rows with this email (important if Admin created a fake-UID row for this email)
+      const rowsResult = await env.DB.prepare(
+        "SELECT uid, plan FROM user_plans WHERE LOWER(email) = LOWER(?)"
+      ).bind(email).all();
+      
+      const rows = rowsResult.results || [];
+      const hasDev = rows.some(r => r.plan === 'developer');
+      const hasPro = rows.some(r => r.plan === 'pro');
+      const bestPlan = hasDev ? 'developer' : (hasPro ? 'pro' : 'free');
 
-      if (byEmail) {
-        // User already has a plan under this email, but a different or old UID.
-        // Update their record to use the NEW Firebase UID.
+      if (!existing) {
+        // First time this exact UID is seen — insert it with the best plan found across the email
         await env.DB.prepare(
-          "UPDATE user_plans SET uid = ?, updated_at = ? WHERE email = ?"
-        ).bind(uid, now, email).run();
-        existing = { uid, email, plan: byEmail.plan };
+          "INSERT INTO user_plans (uid, email, plan, created_at, updated_at) VALUES (?, ?, ?, ?, ?)"
+        ).bind(uid, email, bestPlan, now, now).run();
+        existing = { uid, email, plan: bestPlan };
+      } else {
+        // Row exists. Make sure it has the best plan and correct email.
+        if (existing.plan !== bestPlan || existing.email !== email) {
+          await env.DB.prepare(
+            "UPDATE user_plans SET plan = ?, email = ?, updated_at = ? WHERE uid = ?"
+          ).bind(bestPlan, email, now, uid).run();
+          existing.plan = bestPlan;
+        }
       }
+
+      // Cleanup: delete any leftover fake-UID rows made by the Admin panel
+      if (rows.length > 0) {
+        await env.DB.prepare(
+          "DELETE FROM user_plans WHERE LOWER(email) = LOWER(?) AND uid != ?"
+        ).bind(email, uid).run();
+      }
+    } else if (!existing) {
+      // No email, completely new anonymous/phone user
+      await env.DB.prepare(
+        "INSERT INTO user_plans (uid, email, plan, created_at, updated_at) VALUES (?, '', 'free', ?, ?)"
+      ).bind(uid, now, now).run();
+      existing = { uid, email: "", plan: "free" };
     }
 
-    if (!existing) {
-      // Completely new user
-      await env.DB.prepare(
-        "INSERT INTO user_plans (uid, email, plan, created_at, updated_at) VALUES (?, ?, 'free', ?, ?)"
-      ).bind(uid, email || "", now, now).run();
-    } else if (existing.email !== email && email) {
-      // Update email if it changed (OAuth re-link, etc.)
-      await env.DB.prepare(
-        "UPDATE user_plans SET email = ?, updated_at = ? WHERE uid = ?"
-      ).bind(email, now, uid).run();
-    }
-
-    const plan = existing ? existing.plan : "free";
+    const plan = existing.plan;
 
     return Response.json({
       uid,
