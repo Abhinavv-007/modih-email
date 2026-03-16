@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Terms of Service &mdash; Modih Mail</title>
+  <meta name="description" content="Terms of Service for Modih Mail. Privacy first disposable email." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,600;0,700;1,400;1,600&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>✦</text></svg>" />
+  <link rel="stylesheet" href="/styles.css?v=6.0" />
+
+  <style>
+    /* Document Background overrides matching admin/index.html */
+    .page-bg {
+      position: fixed; inset: 0; z-index: 0;
+      background-image: url('/deskton-mail-bg.png');
+      background-size: cover;
+      background-position: center center;
+      background-repeat: no-repeat;
+      -webkit-transform: translateZ(0);
+      transform: translateZ(0);
+      will-change: transform;
+    }
+    @media (max-width: 768px) {
+      .page-bg {
+        background-image: url('/phone-mail-bg.png');
+        background-position: 50% 30%;
+      }
+    }
+    .page-overlay {
+      position: fixed; inset: 0; z-index: 0;
+      background: rgba(5, 4, 10, 0.78);
+    }
+
+    /* Content Styling */
+    .legal-container {
+      position: relative;
+      z-index: 10;
+      max-width: 800px;
+      margin: 8rem auto 5rem;
+      padding: 3rem 4rem;
+      background: rgba(14,10,7,0.85);
+      backdrop-filter: blur(40px);
+      -webkit-backdrop-filter: blur(40px);
+      border: 1px solid rgba(255,255,255,0.09);
+      border-radius: 22px;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.5), 0 1px 0 rgba(255,255,255,0.04) inset;
+      color: rgba(255,255,255,0.85);
+      line-height: 1.7;
+    }
+    
+    @media (max-width: 768px) {
+      .legal-container {
+        margin: 6rem 1rem 3rem;
+        padding: 2rem 1.5rem;
+      }
+    }
+
+    .legal-header {
+      text-align: center;
+      margin-bottom: 3rem;
+      border-bottom: 1px solid rgba(255,255,255,0.1);
+      padding-bottom: 2rem;
+    }
+
+    .legal-title {
+      font-family: 'Cormorant Garamond', serif;
+      font-size: 3.5rem;
+      font-weight: 600;
+      font-style: italic;
+      color: #fff;
+      margin-bottom: 0.5rem;
+      background: linear-gradient(90deg, #d4a76a, #c8956a);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    .legal-date {
+      font-size: 0.9rem;
+      color: rgba(255,255,255,0.5);
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+    }
+
+    .legal-content h2 {
+      font-family: 'Cormorant Garamond', serif;
+      font-size: 2rem;
+      font-weight: 600;
+      color: #fff;
+      margin: 2.5rem 0 1rem;
+      font-style: italic;
+    }
+
+    .legal-content h3 {
+      font-size: 1.1rem;
+      font-weight: 600;
+      color: #fff;
+      margin: 1.5rem 0 0.8rem;
+    }
+
+    .legal-content p {
+      margin-bottom: 1.2rem;
+    }
+
+    .legal-content ul {
+      margin-bottom: 1.2rem;
+      padding-left: 1.5rem;
+    }
+
+    .legal-content li {
+      margin-bottom: 0.5rem;
+    }
+
+    .legal-content a {
+      color: #d4a76a;
+      text-decoration: none;
+      transition: color 0.2s;
+    }
+
+    .legal-content a:hover {
+      color: #ffe6b0;
+      text-decoration: underline;
+    }
+    
+    .back-nav {
+      position: absolute;
+      top: 2rem;
+      left: 2rem;
+    }
+    
+    .back-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      color: rgba(255,255,255,0.6);
+      text-decoration: none;
+      font-size: 0.9rem;
+      font-weight: 500;
+      transition: all 0.2s;
+    }
+    
+    .back-btn:hover {
+      color: #d4a76a;
+      transform: translateX(-3px);
+    }
+  </style>
+</head>
+<body>
+  <!-- Background Layers -->
+  <div class="page-bg"></div>
+  <div class="page-overlay"></div>
+
+  <!-- Navigation -->
+  <header class="nav scrolled" style="pointer-events: auto;">
+    <div class="nav-inner">
+      <a href="/" class="nav-brand">
+        <span class="brand-icon">✦</span>
+        <span class="brand-text">Modih</span>
+      </a>
+      <!-- Mobile Menu Toggle -->
+      <button class="nav-toggle" id="nav-toggle" aria-label="Toggle menu" style="display:none;">
+        <span></span><span></span><span></span>
+      </button>
+      <div class="nav-links">
+        <a href="/#features" class="nav-link">Features</a>
+        <a href="/#pricing" class="nav-link">Plans</a>
+        <a href="/#generate" class="nav-link">Get Email</a>
+      </div>
+      <div id="nav-auth-area"></div>
+    </div>
+  </header>
+
+  <main class="legal-container fade-up">
+    <div class="back-nav">
+      <a href="/" class="back-btn">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"></polyline></svg>
+        Back to Home
+      </a>
+    </div>
+
+    <header class="legal-header">
+      <h1 class="legal-title">Terms of Service</h1>
+      <p class="legal-date">Last Updated: March 2026</p>
+    </header>
+
+    <div class="legal-content">
+      <p>Welcome to Modih Mail. By accessing or using our disposable email service, you agree to comply with and be bound by the following Terms of Service. If you do not agree to these terms, please do not use our service.</p>
+      
+      <h2>1. Use of the Service</h2>
+      <p>Modih Mail provides temporary, disposable email addresses designed to protect your primary personal email from spam. You agree to use Modih Mail only for lawful purposes.</p>
+      
+      <h2>2. Prohibited Conduct</h2>
+      <p>We actively monitor our systems to prevent abuse. You strictly agree <strong>NOT</strong> to use Modih Mail for:</p>
+      <ul>
+        <li>Sending spam, unsolicited bulk email, or promotional materials (Modih Mail is a receive-only service).</li>
+        <li>Registering for services with the intent to commit fraud, evade bans, or violate the terms of third-party platforms.</li>
+        <li>Phishing, malware distribution, or any form of cyber-attack.</li>
+        <li>Receiving or transmitting illegal materials or engaging in illegal activities.</li>
+      </ul>
+      <p>Violation of these terms will result in immediate suspension of your IP address, deletion of your active inboxes, and potential reporting to local authorities or your Internet Service Provider.</p>
+
+      <h2>3. Limitation of Liability</h2>
+      <p>Modih Mail is provided on an "AS IS" and "AS AVAILABLE" basis. We make no guarantees regarding the reliability, accuracy, or uninterrupted delivery of incoming emails.</p>
+      <p>Under no circumstances will Modih Mail, its creators, or its affiliates be liable for any direct, indirect, incidental, or consequential damages resulting from the use or inability to use the service, including the loss of emails, data, or accounts linked to disposable addresses.</p>
+
+      <h2>4. Account Termination</h2>
+      <p>For Free, Pro, and Developer users, we reserve the right to modify, suspend, or terminate your access to the service at any time, for any reason—especially in cases of abuse, excessive rate-limit triggering, or violation of these terms—without notice or liability.</p>
+
+      <h2>5. Premium Plans (Pro & Developer)</h2>
+      <p>Purchases of Pro or Developer plans grant you access to extended retention times (7 days) and custom prefixes. These premium services are subject to fair use policies. Subscriptions may be canceled at any time; however, refunds are not guaranteed and are evaluated on a case-by-case basis.</p>
+
+      <h2>6. Indemnification</h2>
+      <p>You agree to indemnify, defend, and hold harmless Modih Mail and its respective officers, agents, partners, and employees from any claim or demand, including reasonable attorneys' fees, made by any third party due to or arising out of your use of the service, your connection to the service, your violation of the TOS, or your violation of any rights of another.</p>
+
+      <h2>7. Modifications to Terms</h2>
+      <p>We reserve the right to change these Terms of Service at any time. Your continued use of the service following any changes indicates your acceptance of the new terms.</p>
+
+      <h2>Contact Us</h2>
+      <p>For legal inquiries, abuse reports, or questions about these terms, please contact <a href="mailto:legal@modih.in">legal@modih.in</a>.</p>
+    </div>
+  </main>
+
+  <!-- ========== FOOTER ========== -->
+  <footer class="footer glass-subtle">
+    <div class="footer-content">
+      <div class="footer-brand">
+        <p>A project by <span class="footer-author">Abhinav</span></p>
+        <p class="footer-subtext">Privacy first disposable email. Your inbox, your control.</p>
+      </div>
+      <div class="footer-links">
+        <a href="/privacy.html" class="footer-link">Privacy Policy</a>
+        <a href="/terms.html" class="footer-link" style="margin-right: 1.5rem;">Terms of Service</a>
+        <a href="https://www.linkedin.com/in/abhnv07/" target="_blank" rel="noopener noreferrer" class="footer-link">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg"><path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433c-1.144 0-2.063-.926-2.063-2.065 0-1.138.92-2.063 2.063-2.063 1.14 0 2.064.925 2.064 2.063 0 1.139-.925 2.065-2.064 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/></svg>
+        </a>
+        <a href="https://abhnv.in" target="_blank" rel="noopener noreferrer" class="footer-link">abhnv.in</a>
+        <a href="https://abhnv.me" target="_blank" rel="noopener noreferrer" class="footer-link">abhnv.me</a>
+        <a href="https://lnch.in" target="_blank" rel="noopener noreferrer" class="footer-link">lnch.in</a>
+      </div>
+    </div>
+  </footer>
+
+  <script src="/app.js?v=6.0"></script>
+</body>
+</html>
