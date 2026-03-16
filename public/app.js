@@ -492,15 +492,17 @@ async function createInbox(type) {
     currentInbox = data;
     currentMessages = [];
 
-    // Track this inbox in sessionInboxes for Pro/Dev multi-inbox support
-    const plan = currentUser?.plan || 'free';
-    if (plan === 'pro' || plan === 'developer') {
-      // Add if not already in the list
+    // Use plan from backend response OR currentUser (whichever is available)
+    const isPaid = data.plan === 'pro' || data.plan === 'developer' ||
+                   currentUser?.plan === 'pro' || currentUser?.plan === 'developer';
+
+    if (isPaid) {
+      // Pro/Dev: accumulate inboxes instead of replacing
       if (!sessionInboxes.find(i => i.id === data.id)) {
         sessionInboxes.push(data);
       }
     } else {
-      // Free: only track the current one
+      // Free: only track current one
       sessionInboxes = [data];
     }
 
@@ -577,6 +579,17 @@ function showEmailResult(inbox) {
   addressEl.textContent = inbox.email;
   resultEl.style.display = "block";
 
+  // Update expire hint dynamically
+  const hintEl = document.getElementById('result-expire-hint');
+  if (hintEl) {
+    const sevenDaySeconds = 6 * 24 * 60 * 60; // ~6d threshold
+    const plan = currentUser?.plan;
+    const isLong = (plan === 'pro' || plan === 'developer') ||
+                   (inbox.expires_at && inbox.expires_at - inbox.created_at > sevenDaySeconds);
+    hintEl.textContent = isLong
+      ? 'Your inbox is active for 7 days. Enjoy Pro! ✦'
+      : 'Your inbox will auto-expire after 3 hours. Upgrade to Pro for 7-day retention.';
+  }
   // Render the inbox tab strip (for Pro/Dev with multiple inboxes)
   renderInboxTabs();
 
