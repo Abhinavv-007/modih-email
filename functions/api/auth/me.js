@@ -36,16 +36,33 @@ export async function onRequestGet(context) {
 
   try {
     // Upsert user_plans row
-    const existing = await env.DB.prepare(
+    let existing = await env.DB.prepare(
       "SELECT uid, email, plan FROM user_plans WHERE uid = ?"
     ).bind(uid).first();
 
+    // If no exact UID match, try finding by email (useful if Firebase project changed and UID changed, or admin manually added user)
+    if (!existing && email) {
+      const byEmail = await env.DB.prepare(
+        "SELECT uid, email, plan FROM user_plans WHERE email = ?"
+      ).bind(email).first();
+
+      if (byEmail) {
+        // User already has a plan under this email, but a different or old UID.
+        // Update their record to use the NEW Firebase UID.
+        await env.DB.prepare(
+          "UPDATE user_plans SET uid = ?, updated_at = ? WHERE email = ?"
+        ).bind(uid, now, email).run();
+        existing = { uid, email, plan: byEmail.plan };
+      }
+    }
+
     if (!existing) {
+      // Completely new user
       await env.DB.prepare(
         "INSERT INTO user_plans (uid, email, plan, created_at, updated_at) VALUES (?, ?, 'free', ?, ?)"
       ).bind(uid, email || "", now, now).run();
     } else if (existing.email !== email && email) {
-      // Update email if changed (OAuth re-link, etc.)
+      // Update email if it changed (OAuth re-link, etc.)
       await env.DB.prepare(
         "UPDATE user_plans SET email = ?, updated_at = ? WHERE uid = ?"
       ).bind(email, now, uid).run();
