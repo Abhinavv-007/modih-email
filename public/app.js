@@ -82,6 +82,94 @@ function renderNavAuth() {
         <a href="/signup.html" class="nav-sign-in-btn">Sign Up</a>
       </div>`;
   }
+
+  // Update pricing CTAs and custom prefix state based on plan
+  const plan = currentUser?.plan || 'free';
+  updatePricingUI(plan);
+  updatePrefixUI(plan);
+}
+
+// ========== PLAN-AWARE PRICING UI ==========
+function updatePricingUI(plan) {
+  const ctaPro = document.getElementById('cta-pro');
+  const ctaDev = document.getElementById('cta-developer');
+
+  // Helper — replace button with a "Current Plan" badge
+  function setCurrentPlan(btn) {
+    if (!btn) return;
+    btn.onclick = null;
+    btn.style.background = 'rgba(52,211,153,0.12)';
+    btn.style.border = '1px solid rgba(52,211,153,0.35)';
+    btn.style.color = '#34d399';
+    btn.style.cursor = 'default';
+    btn.style.flexDirection = 'row';
+    btn.style.gap = '0.4rem';
+    btn.innerHTML = '<span>✓ Current Plan</span>';
+  }
+
+  // Helper — restore default upgrade state
+  function setUpgradeState(btn, plan) {
+    if (!btn) return;
+    btn.onclick = () => handleUpgradeClick(plan);
+    btn.style.background = '';
+    btn.style.border = '';
+    btn.style.color = '';
+    btn.style.cursor = '';
+    if (plan === 'pro') {
+      btn.innerHTML = '<span>Upgrade to Pro ↗</span><span style="font-size:0.65rem;font-weight:400;opacity:0.7;">(Contact Sales)</span>';
+    } else {
+      btn.innerHTML = '<span>Contact Sales ↗</span>';
+    }
+  }
+
+  if (plan === 'pro') {
+    setCurrentPlan(ctaPro);
+    setUpgradeState(ctaDev, 'developer');
+  } else if (plan === 'developer') {
+    setCurrentPlan(ctaDev);
+    // Pro is a downgrade for dev, so show it as upgrade path
+    setUpgradeState(ctaPro, 'pro');
+  } else {
+    // Free — both show upgrade CTAs
+    setUpgradeState(ctaPro, 'pro');
+    setUpgradeState(ctaDev, 'developer');
+  }
+}
+
+// ========== PLAN-AWARE CUSTOM PREFIX UI ==========
+function updatePrefixUI(plan) {
+  const isPro = plan === 'pro' || plan === 'developer';
+  const prefixInput = document.getElementById('email-prefix');
+  const customBtn = document.getElementById('btn-custom');
+  const proBadgePill = document.querySelector('.pro-input-badge');
+  const proBtnBadge = document.querySelector('.pro-btn-badge');
+
+  if (isPro) {
+    // Unlock the custom prefix field
+    if (prefixInput) {
+      prefixInput.disabled = false;
+      prefixInput.placeholder = 'Your custom prefix';
+    }
+    if (customBtn) {
+      customBtn.disabled = false;
+      customBtn.classList.remove('btn-pro-lock');
+    }
+    // Hide PRO badges — they're now unlocked
+    if (proBadgePill) proBadgePill.style.display = 'none';
+    if (proBtnBadge) proBtnBadge.style.display = 'none';
+  } else {
+    // Re-lock for free users
+    if (prefixInput) {
+      prefixInput.disabled = true;
+      prefixInput.placeholder = 'Custom prefix';
+    }
+    if (customBtn) {
+      customBtn.disabled = true;
+      customBtn.classList.add('btn-pro-lock');
+    }
+    if (proBadgePill) proBadgePill.style.display = '';
+    if (proBtnBadge) proBtnBadge.style.display = '';
+  }
 }
 
 async function handleSignOut() {
