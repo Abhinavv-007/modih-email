@@ -232,7 +232,7 @@
 
       try {
         await auth.sendPasswordResetEmail(email);
-        btn.innerHTML = 'Reset link sent ✓';
+        btn.innerHTML = 'Reset link sent (check spam) ✓';
         btn.style.background = 'transparent';
         btn.style.border = '1px solid #34d399';
         btn.style.color = '#34d399';
@@ -242,7 +242,7 @@
           btn.style.border = '';
           btn.style.color = '';
           btn.disabled = false;
-        }, 3000);
+        }, 5000);
       } catch (err) {
         btn.disabled = false;
         btn.innerHTML = originalText;
@@ -277,7 +277,7 @@
       try {
         await auth.sendSignInLinkToEmail(email, actionCodeSettings);
         window.localStorage.setItem('emailForSignIn', email);
-        btn.innerHTML = 'Link sent to ' + email + ' ✓';
+        btn.innerHTML = 'Link sent (check spam) ✓';
         btn.style.background = 'transparent';
         btn.style.border = '1px solid #34d399';
         btn.style.color = '#34d399';
@@ -287,7 +287,7 @@
           btn.style.border = '';
           btn.style.color = '';
           btn.disabled = false;
-        }, 4000);
+        }, 5000);
       } catch (err) {
         btn.disabled = false;
         btn.innerHTML = originalText;
