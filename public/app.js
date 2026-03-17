@@ -1503,7 +1503,7 @@ async function submitContactForm(e) {
     if (res.ok) {
       closeContactModal();
       setTimeout(() => {
-        showToast("Message sent completely! We'll reply soon.");
+        showToast("Message sent successfully! We'll reply soon.");
       }, 400);
     } else {
       const data = await res.json().catch(() => ({}));
