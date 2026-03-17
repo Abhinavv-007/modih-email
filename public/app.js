@@ -1389,19 +1389,6 @@ function updateSavings(elementId, period, plan) {
 }
 
 // ========== CONTACT MODAL & FORM ==========
-const CONTACT_PLAN_CONFIG = {
-  pro: {
-    badge: '⭐ Pro Plan',
-    desc: 'Interested in the Pro plan? Leave your details and we\'ll get back to you!',
-    message: 'Hi, I\'m interested in the Pro plan ($5/month). Can you tell me more about how to get started?'
-  },
-  developer: {
-    badge: '🔑 Developer Plan',
-    desc: 'Interested in the Developer API plan? Leave your details and we\'ll get back to you!',
-    message: 'Hi, I\'m interested in the Developer API plan. Can you tell me more about the API access and pricing?'
-  }
-};
-
 function openContactModal(plan) {
   try {
     const modal = document.getElementById('contact-modal');
@@ -1413,12 +1400,33 @@ function openContactModal(plan) {
     const desc = document.getElementById('contact-modal-desc');
     const messageField = document.getElementById('contact-message');
 
-    if (plan && CONTACT_PLAN_CONFIG[plan]) {
-      const cfg = CONTACT_PLAN_CONFIG[plan];
+    if (plan === 'pro' || plan === 'developer') {
       badge.style.display = 'block';
-      badgeText.textContent = cfg.badge;
-      desc.textContent = cfg.desc;
-      if (!messageField.value) messageField.value = cfg.message;
+      
+      // Determine active billing cycle to format the message
+      let activeCycle = 'monthly';
+      const cycleBtns = document.querySelectorAll('.cycle-btn');
+      cycleBtns.forEach(btn => {
+        if (btn.classList.contains('active')) {
+          activeCycle = btn.dataset.cycle;
+        }
+      });
+      
+      const price = PRICING[plan][activeCycle];
+      let formattedCycle = '';
+      if (activeCycle === 'monthly') formattedCycle = '/month';
+      else if (activeCycle === 'quarterly') formattedCycle = '/month billed quarterly';
+      else if (activeCycle === 'yearly') formattedCycle = '/month billed yearly';
+
+      if (plan === 'pro') {
+        badgeText.textContent = '⭐ Pro Plan';
+        desc.textContent = "Interested in the Pro plan? Leave your details and we'll get back to you!";
+        if (!messageField.value) messageField.value = `Hi, I'm interested in the Pro plan ($${price}${formattedCycle}). Can you tell me more about how to get started?`;
+      } else if (plan === 'developer') {
+        badgeText.textContent = '🔑 Developer Plan';
+        desc.textContent = "Interested in the Developer API plan? Leave your details and we'll get back to you!";
+        if (!messageField.value) messageField.value = `Hi, I'm interested in the Developer API plan ($${price}${formattedCycle}). Can you tell me more about the API access and getting started?`;
+      }
     } else {
       badge.style.display = 'none';
       desc.textContent = 'Have a question or want to get early access? Send us a message.';
