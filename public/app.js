@@ -72,11 +72,15 @@ function renderNavAuth() {
     const planClass = currentUser.plan === 'pro' ? 'pro' : currentUser.plan === 'developer' ? 'developer' : '';
     const short = currentUser.email ? currentUser.email.split('@')[0].slice(0, 14) : 'Account';
     const planLabel = currentUser.plan === 'developer' ? 'Dev' : currentUser.plan === 'pro' ? 'Pro' : 'Free';
+    const devLink = currentUser.plan === 'developer'
+      ? `<a href="/developer.html" style="font-size:0.72rem;color:var(--text-muted);text-decoration:none;border-left:1px solid rgba(255,255,255,0.1);padding-left:0.5rem;transition:color 0.2s;" onmouseover="this.style.color='var(--accent)'" onmouseout="this.style.color='var(--text-muted)'">API</a>`
+      : '';
     area.innerHTML = `
       <div class="nav-auth-pill">
         <span class="nav-plan-dot ${planClass}" title="${currentUser.plan} plan"></span>
         <span class="nav-user-email" title="${currentUser.email}">${short}</span>
         <span style="font-size:0.68rem;color:var(--text-muted);border-left:1px solid rgba(255,255,255,0.1);padding-left:0.5rem;">${planLabel}</span>
+        ${devLink}
         <button class="nav-sign-out-btn" onclick="handleSignOut()">Sign Out</button>
       </div>`;
   } else {
@@ -604,8 +608,9 @@ function showEmailResult(inbox) {
     const plan = currentUser?.plan;
     const isLong = (plan === 'pro' || plan === 'developer') ||
                    (inbox.expires_at && inbox.expires_at - inbox.created_at > sevenDaySeconds);
+    const planLabel = currentUser?.plan === 'developer' ? 'Developer' : 'Pro';
     hintEl.textContent = isLong
-      ? 'Your inbox is active for 7 days. Enjoy Pro! ✦'
+      ? `Your inbox is active for 7 days. Enjoy ${planLabel}! ✦`
       : 'Your inbox will auto-expire after 3 hours. Upgrade to Pro for 7-day retention.';
   }
   // Render the inbox tab strip (for Pro/Dev with multiple inboxes)

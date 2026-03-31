@@ -38,6 +38,66 @@ const PLAN_CONFIG = {
 
 const TWENTY_FOUR_HOURS = 24 * 60 * 60;
 const TURNSTILE_VERIFY_URL = "https://challenges.cloudflare.com/turnstile/v0/siteverify";
+const API_MONTHLY_CREATE_LIMIT = 5000;
+
+// ========== API KEY AUTH ==========
+async function hashKey(key) {
+  const data = new TextEncoder().encode(key);
+  const buf = await crypto.subtle.digest("SHA-256", data);
+  return Array.from(new Uint8Array(buf))
+    .map(b => b.toString(16).padStart(2, "0"))
+    .join("");
+}
+
+async function resolveApiKey(keyValue, db) {
+  if (!keyValue || !keyValue.startsWith("mdh_")) return null;
+  try {
+    const hash = await hashKey(keyValue);
+    const keyRow = await db
+      .prepare("SELECT uid FROM api_keys WHERE key_hash = ? AND is_active = 1")
+      .bind(hash)
+      .first();
+    if (!keyRow) return null;
+
+    const planRow = await db
+      .prepare("SELECT plan FROM user_plans WHERE uid = ?")
+      .bind(keyRow.uid)
+      .first();
+    if (planRow?.plan !== "developer") return null;
+
+    // Touch last_used_at (non-fatal if it fails)
+    const now = Math.floor(Date.now() / 1000);
+    db.prepare("UPDATE api_keys SET last_used_at = ? WHERE key_hash = ?")
+      .bind(now, hash)
+      .run()
+      .catch(() => {});
+
+    return { uid: keyRow.uid, plan: "developer" };
+  } catch (e) {
+    console.error("resolveApiKey error:", e.message);
+    return null;
+  }
+}
+
+async function getMonthlyCreateCount(db, uid) {
+  const now = new Date();
+  const monthStart = Math.floor(new Date(now.getFullYear(), now.getMonth(), 1).getTime() / 1000);
+  const row = await db
+    .prepare(
+      "SELECT COUNT(*) as cnt FROM api_usage WHERE uid = ? AND action = 'inbox_create' AND created_at >= ?"
+    )
+    .bind(uid, monthStart)
+    .first();
+  return row?.cnt || 0;
+}
+
+async function logApiUsage(db, uid, action) {
+  const now = Math.floor(Date.now() / 1000);
+  db.prepare("INSERT INTO api_usage (uid, action, created_at) VALUES (?, ?, ?)")
+    .bind(uid, action, now)
+    .run()
+    .catch(() => {});
+}
 
 // Resolve plan for incoming request (reads Firebase token if present, looks up D1)
 async function getPlan(request, db) {
@@ -240,9 +300,31 @@ export async function onRequestPost(context) {
     const body = await request.json().catch(() => ({}));
     const isCustom = !!body.prefix;
 
+    // ── API Key auth (takes priority over Firebase Bearer token) ──────────
+    const apiKeyHeader = request.headers.get("X-API-Key") || "";
+    let apiKeyAuth = null;
+    if (apiKeyHeader) {
+      apiKeyAuth = await resolveApiKey(apiKeyHeader, env.DB);
+      if (!apiKeyAuth) {
+        return Response.json({ error: "Invalid or revoked API key." }, { status: 401 });
+      }
+    }
+
     // ── Resolve user plan ──────────────────────────────────────────────────
-    const plan = await getPlan(request, env.DB);
+    const plan = apiKeyAuth ? apiKeyAuth.plan : await getPlan(request, env.DB);
     const limits = PLAN_CONFIG[plan] || PLAN_CONFIG.free;
+
+    // ── Monthly creation limit for API key requests ───────────────────────
+    if (apiKeyAuth) {
+      const monthlyCreates = await getMonthlyCreateCount(env.DB, apiKeyAuth.uid);
+      if (monthlyCreates >= API_MONTHLY_CREATE_LIMIT) {
+        return Response.json({
+          error: `Monthly API inbox creation limit (${API_MONTHLY_CREATE_LIMIT.toLocaleString()}) reached. Resets on the 1st of next month.`,
+          used: monthlyCreates,
+          limit: API_MONTHLY_CREATE_LIMIT,
+        }, { status: 429 });
+      }
+    }
 
     // ── Custom prefix gate ─────────────────────────────────────────────────
     if (isCustom && !limits.customPrefix) {
@@ -362,6 +444,7 @@ export async function onRequestPost(context) {
           await env.DB.prepare(
             "INSERT INTO inboxes (id, email, owner_token, creator_ip, creator_token, created_at, expires_at) VALUES (?, ?, ?, ?, ?, ?, ?)"
           ).bind(id, email, ownerToken, ip, browserToken, now, expiresAt).run();
+          if (apiKeyAuth) logApiUsage(env.DB, apiKeyAuth.uid, "inbox_create");
           return Response.json({ id, email, created_at: now, expires_at: expiresAt, owner_token: ownerToken, plan });
         } catch (e) {
           if (e.message?.includes("UNIQUE")) continue;
@@ -377,6 +460,7 @@ export async function onRequestPost(context) {
       await env.DB.prepare(
         "INSERT INTO inboxes (id, email, owner_token, creator_ip, creator_token, created_at, expires_at) VALUES (?, ?, ?, ?, ?, ?, ?)"
       ).bind(id, email, ownerToken, ip, browserToken, now, expiresAt).run();
+      if (apiKeyAuth) logApiUsage(env.DB, apiKeyAuth.uid, "inbox_create");
       return Response.json({ id, email, created_at: now, expires_at: expiresAt, owner_token: ownerToken, plan });
     } catch (e) {
       if (e.message?.includes("UNIQUE")) {
