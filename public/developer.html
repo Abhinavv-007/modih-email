@@ -293,6 +293,46 @@
 </head>
 <body>
 
+  <!-- ========== PAGE TRANSITION LOADER ========== -->
+  <div id="page-loader" style="
+    position: fixed; inset: 0; z-index: 9999;
+    background: rgba(5, 3, 12, 0.92);
+    backdrop-filter: blur(24px); -webkit-backdrop-filter: blur(24px);
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center; gap: 1.5rem;
+    transition: opacity 0.6s ease;
+  ">
+    <div style="position:relative; width:64px; height:64px;">
+      <!-- Outer ring -->
+      <svg viewBox="0 0 64 64" style="position:absolute;inset:0;animation:loaderSpin 2s linear infinite;">
+        <circle cx="32" cy="32" r="28" fill="none" stroke="rgba(167,139,250,0.2)" stroke-width="3"/>
+        <circle cx="32" cy="32" r="28" fill="none" stroke="#a78bfa" stroke-width="3"
+          stroke-linecap="round"
+          stroke-dasharray="44 132"
+          style="transform-origin:center;"/>
+      </svg>
+      <!-- Inner dot -->
+      <div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:1.6rem;">✉️</div>
+    </div>
+    <div style="text-align:center;">
+      <p style="font-family:'Cormorant Garamond',serif; font-size:1.4rem; font-style:italic; color:#eaddff; margin:0 0 0.3rem; letter-spacing:0.02em;" id="loader-text">Opening the API dashboard</p>
+      <p style="font-family:'Inter',sans-serif; font-size:0.78rem; color:rgba(167,139,250,0.7); margin:0; letter-spacing:0.06em; text-transform:uppercase;">modih.in · Developer</p>
+    </div>
+    <div style="display:flex;gap:6px;">
+      <span style="width:6px;height:6px;border-radius:50%;background:#a78bfa;animation:dotPulse 1.4s infinite ease-in-out;"></span>
+      <span style="width:6px;height:6px;border-radius:50%;background:#a78bfa;animation:dotPulse 1.4s 0.2s infinite ease-in-out;"></span>
+      <span style="width:6px;height:6px;border-radius:50%;background:#a78bfa;animation:dotPulse 1.4s 0.4s infinite ease-in-out;"></span>
+    </div>
+  </div>
+  <style>
+    @keyframes loaderSpin { to { transform: rotate(360deg); } }
+    @keyframes dotPulse {
+      0%, 80%, 100% { transform: scale(0.4); opacity: 0.3; }
+      40% { transform: scale(1); opacity: 1; }
+    }
+    #page-loader.hidden { opacity: 0; pointer-events: none; }
+  </style>
+
   <!-- ========== BACKGROUND (same as main page) ========== -->
   <div class="bg-media">
     <video class="bg-video bg-desktop" muted playsinline loop preload="auto" poster="/deskton-mail-bg.png" id="dev-bg-video">
@@ -338,16 +378,13 @@
       <!-- ── USAGE STATS ── -->
       <section class="dev-section">
         <div class="dev-section-inner">
-          <div style="background:rgba(167,139,250,0.1); border:1px solid rgba(167,139,250,0.3); border-radius:16px; padding:2.5rem; margin-bottom:4rem; display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:1.5rem; box-shadow: 0 10px 40px rgba(0,0,0,0.25);">
+          <div style="background:rgba(10,6,20,0.82); border:1px solid rgba(167,139,250,0.35); border-radius:16px; padding:2.5rem; margin-bottom:4rem; display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:1.5rem; box-shadow: 0 10px 40px rgba(0,0,0,0.55), 0 0 0 1px rgba(167,139,250,0.08) inset; backdrop-filter: blur(24px); -webkit-backdrop-filter: blur(24px);">
             <div>
               <p class="section-tag glass-pill" style="margin-bottom:1rem; background:rgba(167,139,250,0.15); border-color:rgba(167,139,250,0.4); color:#eaddff;">✦ Developer API</p>
               <h1 class="section-title" style="font-size:2.5rem; margin-bottom:0.5rem; color:#fff;">Welcome to the <span style="font-family:'Dancing Script', cursive; color:#c4b5fd;">Dashboard.</span></h1>
               <p class="section-desc" style="margin-bottom:0; max-width:600px; color:rgba(255,255,255,0.85);">
                 Manage your API keys and monitor your usage. Your developer quota includes <strong style="color:#eaddff">5k inbox creates/mo</strong> and <strong style="color:#eaddff">50k message reads/mo</strong> with a <strong style="color:#eaddff">30-day inbox retention</strong> (TTL).
               </p>
-            </div>
-            <div style="text-align:right;">
-             <div style="font-size:4rem; filter:drop-shadow(0 0 16px rgba(167,139,250,0.4)); transform:rotate(-10deg);">🔑</div>
             </div>
           </div>
 
@@ -581,7 +618,16 @@
     });
 
     // ── Gate states ──
+    function hideLoader() {
+      const loader = document.getElementById('page-loader');
+      if (loader) {
+        loader.classList.add('hidden');
+        setTimeout(() => loader.remove(), 700);
+      }
+    }
+
     function showGate(state) {
+      hideLoader();
       document.getElementById('gate-section').style.display = 'flex';
       document.getElementById('dashboard').style.display = 'none';
       if (state === 'login') {
@@ -590,7 +636,7 @@
         document.getElementById('gate-sub').textContent = 'Please sign in with your Developer account to access the API dashboard.';
         document.getElementById('gate-action').innerHTML = `<a href="/login.html?redirect=/developer.html" class="btn btn-primary glow-btn" style="display:inline-flex;margin-top:1rem;"><span>Sign In ↗</span></a>`;
       } else if (state === 'upgrade') {
-        document.getElementById('gate-icon').textContent = '🔑';
+        document.getElementById('gate-icon').textContent = '✦';
         document.getElementById('gate-title').textContent = 'Developer plan required';
         document.getElementById('gate-sub').textContent = 'API key management is exclusive to the Developer plan. Contact us to upgrade.';
         document.getElementById('gate-action').innerHTML = `<a href="/#pricing" class="btn btn-primary glow-btn" style="display:inline-flex;margin-top:1rem;"><span>View Plans ↗</span></a>`;
@@ -598,6 +644,7 @@
     }
 
     function showDashboard() {
+      hideLoader();
       document.getElementById('gate-section').style.display = 'none';
       document.getElementById('dashboard').style.display = 'block';
       loadUsage();
