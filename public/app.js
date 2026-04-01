@@ -534,32 +534,33 @@ async function createInbox(type) {
     const data = await res.json();
 
     if (!res.ok) {
-      // Handle specific free-tier errors
-      if (data.upgrade_required) {
-        showUpgradeError(data.error, data.feature);
+      // Handle specific free-tier errors (new envelope: data.error.{code,message,...})
+      if (data.error?.upgrade_required) {
+        showUpgradeError(data.error.message, data.error.feature);
         return;
       }
-      if (data.turnstile_required) {
-        showError(data.error || "Please complete the verification challenge.");
+      if (data.error?.code === 'CAPTCHA_REQUIRED') {
+        showError(data.error.message || "Please complete the verification challenge.");
         showTurnstile();
         return;
       }
       if (res.status === 429) {
-        showError(data.error || "Rate limit exceeded. Try again later.");
+        showError(data.error?.message || "Rate limit exceeded. Try again later.");
         return;
       }
-      showError(data.error || "Failed to create inbox.");
+      showError(data.error?.message || "Failed to create inbox.");
       return;
     }
 
-    // Save state (includes owner_token)
-    currentInbox = data;
+    // Unwrap new envelope: { success, data: {...}, meta: { request_id } }
+    const inboxData = data.data || data; // fallback keeps old single-tab sessions working
+    currentInbox = inboxData;
     currentMessages = [];
 
     // Use plan from backend response OR currentUser (whichever is available)
-    const backendPlan = data.plan || 'free';
+    const backendPlan = inboxData.plan || 'free';
     const currentPlan = currentUser?.plan || 'free';
-    
+
     // If backend knows we are pro but frontend didn't (e.g. admin upgrade without reload),
     // instantly update the frontend state so the UI (like "3 inboxes per day" text) updates!
     if (backendPlan !== 'free' && currentUser && currentPlan === 'free') {
@@ -572,23 +573,23 @@ async function createInbox(type) {
 
     if (isPaid) {
       // Pro/Dev: accumulate inboxes instead of replacing
-      if (!sessionInboxes.find(i => i.id === data.id)) {
-        sessionInboxes.push(data);
+      if (!sessionInboxes.find(i => i.id === inboxData.id)) {
+        sessionInboxes.push(inboxData);
       }
     } else {
       // Free: only track current one
-      sessionInboxes = [data];
+      sessionInboxes = [inboxData];
     }
 
     saveSession();
 
     // Update creation counter
-    if (data.creations_today !== undefined) {
-      showCreationCounter(data.creations_today, data.max_creations);
+    if (inboxData.creations_today !== undefined) {
+      showCreationCounter(inboxData.creations_today, inboxData.max_creations);
     }
 
     // Show/hide turnstile based on server response
-    if (data.turnstile_required) {
+    if (inboxData.turnstile_required) {
       turnstileRequired = true;
       showTurnstile();
     } else {
@@ -596,7 +597,7 @@ async function createInbox(type) {
     }
 
     // Show result
-    showEmailResult(data);
+    showEmailResult(inboxData);
   } catch (e) {
     console.error("Create inbox error:", e);
     showError("Network error. Please try again.");
@@ -862,7 +863,7 @@ async function fetchMessages() {
 
     if (!res.ok) return;
 
-    currentMessages = data.messages || [];
+    currentMessages = data.data?.messages || data.messages || [];
     renderMailList();
   } catch (e) {
     console.error("Fetch messages error:", e);
@@ -1006,7 +1007,7 @@ async function deleteAddressAndReset() {
     deleteOk = res.ok;
     if (!deleteOk) {
       const data = await res.json().catch(() => ({}));
-      showToast(data.error || "Failed to delete address. Please try again.");
+      showToast(data.error?.message || data.error || "Failed to delete address. Please try again.");
       return; // Keep local state — inbox is still live on the server
     }
   } catch (e) {

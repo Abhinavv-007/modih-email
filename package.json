@@ -8,9 +8,13 @@
     "deploy:worker": "cd email-worker && npx wrangler deploy",
     "db:init": "wrangler d1 execute modih-mail-db --remote --file=final-desptop-tab.sql",
     "db:migrate": "wrangler d1 execute modih-mail-db --remote --file=migrate-add-owner-token.sql",
-    "db:migrate:free-tier": "wrangler d1 execute modih-mail-db --remote --file=migrate-free-tier.sql"
+    "db:migrate:free-tier": "wrangler d1 execute modih-mail-db --remote --file=migrate-free-tier.sql",
+    "db:migrate:security": "wrangler d1 execute modih-mail-db --remote --file=migrate-security-hardening.sql",
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "devDependencies": {
+    "vitest": "^2.1.9",
     "wrangler": "^3.60.0"
   }
 }
