@@ -71,15 +71,15 @@ export async function onRequestPost(context) {
     );
   }
 
-  // Generate key: mdh_ + 32 random hex chars = 36 chars total
+  // Generate key: modih- + 32 random hex chars
   const keyBytes = new Uint8Array(16);
   crypto.getRandomValues(keyBytes);
-  const rawKey = "mdh_" + Array.from(keyBytes)
+  const rawKey = "modih-" + Array.from(keyBytes)
     .map(b => b.toString(16).padStart(2, "0"))
     .join("");
 
   // Store only the prefix for display (never store the full key)
-  const keyPrefix = rawKey.slice(0, 12) + "...";
+  const keyPrefix = rawKey.slice(0, 14) + "...";
   const keyHash = await hashKey(rawKey);
 
   const id = crypto.randomUUID().replace(/-/g, "");

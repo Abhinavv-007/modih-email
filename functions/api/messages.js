@@ -16,7 +16,7 @@ async function hashKeyMsg(key) {
 }
 
 async function resolveApiKeyMsg(keyValue, db) {
-  if (!keyValue || !keyValue.startsWith("mdh_")) return null;
+  if (!keyValue || !keyValue.startsWith("modih-")) return null;
   try {
     const hash = await hashKeyMsg(keyValue);
     const keyRow = await db

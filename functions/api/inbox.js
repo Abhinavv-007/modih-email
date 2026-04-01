@@ -27,7 +27,7 @@ const PLAN_CONFIG = {
     noTurnstile:  true,
   },
   developer: {
-    ttl:          7 * 24 * 60 * 60,  // 7 days
+    ttl:          30 * 24 * 60 * 60, // 30 days
     maxDaily:     999999,
     maxActive:    999999,
     turnstileAt:  99999,
@@ -50,7 +50,7 @@ async function hashKey(key) {
 }
 
 async function resolveApiKey(keyValue, db) {
-  if (!keyValue || !keyValue.startsWith("mdh_")) return null;
+  if (!keyValue || !keyValue.startsWith("modih-")) return null;
   try {
     const hash = await hashKey(keyValue);
     const keyRow = await db

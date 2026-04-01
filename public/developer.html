@@ -3,749 +3,742 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Developer Dashboard — Modih Mail</title>
+  <title>Developer API — Modih Mail</title>
   <meta name="robots" content="noindex, nofollow" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,600;0,700;1,400;1,600&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;0,600;0,700;1,300;1,400;1,500;1,600;1,700&family=Playfair+Display:ital,wght@0,400;0,700;1,400;1,700&family=Inter:wght@300;400;500;600;700&family=Dancing+Script:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/styles.css?v=3.0" />
   <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🔑</text></svg>" />
+  <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
 
   <style>
-    :root {
-      --bg: #07070d;
-      --glass: rgba(18,14,10,0.75);
-      --glass-border: rgba(255,255,255,0.09);
-      --accent: #d4a76a;
-      --accent-glow: rgba(212,167,106,0.3);
-      --text: #fff;
-      --text-2: rgba(255,255,255,0.78);
-      --text-3: rgba(255,255,255,0.5);
-      --danger: #f87171;
-      --success: #34d399;
-      --warning: #fbbf24;
-      --radius: 14px;
-      --shadow: 0 20px 60px rgba(0,0,0,0.5);
-      --t: 0.25s cubic-bezier(0.4,0,0.2,1);
-    }
-    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
-    html { -webkit-font-smoothing: antialiased; }
-    body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; overflow-x: hidden; }
+    /* ── Page wrapper ── */
+    .dev-page { position: relative; z-index: 1; }
 
-    .dev-bg {
-      position: fixed; inset: 0; z-index: 0;
-      background-image: url('/deskton-mail-bg.png');
-      background-size: cover; background-position: center; background-repeat: no-repeat;
+    /* ── Gate (auth check / upgrade required) ── */
+    .gate-section {
+      min-height: 100vh; display: flex; align-items: center; justify-content: center;
+      padding: 2rem; position: relative; z-index: 1;
     }
-    @media (max-width: 768px) {
-      .dev-bg { background-image: url('/phone-mail-bg.png'); background-position: 50% 30%; }
-    }
-    .dev-overlay { position: fixed; inset: 0; z-index: 0; background: rgba(5,4,10,0.82); }
-    .dev-root { position: relative; z-index: 1; display: flex; flex-direction: column; min-height: 100vh; }
-
-    /* ── TOPBAR ── */
-    .topbar {
-      display: flex; align-items: center; justify-content: space-between;
-      padding: 1rem 2rem;
-      background: rgba(10,8,6,0.8); backdrop-filter: blur(32px); -webkit-backdrop-filter: blur(32px);
-      border-bottom: 1px solid var(--glass-border);
-      position: sticky; top: 0; z-index: 100;
-    }
-    .topbar-brand { display: flex; align-items: center; gap: 0.6rem; text-decoration: none; }
-    .topbar-brand span { font-family: 'Cormorant Garamond', serif; font-size: 1.5rem; font-weight: 700; font-style: italic; background: linear-gradient(90deg,#FFD700,#F59E0B); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
-    .topbar-badge { font-size: 0.65rem; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: var(--accent); background: rgba(212,167,106,0.12); border: 1px solid rgba(212,167,106,0.25); border-radius: 100px; padding: 0.2rem 0.65rem; }
-    .topbar-right { display: flex; align-items: center; gap: 1rem; }
-    .topbar-user { font-size: 0.82rem; color: var(--text-3); }
-    .topbar-logout { font-size: 0.82rem; color: var(--text-3); background: none; border: 1px solid var(--glass-border); border-radius: 8px; padding: 0.4rem 0.9rem; cursor: pointer; font-family: inherit; transition: var(--t); }
-    .topbar-logout:hover { color: var(--danger); border-color: rgba(248,113,113,0.35); }
-
-    /* ── GATE (auth check screen) ── */
-    .gate { flex: 1; display: flex; align-items: center; justify-content: center; padding: 2rem; }
     .gate-card {
-      width: 100%; max-width: 420px;
-      background: rgba(14,10,7,0.85); backdrop-filter: blur(40px); -webkit-backdrop-filter: blur(40px);
-      border: 1px solid var(--glass-border); border-radius: 22px;
-      padding: 2.5rem; box-shadow: var(--shadow), 0 1px 0 rgba(255,255,255,0.04) inset;
-      animation: cardIn 0.5s cubic-bezier(0.34,1.56,0.64,1) both; text-align: center;
+      width: 100%; max-width: 440px; text-align: center;
+      padding: 3rem 2.5rem;
     }
-    @keyframes cardIn { from{opacity:0;transform:translateY(24px) scale(0.96)} to{opacity:1;transform:none} }
-    .gate-icon { font-size: 3rem; display: block; margin-bottom: 0.75rem; }
-    .gate-title { font-family: 'Cormorant Garamond', serif; font-size: 2rem; font-weight: 600; font-style: italic; margin-bottom: 0.4rem; }
-    .gate-sub { font-size: 0.88rem; color: var(--text-3); margin-bottom: 1.75rem; line-height: 1.6; }
-    .gate-btn {
-      display: inline-block; padding: 0.85rem 2rem; border-radius: 12px; font-size: 0.95rem; font-weight: 600; font-family: inherit;
-      cursor: pointer; border: none; text-decoration: none;
-      background: linear-gradient(135deg, rgba(212,167,106,0.95), rgba(200,149,106,0.9)); color: #0a0a0f;
-      transition: var(--t); box-shadow: 0 4px 20px rgba(212,167,106,0.3);
+    .gate-icon { font-size: 3.5rem; display: block; margin-bottom: 1rem; }
+    .gate-subtitle { color: var(--text-secondary); font-size: 1rem; margin-bottom: 2rem; line-height: 1.7; }
+
+    /* ── Dashboard sections ── */
+    .dev-section {
+      position: relative; z-index: 1; padding: 5rem 2rem;
     }
-    .gate-btn:hover { transform: translateY(-2px); box-shadow: 0 8px 28px rgba(212,167,106,0.45); }
+    .dev-section-inner { max-width: 1100px; margin: 0 auto; width: 100%; }
 
-    /* ── MAIN ── */
-    .dev-main { flex: 1; padding: 2rem; max-width: 1100px; margin: 0 auto; width: 100%; }
-    .dev-main.hidden { display: none; }
-
-    /* ── SECTION HEADER ── */
-    .section-hd { display: flex; align-items: center; justify-content: space-between; margin-bottom: 1.25rem; flex-wrap: wrap; gap: 0.75rem; }
-    .section-title { font-family: 'Cormorant Garamond', serif; font-size: 1.5rem; font-weight: 600; font-style: italic; }
-    .section-sub { font-size: 0.8rem; color: var(--text-3); margin-top: 0.15rem; }
-
-    /* ── USAGE CARDS ── */
-    .usage-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px,1fr)); gap: 1rem; margin-bottom: 2.5rem; }
-    .usage-card {
-      background: rgba(18,14,10,0.7); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
-      border: 1px solid var(--glass-border); border-radius: var(--radius); padding: 1.25rem 1.5rem; transition: var(--t);
+    /* ── Usage cards ── */
+    .usage-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 1.5rem; margin-top: 2.5rem; }
+    .usage-card { padding: 1.75rem 2rem; }
+    .usage-label {
+      font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.12em;
+      color: var(--text-muted); margin-bottom: 0.5rem; font-weight: 600;
     }
-    .usage-card:hover { border-color: rgba(212,167,106,0.25); transform: translateY(-2px); }
-    .usage-label { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.12em; color: var(--text-3); margin-bottom: 0.5rem; }
-    .usage-value { font-family: 'Cormorant Garamond', serif; font-size: 2rem; font-weight: 600; color: var(--accent); line-height: 1; }
-    .usage-limit { font-size: 0.75rem; color: var(--text-3); margin-top: 0.25rem; }
-    .usage-bar { margin-top: 0.75rem; height: 4px; background: rgba(255,255,255,0.08); border-radius: 2px; overflow: hidden; }
-    .usage-bar-fill { height: 100%; border-radius: 2px; background: var(--accent); transition: width 0.6s ease; }
+    .usage-value {
+      font-family: 'Cormorant Garamond', serif; font-size: 2.8rem; font-weight: 600;
+      color: var(--accent); line-height: 1;
+    }
+    .usage-of { font-size: 0.82rem; color: var(--text-muted); margin-top: 0.3rem; }
+    .usage-bar {
+      margin-top: 1rem; height: 3px; background: rgba(255,255,255,0.08);
+      border-radius: 2px; overflow: hidden;
+    }
+    .usage-bar-fill {
+      height: 100%; border-radius: 2px; background: var(--accent);
+      transition: width 0.8s cubic-bezier(0.4,0,0.2,1);
+    }
     .usage-bar-fill.warn { background: var(--warning); }
     .usage-bar-fill.danger { background: var(--danger); }
-    .usage-reset { font-size: 0.72rem; color: var(--text-3); margin-top: 0.4rem; }
+    .usage-reset { font-size: 0.72rem; color: var(--text-muted); margin-top: 0.5rem; }
 
-    /* ── KEYS TABLE ── */
-    .keys-wrap {
-      background: rgba(14,10,7,0.6); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
-      border: 1px solid var(--glass-border); border-radius: var(--radius); overflow: hidden; margin-bottom: 2.5rem;
+    /* ── Keys table ── */
+    .keys-table {
+      margin-top: 2rem; overflow: hidden;
+      background: rgba(30,25,20,0.55);
+      backdrop-filter: blur(24px); -webkit-backdrop-filter: blur(24px);
+      border: 1px solid var(--glass-border);
+      border-radius: var(--radius);
     }
     .keys-head {
-      display: grid; grid-template-columns: 1fr 160px 150px 150px 100px;
-      padding: 0.85rem 1.5rem; border-bottom: 1px solid var(--glass-border);
-      font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.1em; color: var(--text-3);
+      display: grid; grid-template-columns: 1fr 180px 160px 160px 110px;
+      padding: 0.9rem 1.75rem;
+      border-bottom: 1px solid var(--glass-border);
+      font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.12em;
+      color: var(--text-muted); font-weight: 600;
     }
     .key-row {
-      display: grid; grid-template-columns: 1fr 160px 150px 150px 100px;
-      padding: 1rem 1.5rem; border-bottom: 1px solid rgba(255,255,255,0.04);
-      align-items: center; transition: var(--t); animation: rowIn 0.3s ease both;
+      display: grid; grid-template-columns: 1fr 180px 160px 160px 110px;
+      padding: 1.1rem 1.75rem;
+      border-bottom: 1px solid rgba(255,255,255,0.04);
+      align-items: center;
+      transition: var(--transition);
+      animation: keyRowIn 0.4s ease both;
     }
-    @keyframes rowIn { from{opacity:0;transform:translateY(6px)} to{opacity:1;transform:none} }
+    @keyframes keyRowIn { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:none; } }
     .key-row:last-child { border-bottom: none; }
-    .key-row:hover { background: rgba(255,255,255,0.02); }
-    .key-name { font-weight: 500; font-size: 0.92rem; }
-    .key-prefix { font-family: 'Courier New', monospace; font-size: 0.85rem; color: var(--text-3); }
-    .key-date { font-size: 0.82rem; color: var(--text-3); }
-    .key-status-badge {
-      display: inline-flex; align-items: center; gap: 0.3rem;
-      font-size: 0.7rem; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase;
-      padding: 0.2rem 0.6rem; border-radius: 100px;
+    .key-row:hover { background: rgba(255,255,255,0.025); }
+    .key-name { font-weight: 500; font-size: 0.95rem; }
+    .key-prefix { font-family: 'Courier New', monospace; font-size: 0.82rem; color: var(--text-muted); }
+    .key-date { font-size: 0.82rem; color: var(--text-muted); }
+    .key-status {
+      display: inline-flex; align-items: center; gap: 0.35rem;
+      font-size: 0.68rem; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase;
+      padding: 0.22rem 0.7rem; border-radius: 100px;
     }
-    .key-status-badge.active { background: rgba(52,211,153,0.12); color: var(--success); border: 1px solid rgba(52,211,153,0.25); }
-    .key-status-badge.revoked { background: rgba(248,113,113,0.1); color: var(--danger); border: 1px solid rgba(248,113,113,0.2); }
+    .key-status.active { background: rgba(52,211,153,0.12); color: var(--success); border: 1px solid rgba(52,211,153,0.3); }
+    .key-status.revoked { background: rgba(248,113,113,0.08); color: var(--danger); border: 1px solid rgba(248,113,113,0.2); }
     .revoke-btn {
-      font-size: 0.78rem; font-weight: 500; font-family: inherit; cursor: pointer;
-      border: 1px solid rgba(248,113,113,0.25); background: rgba(248,113,113,0.06); color: var(--danger);
-      border-radius: 7px; padding: 0.3rem 0.7rem; transition: var(--t);
+      font-size: 0.78rem; font-weight: 600; font-family: inherit; cursor: pointer;
+      border: 1px solid rgba(248,113,113,0.25); background: rgba(248,113,113,0.06);
+      color: var(--danger); border-radius: 8px; padding: 0.35rem 0.8rem;
+      transition: var(--transition);
     }
     .revoke-btn:hover { background: rgba(248,113,113,0.15); border-color: rgba(248,113,113,0.5); }
     .revoke-btn:disabled { opacity: 0.4; cursor: not-allowed; }
-    .keys-empty { padding: 2.5rem; text-align: center; color: var(--text-3); font-size: 0.9rem; }
+    .keys-empty { padding: 3rem; text-align: center; color: var(--text-muted); font-size: 0.95rem; }
 
-    /* ── CREATE KEY BTN ── */
-    .create-key-btn {
-      display: inline-flex; align-items: center; gap: 0.45rem;
-      padding: 0.65rem 1.2rem; border-radius: 10px; font-size: 0.85rem; font-weight: 600; font-family: inherit;
-      cursor: pointer; border: 1px solid rgba(212,167,106,0.35); background: rgba(212,167,106,0.12); color: var(--accent);
-      transition: var(--t);
-    }
-    .create-key-btn:hover { background: rgba(212,167,106,0.22); border-color: rgba(212,167,106,0.55); transform: translateY(-1px); }
-    .create-key-btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
-
-    /* ── NEW KEY MODAL ── */
+    /* ── Modals ── */
     .modal-backdrop {
-      position: fixed; inset: 0; z-index: 500;
-      background: rgba(5,4,10,0.75); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+      position: fixed; inset: 0; z-index: 2000;
+      background: rgba(5,4,10,0.75);
+      backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
       display: flex; align-items: center; justify-content: center; padding: 1.5rem;
-      opacity: 0; pointer-events: none; transition: opacity 0.25s ease;
+      opacity: 0; pointer-events: none; transition: opacity 0.3s ease;
     }
     .modal-backdrop.open { opacity: 1; pointer-events: auto; }
     .modal-card {
-      width: 100%; max-width: 480px;
-      background: rgba(12,9,7,0.92); backdrop-filter: blur(40px); -webkit-backdrop-filter: blur(40px);
-      border: 1px solid rgba(255,255,255,0.1); border-radius: 20px;
-      padding: 2rem; box-shadow: 0 30px 80px rgba(0,0,0,0.6), 0 1px 0 rgba(255,255,255,0.04) inset;
-      transform: translateY(16px) scale(0.97); transition: transform 0.3s cubic-bezier(0.34,1.56,0.64,1);
+      width: 100%; max-width: 500px;
+      background: rgba(20,16,12,0.95);
+      backdrop-filter: blur(40px); -webkit-backdrop-filter: blur(40px);
+      border: 1px solid rgba(255,255,255,0.12); border-radius: 20px;
+      padding: 2.25rem;
+      box-shadow: 0 40px 100px rgba(0,0,0,0.7), 0 1px 0 rgba(255,255,255,0.04) inset;
+      transform: translateY(20px) scale(0.97);
+      transition: transform 0.35s var(--bounce);
     }
     .modal-backdrop.open .modal-card { transform: none; }
-    .modal-title { font-family: 'Cormorant Garamond', serif; font-size: 1.6rem; font-weight: 600; font-style: italic; margin-bottom: 0.3rem; }
-    .modal-sub { font-size: 0.83rem; color: var(--text-3); margin-bottom: 1.5rem; line-height: 1.55; }
-    .modal-label { font-size: 0.78rem; font-weight: 500; color: rgba(255,255,255,0.65); letter-spacing: 0.03em; margin-bottom: 0.35rem; display: block; }
+    .modal-title {
+      font-family: 'Cormorant Garamond', serif; font-size: 1.8rem;
+      font-weight: 600; font-style: italic; margin-bottom: 0.4rem;
+    }
+    .modal-sub { font-size: 0.88rem; color: var(--text-muted); margin-bottom: 1.75rem; line-height: 1.6; }
+    .modal-label {
+      display: block; font-size: 0.78rem; font-weight: 500; color: rgba(255,255,255,0.6);
+      letter-spacing: 0.04em; margin-bottom: 0.4rem;
+    }
     .modal-input {
-      width: 100%; padding: 0.8rem 1rem; background: rgba(255,255,255,0.06); border: 1px solid var(--glass-border);
-      border-radius: 10px; color: var(--text); font-size: 0.92rem; font-family: inherit; outline: none;
-      transition: var(--t); margin-bottom: 1rem;
+      width: 100%; padding: 0.9rem 1.1rem;
+      background: rgba(255,255,255,0.06); border: 1px solid var(--glass-border);
+      border-radius: var(--radius-sm); color: var(--text-primary);
+      font-size: 0.95rem; font-family: inherit; outline: none;
+      transition: var(--transition); margin-bottom: 1.25rem;
     }
-    .modal-input:focus { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-glow); }
-    .modal-input::placeholder { color: var(--text-3); }
-    .modal-actions { display: flex; gap: 0.75rem; margin-top: 0.5rem; }
-    .modal-submit {
-      flex: 1; padding: 0.85rem; border-radius: 10px; font-size: 0.95rem; font-weight: 600; font-family: inherit;
-      cursor: pointer; border: none; background: linear-gradient(135deg, rgba(212,167,106,0.95), rgba(200,149,106,0.9));
-      color: #0a0a0f; transition: var(--t);
-    }
-    .modal-submit:hover { transform: translateY(-1px); box-shadow: 0 6px 20px rgba(212,167,106,0.4); }
-    .modal-submit:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+    .modal-input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-glow); }
+    .modal-input::placeholder { color: var(--text-muted); }
+    .modal-actions { display: flex; gap: 0.75rem; }
     .modal-cancel {
-      padding: 0.85rem 1.2rem; border-radius: 10px; font-size: 0.92rem; font-family: inherit;
-      cursor: pointer; border: 1px solid var(--glass-border); background: rgba(255,255,255,0.04);
-      color: var(--text-3); transition: var(--t);
+      padding: 0.85rem 1.4rem; border-radius: var(--radius-sm); font-size: 0.92rem;
+      font-family: inherit; cursor: pointer; border: 1px solid var(--glass-border);
+      background: rgba(255,255,255,0.04); color: var(--text-muted); transition: var(--transition);
     }
-    .modal-cancel:hover { color: var(--text-2); border-color: rgba(255,255,255,0.2); }
-    .modal-error { padding: 0.65rem 0.9rem; background: rgba(248,113,113,0.1); border: 1px solid rgba(248,113,113,0.22); border-radius: 8px; color: #fca5a5; font-size: 0.82rem; margin-top: 0.75rem; display: none; }
+    .modal-cancel:hover { color: var(--text-secondary); border-color: rgba(255,255,255,0.2); }
+    .modal-error {
+      margin-top: 1rem; padding: 0.7rem 1rem;
+      background: rgba(248,113,113,0.1); border: 1px solid rgba(248,113,113,0.22);
+      border-radius: var(--radius-sm); color: #fca5a5; font-size: 0.85rem; display: none;
+    }
     .modal-error.visible { display: block; }
 
-    /* ── REVEALED KEY ── */
-    .key-reveal {
+    /* ── Key reveal ── */
+    .key-reveal-box {
       background: rgba(52,211,153,0.06); border: 1px solid rgba(52,211,153,0.2);
-      border-radius: 12px; padding: 1.25rem 1.5rem; margin-bottom: 1rem;
+      border-radius: var(--radius-sm); padding: 1.25rem 1.5rem; margin-bottom: 1.5rem;
     }
-    .key-reveal-warn { font-size: 0.8rem; color: var(--success); font-weight: 600; margin-bottom: 0.5rem; }
+    .key-reveal-label { font-size: 0.78rem; font-weight: 600; color: var(--success); margin-bottom: 0.6rem; text-transform: uppercase; letter-spacing: 0.06em; }
     .key-reveal-value {
-      font-family: 'Courier New', monospace; font-size: 0.85rem; color: var(--text);
-      word-break: break-all; background: rgba(0,0,0,0.3); padding: 0.75rem; border-radius: 8px;
-      margin-bottom: 0.5rem;
+      font-family: 'Courier New', monospace; font-size: 0.88rem; color: var(--text-primary);
+      word-break: break-all; background: rgba(0,0,0,0.3); padding: 0.8rem 1rem;
+      border-radius: var(--radius-xs); margin-bottom: 0.75rem; line-height: 1.5;
     }
     .key-copy-btn {
-      font-size: 0.78rem; font-weight: 600; font-family: inherit; cursor: pointer;
-      border: 1px solid rgba(52,211,153,0.3); background: rgba(52,211,153,0.1); color: var(--success);
-      border-radius: 7px; padding: 0.35rem 0.85rem; transition: var(--t);
+      font-size: 0.8rem; font-weight: 600; font-family: inherit; cursor: pointer;
+      border: 1px solid rgba(52,211,153,0.35); background: rgba(52,211,153,0.1);
+      color: var(--success); border-radius: 8px; padding: 0.4rem 1rem; transition: var(--transition);
     }
     .key-copy-btn:hover { background: rgba(52,211,153,0.2); }
 
-    /* ── API DOCS ── */
-    .docs-card {
-      background: rgba(14,10,7,0.6); backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
-      border: 1px solid var(--glass-border); border-radius: var(--radius);
-      padding: 1.75rem; margin-bottom: 2.5rem;
+    /* ── Docs / code blocks ── */
+    .endpoint-block { margin-bottom: 2rem; }
+    .endpoint-header { display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.5rem; flex-wrap: wrap; }
+    .method-pill {
+      font-size: 0.7rem; font-weight: 700; letter-spacing: 0.07em; text-transform: uppercase;
+      padding: 0.25rem 0.65rem; border-radius: 6px;
     }
-    .docs-title { font-family: 'Cormorant Garamond', serif; font-size: 1.2rem; font-weight: 600; font-style: italic; margin-bottom: 1rem; }
-    .endpoint { margin-bottom: 1.25rem; }
-    .endpoint-row { display: flex; align-items: center; gap: 0.6rem; margin-bottom: 0.35rem; flex-wrap: wrap; }
-    .method { font-size: 0.72rem; font-weight: 700; padding: 0.2rem 0.55rem; border-radius: 5px; letter-spacing: 0.05em; }
-    .method.post { background: rgba(52,211,153,0.15); color: var(--success); border: 1px solid rgba(52,211,153,0.25); }
-    .method.get { background: rgba(96,165,250,0.12); color: #93c5fd; border: 1px solid rgba(96,165,250,0.2); }
-    .method.delete { background: rgba(248,113,113,0.1); color: var(--danger); border: 1px solid rgba(248,113,113,0.2); }
-    .endpoint-path { font-family: 'Courier New', monospace; font-size: 0.88rem; color: var(--accent); }
-    .endpoint-desc { font-size: 0.82rem; color: var(--text-3); line-height: 1.5; }
+    .method-pill.post { background: rgba(52,211,153,0.15); color: var(--success); border: 1px solid rgba(52,211,153,0.3); }
+    .method-pill.get { background: rgba(96,165,250,0.12); color: #93c5fd; border: 1px solid rgba(96,165,250,0.25); }
+    .method-pill.delete { background: rgba(248,113,113,0.1); color: var(--danger); border: 1px solid rgba(248,113,113,0.2); }
+    .endpoint-path { font-family: 'Courier New', monospace; font-size: 0.9rem; color: var(--accent); }
+    .endpoint-desc { font-size: 0.88rem; color: var(--text-muted); line-height: 1.6; margin-bottom: 0.75rem; }
     .code-block {
-      background: rgba(0,0,0,0.35); border: 1px solid rgba(255,255,255,0.07); border-radius: 10px;
-      padding: 1rem 1.25rem; margin-top: 0.5rem; font-family: 'Courier New', monospace;
-      font-size: 0.8rem; color: var(--text-2); overflow-x: auto; white-space: pre; line-height: 1.6;
+      background: rgba(0,0,0,0.4); border: 1px solid rgba(255,255,255,0.07);
+      border-radius: var(--radius-sm); padding: 1.25rem 1.5rem;
+      font-family: 'Courier New', monospace; font-size: 0.82rem; color: var(--text-secondary);
+      overflow-x: auto; white-space: pre; line-height: 1.7; margin-bottom: 0.75rem;
     }
-    .docs-divider { border: none; border-top: 1px solid var(--glass-border); margin: 1.25rem 0; }
+    .section-divider { border: none; border-top: 1px solid var(--glass-border); margin: 2rem 0; }
 
-    /* ── TOAST ── */
-    .toast {
-      position: fixed; bottom: 2rem; left: 50%; transform: translateX(-50%) translateY(20px);
+    /* ── Cursive accent (matches main site) ── */
+    .cursive-accent {
+      font-family: 'Dancing Script', cursive;
+      color: var(--accent);
+    }
+
+    /* ── Inline nav for this page ── */
+    .dev-nav {
+      position: fixed; top: 0; left: 0; right: 0; z-index: 1000;
+      padding: 1.25rem 0; background: transparent; transition: var(--transition);
+    }
+    .dev-nav.scrolled {
+      background: rgba(0,0,0,0.12); backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px); border-bottom: 1px solid rgba(255,255,255,0.1);
+      padding: 0.9rem 0;
+    }
+    .dev-nav-inner {
+      max-width: 1200px; margin: 0 auto; padding: 0 2rem;
+      display: flex; align-items: center; justify-content: space-between;
+    }
+    .dev-nav-brand {
+      display: flex; align-items: center; gap: 0.5rem; text-decoration: none;
+      transition: var(--transition);
+    }
+    .dev-nav-brand:hover { transform: scale(1.04); }
+    .dev-nav-badge {
+      font-size: 0.65rem; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase;
+      color: #a78bfa; background: rgba(167,139,250,0.12); border: 1px solid rgba(167,139,250,0.3);
+      border-radius: 100px; padding: 0.2rem 0.7rem; margin-left: 0.25rem;
+    }
+    .dev-nav-right { display: flex; align-items: center; gap: 1rem; }
+    .dev-nav-email { font-size: 0.82rem; color: var(--text-muted); }
+    .dev-nav-back {
+      font-size: 0.82rem; color: var(--text-muted); text-decoration: none;
+      border: 1px solid var(--glass-border); border-radius: 100px;
+      padding: 0.35rem 0.9rem; transition: var(--transition);
+    }
+    .dev-nav-back:hover { color: var(--text-secondary); border-color: rgba(255,255,255,0.25); }
+    .dev-nav-signout {
+      font-size: 0.78rem; font-weight: 600; color: var(--text-muted);
+      background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.12);
+      border-radius: 100px; padding: 0.3rem 0.8rem; cursor: pointer; font-family: inherit;
+      transition: var(--transition);
+    }
+    .dev-nav-signout:hover { color: var(--text-primary); border-color: rgba(255,255,255,0.3); }
+
+    /* ── Toast ── */
+    .dev-toast {
+      position: fixed; bottom: 2rem; left: 50%;
+      transform: translateX(-50%) translateY(20px);
       background: rgba(30,28,25,0.95); border: 1px solid var(--glass-border);
-      border-radius: 100px; padding: 0.6rem 1.4rem; font-size: 0.88rem; color: var(--text-2);
+      border-radius: 100px; padding: 0.6rem 1.5rem;
+      font-size: 0.88rem; color: var(--text-secondary);
       opacity: 0; transition: opacity 0.25s ease, transform 0.25s ease;
-      pointer-events: none; z-index: 9999; backdrop-filter: blur(20px);
+      pointer-events: none; z-index: 9999;
+      backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
     }
-    .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+    .dev-toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
 
-    @media (max-width: 700px) {
-      .topbar { padding: 0.85rem 1rem; }
-      .dev-main { padding: 1rem; }
-      .keys-head, .key-row { grid-template-columns: 1fr 110px 80px; }
-      .keys-head span:nth-child(4), .key-row > span:nth-child(4),
-      .keys-head span:nth-child(3), .key-row > span:nth-child(3) { display: none; }
+    @media (max-width: 900px) {
+      .keys-head { grid-template-columns: 1fr 170px 110px; }
+      .key-row  { grid-template-columns: 1fr 170px 110px; }
+      .keys-head span:nth-child(3), .key-row > *:nth-child(3),
+      .keys-head span:nth-child(4), .key-row > *:nth-child(4) { display: none; }
+    }
+    @media (max-width: 600px) {
+      .dev-nav-inner { padding: 0 1rem; gap: 0.5rem; }
+      .dev-nav-email { display: none; }
+      .dev-nav-back { display: none; }
+      .brand-text { font-size: 1.4rem; }
+      .dev-section { padding: 2.5rem 1rem; }
+      .dev-section-inner { padding: 0; }
+      .usage-grid { grid-template-columns: 1fr; gap: 1rem; }
+      .usage-card { padding: 1.25rem 1.25rem; }
+      .usage-value { font-size: 2.2rem; }
+      .keys-head { display: none; }
+      .key-row {
+        grid-template-columns: 1fr;
+        gap: 0.4rem;
+        padding: 1.1rem 1.25rem;
+      }
+      .key-prefix { font-size: 0.75rem; }
+      .keys-table { border-radius: var(--radius-sm); }
+      .section-title { font-size: 2rem; }
+      .modal-card { padding: 1.5rem 1.25rem; }
+      .modal-actions { flex-direction: column; }
+      .modal-cancel { width: 100%; }
+      .code-block { font-size: 0.72rem; padding: 1rem; }
+      .gate-card { padding: 2.5rem 1.5rem; }
+      .dev-section:first-of-type { padding-top: 5rem; }
+      .endpoint-path { font-size: 0.78rem; word-break: break-all; }
+      .glass-card-large { padding: 1.5rem 1.25rem; }
+      .section-desc { font-size: 0.95rem; }
     }
   </style>
 </head>
 <body>
 
-<div class="dev-bg"></div>
-<div class="dev-overlay"></div>
-
-<div class="dev-root">
-
-  <!-- TOPBAR -->
-  <header class="topbar">
-    <a href="/" class="topbar-brand">
-      <span style="font-size:1.5rem;filter:drop-shadow(0 2px 4px rgba(0,0,0,.3))">✉️</span>
-      <span>modih.in</span>
-      <span class="topbar-badge">Developer</span>
-    </a>
-    <div class="topbar-right">
-      <span class="topbar-user" id="topbar-user"></span>
-      <button class="topbar-logout" onclick="handleSignOut()">Sign Out</button>
-    </div>
-  </header>
-
-  <!-- GATE: shown while checking auth or if not developer -->
-  <div class="gate" id="gate">
-    <div class="gate-card" id="gate-card">
-      <span class="gate-icon">⏳</span>
-      <h1 class="gate-title">Checking access…</h1>
-      <p class="gate-sub">Verifying your plan. Just a moment.</p>
-    </div>
+  <!-- ========== BACKGROUND (same as main page) ========== -->
+  <div class="bg-media">
+    <video class="bg-video bg-desktop" muted playsinline loop preload="auto" poster="/deskton-mail-bg.png" id="dev-bg-video">
+      <source src="/desktop-bg-loop.mp4" type="video/mp4" />
+    </video>
+    <video class="bg-video bg-mobile" muted playsinline loop preload="auto" poster="/phone-mail-bg.png">
+      <source src="/mobile-bg-loop.mp4" type="video/mp4" />
+    </video>
+    <div class="bg-overlay"></div>
   </div>
 
-  <!-- MAIN DASHBOARD (shown only for developer plan users) -->
-  <main class="dev-main hidden" id="dev-main">
-
-    <!-- ── USAGE STATS ── -->
-    <div style="margin-bottom:2rem;">
-      <div class="section-hd">
-        <div>
-          <div class="section-title">Monthly API Usage</div>
-          <div class="section-sub" id="usage-reset-label">Resets on the 1st of next month</div>
-        </div>
+  <!-- ========== NAV ========== -->
+  <nav class="dev-nav" id="dev-nav">
+    <div class="dev-nav-inner">
+      <a href="/" class="dev-nav-brand">
+        <span style="font-size:1.6rem;filter:drop-shadow(0 2px 4px rgba(0,0,0,.3))">✉️</span>
+        <span class="brand-text">modih.in</span>
+        <span class="dev-nav-badge">Developer</span>
+      </a>
+      <div class="dev-nav-right">
+        <span class="dev-nav-email" id="dev-nav-email"></span>
+        <a href="/" class="dev-nav-back">← Back to App</a>
+        <button class="dev-nav-signout" onclick="handleSignOut()">Sign Out</button>
       </div>
-      <div class="usage-grid">
-        <div class="usage-card">
-          <div class="usage-label">Inbox Creates</div>
-          <div class="usage-value" id="stat-creates">—</div>
-          <div class="usage-limit" id="stat-creates-limit">of 5,000 / month</div>
-          <div class="usage-bar"><div class="usage-bar-fill" id="bar-creates" style="width:0%"></div></div>
-        </div>
-        <div class="usage-card">
-          <div class="usage-label">Message Reads</div>
-          <div class="usage-value" id="stat-reads">—</div>
-          <div class="usage-limit" id="stat-reads-limit">of 50,000 / month</div>
-          <div class="usage-bar"><div class="usage-bar-fill" id="bar-reads" style="width:0%"></div></div>
-        </div>
-        <div class="usage-card">
-          <div class="usage-label">Active API Keys</div>
-          <div class="usage-value" id="stat-keys">—</div>
-          <div class="usage-limit">of 10 maximum</div>
-        </div>
+    </div>
+  </nav>
+
+  <div class="dev-page">
+
+    <!-- ========== GATE (auth loading / error states) ========== -->
+    <div id="gate-section" class="gate-section">
+      <div class="gate-card glass-card fade-up">
+        <span class="gate-icon" id="gate-icon">⏳</span>
+        <h2 class="section-title" id="gate-title" style="font-size:2rem;">Checking access…</h2>
+        <p class="gate-subtitle" id="gate-sub">Verifying your plan. Just a moment.</p>
+        <div id="gate-action"></div>
       </div>
     </div>
 
-    <!-- ── API KEYS ── -->
-    <div style="margin-bottom:2.5rem;">
-      <div class="section-hd">
-        <div>
-          <div class="section-title">API Keys</div>
-          <div class="section-sub">Keys authenticate your API requests. Keep them secret.</div>
-        </div>
-        <button class="create-key-btn" id="create-key-btn" onclick="openCreateModal()">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-          New Key
-        </button>
-      </div>
+    <!-- ========== DASHBOARD (shown after auth) ========== -->
+    <div id="dashboard" style="display:none; padding-top:5rem;">
 
-      <div class="keys-wrap">
-        <div class="keys-head">
-          <span>Name</span>
-          <span>Key Prefix</span>
-          <span>Created</span>
-          <span>Last Used</span>
-          <span>Action</span>
+      <!-- ── USAGE STATS ── -->
+      <section class="dev-section">
+        <div class="dev-section-inner">
+          <p class="section-tag glass-pill">✦ This Month</p>
+          <h2 class="section-title">Your API <span class="cursive-accent">usage.</span></h2>
+          <p class="section-desc" id="usage-reset-label" style="margin-bottom:0;">
+            Resets on the 1st of next month.
+          </p>
+          <div class="usage-grid">
+            <div class="usage-card glass-card">
+              <div class="usage-label">Inbox Creates</div>
+              <div class="usage-value" id="stat-creates">—</div>
+              <div class="usage-of" id="stat-creates-of">of 5,000 / month</div>
+              <div class="usage-bar"><div class="usage-bar-fill" id="bar-creates" style="width:0%"></div></div>
+            </div>
+            <div class="usage-card glass-card">
+              <div class="usage-label">Message Reads</div>
+              <div class="usage-value" id="stat-reads">—</div>
+              <div class="usage-of" id="stat-reads-of">of 50,000 / month</div>
+              <div class="usage-bar"><div class="usage-bar-fill" id="bar-reads" style="width:0%"></div></div>
+            </div>
+            <div class="usage-card glass-card">
+              <div class="usage-label">Active Keys</div>
+              <div class="usage-value" id="stat-keys">—</div>
+              <div class="usage-of">of 10 maximum</div>
+            </div>
+          </div>
         </div>
-        <div id="keys-body">
-          <div class="keys-empty">Loading keys…</div>
-        </div>
-      </div>
-    </div>
+      </section>
 
-    <!-- ── API DOCUMENTATION ── -->
-    <div class="section-hd" style="margin-bottom:1.25rem;">
-      <div>
-        <div class="section-title">API Reference</div>
-        <div class="section-sub">Use your API key in the <code style="font-size:0.82rem;background:rgba(255,255,255,0.08);padding:0.1em 0.4em;border-radius:4px;">X-API-Key</code> header for programmatic access.</div>
-      </div>
-    </div>
+      <!-- ── API KEYS ── -->
+      <section class="dev-section" style="padding-top:0;">
+        <div class="dev-section-inner">
+          <div style="display:flex;align-items:flex-end;justify-content:space-between;flex-wrap:wrap;gap:1rem;margin-bottom:0.5rem;">
+            <div>
+              <p class="section-tag glass-pill">✦ Authentication</p>
+              <h2 class="section-title">API <span class="cursive-accent">keys.</span></h2>
+              <p class="section-desc" style="margin-bottom:0;">Keep your keys secret — treat them like passwords.</p>
+            </div>
+            <button class="btn btn-primary glow-btn" id="create-key-btn" onclick="openCreateModal()" style="align-self:flex-end;margin-bottom:0.25rem;">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+              <span>New Key</span>
+            </button>
+          </div>
 
-    <div class="docs-card">
-      <div class="docs-title">Create Inbox</div>
-      <div class="endpoint">
-        <div class="endpoint-row">
-          <span class="method post">POST</span>
-          <span class="endpoint-path">https://modih.in/api/inbox</span>
+          <div class="keys-table">
+            <div class="keys-head">
+              <span>Name</span>
+              <span>Key Prefix</span>
+              <span>Created</span>
+              <span>Last Used</span>
+              <span>Action</span>
+            </div>
+            <div id="keys-body">
+              <div class="keys-empty">Loading keys…</div>
+            </div>
+          </div>
         </div>
-        <div class="endpoint-desc">Creates a new disposable inbox. Returns the inbox details including <code style="font-size:0.82rem;background:rgba(255,255,255,0.08);padding:0.1em 0.3em;border-radius:3px;">owner_token</code> for subsequent message reads.</div>
-        <div class="code-block">curl -X POST https://modih.in/api/inbox \
-  -H "X-API-Key: mdh_your_key_here" \
+      </section>
+
+      <!-- ── API REFERENCE ── -->
+      <section class="dev-section" style="padding-top:0;">
+        <div class="dev-section-inner">
+          <p class="section-tag glass-pill">✦ Documentation</p>
+          <h2 class="section-title">API <span class="cursive-accent">reference.</span></h2>
+          <p class="section-desc">
+            Pass your key in the <code style="font-family:'Courier New',monospace;font-size:0.9em;background:rgba(212,167,106,0.12);color:var(--accent);padding:0.1em 0.4em;border-radius:4px;">X-API-Key</code> header. Owner tokens from inbox creation are still required to read messages.
+          </p>
+
+          <div class="glass-card-large" style="padding:2.5rem;">
+
+            <!-- Create Inbox -->
+            <div class="endpoint-block">
+              <div class="endpoint-header">
+                <span class="method-pill post">POST</span>
+                <span class="endpoint-path">/api/inbox</span>
+              </div>
+              <p class="endpoint-desc">Create a disposable inbox. Returns <code style="font-family:'Courier New',monospace;font-size:0.88em;background:rgba(255,255,255,0.08);padding:0.1em 0.35em;border-radius:3px;">owner_token</code> for subsequent message reads. Custom prefix requires Developer plan.</p>
+              <div class="code-block">curl -X POST https://modih.in/api/inbox \
+  -H "X-API-Key: modih-your_key_here" \
   -H "X-Browser-Token: any-stable-uuid" \
   -H "Content-Type: application/json" \
-  -d '{"prefix": "myapp-test"}'</div>
-        <div class="code-block" style="margin-top:0.5rem;">{
-  "id": "abc123...",
-  "email": "myapp-test@modih.in",
-  "owner_token": "token-for-reading-messages",
+  -d '{"prefix": "myapp-signup"}'</div>
+              <div class="code-block">{
+  "id": "abc1def2ghi3jkl4",
+  "email": "myapp-signup@modih.in",
+  "owner_token": "use-this-to-read-messages",
   "created_at": 1711234567,
   "expires_at": 1711839367,
   "plan": "developer"
 }</div>
-      </div>
+            </div>
 
-      <hr class="docs-divider">
+            <hr class="section-divider">
 
-      <div class="docs-title">Read Messages</div>
-      <div class="endpoint">
-        <div class="endpoint-row">
-          <span class="method get">GET</span>
-          <span class="endpoint-path">https://modih.in/api/messages?inbox_id={id}</span>
-        </div>
-        <div class="endpoint-desc">Returns all messages for the inbox. Requires <code style="font-size:0.82rem;background:rgba(255,255,255,0.08);padding:0.1em 0.3em;border-radius:3px;">X-Owner-Token</code> from inbox creation. Each call counts as 1 read against your monthly quota.</div>
-        <div class="code-block">curl https://modih.in/api/messages?inbox_id=abc123 \
-  -H "X-API-Key: mdh_your_key_here" \
-  -H "X-Owner-Token: token-from-inbox-creation"</div>
-        <div class="code-block" style="margin-top:0.5rem;">{
-  "inbox": { "id": "...", "email": "...", "expires_at": ... },
+            <!-- Read Messages -->
+            <div class="endpoint-block">
+              <div class="endpoint-header">
+                <span class="method-pill get">GET</span>
+                <span class="endpoint-path">/api/messages?inbox_id={id}</span>
+              </div>
+              <p class="endpoint-desc">Fetch all messages in an inbox. Each call counts as 1 read against your 50k/month quota. Requires the <code style="font-family:'Courier New',monospace;font-size:0.88em;background:rgba(255,255,255,0.08);padding:0.1em 0.35em;border-radius:3px;">owner_token</code> from inbox creation.</p>
+              <div class="code-block">curl "https://modih.in/api/messages?inbox_id=abc1def2ghi3jkl4" \
+  -H "X-API-Key: modih-your_key_here" \
+  -H "X-Owner-Token: use-this-to-read-messages"</div>
+              <div class="code-block">{
+  "inbox": { "id": "...", "email": "myapp-signup@modih.in", "expires_at": 1711839367 },
   "messages": [
     {
       "id": "msg-id",
-      "from_address": "sender@example.com",
-      "subject": "Welcome!",
-      "body_text": "Hello...",
-      "body_html": "&lt;p&gt;Hello...&lt;/p&gt;",
+      "from_address": "verify@example.com",
+      "subject": "Your verification code",
+      "body_text": "Your OTP is 482910",
+      "body_html": "&lt;p&gt;Your OTP is &lt;strong&gt;482910&lt;/strong&gt;&lt;/p&gt;",
       "received_at": 1711234999
     }
   ]
 }</div>
-      </div>
+            </div>
 
-      <hr class="docs-divider">
+            <hr class="section-divider">
 
-      <div class="docs-title">Delete Inbox</div>
-      <div class="endpoint">
-        <div class="endpoint-row">
-          <span class="method delete">DELETE</span>
-          <span class="endpoint-path">https://modih.in/api/inbox?id={id}</span>
+            <!-- Delete Inbox -->
+            <div class="endpoint-block" style="margin-bottom:0;">
+              <div class="endpoint-header">
+                <span class="method-pill delete">DELETE</span>
+                <span class="endpoint-path">/api/inbox?id={id}</span>
+              </div>
+              <p class="endpoint-desc">Permanently delete an inbox and all its messages. Requires <code style="font-family:'Courier New',monospace;font-size:0.88em;background:rgba(255,255,255,0.08);padding:0.1em 0.35em;border-radius:3px;">X-Owner-Token</code> header. No API key needed for deletion.</p>
+              <div class="code-block" style="margin-bottom:0;">curl -X DELETE "https://modih.in/api/inbox?id=abc1def2ghi3jkl4" \
+  -H "X-Owner-Token: use-this-to-read-messages"</div>
+            </div>
+
+          </div>
         </div>
-        <div class="endpoint-desc">Deletes an inbox and all its messages. Requires <code style="font-size:0.82rem;background:rgba(255,255,255,0.08);padding:0.1em 0.3em;border-radius:3px;">X-Owner-Token</code> header.</div>
-        <div class="code-block">curl -X DELETE "https://modih.in/api/inbox?id=abc123" \
-  -H "X-Owner-Token: token-from-inbox-creation"</div>
-      </div>
+      </section>
 
-      <hr class="docs-divider">
+      <footer style="position:relative;z-index:1;padding:2rem;text-align:center;color:var(--text-muted);font-size:0.82rem;border-top:1px solid var(--glass-border);">
+        <a href="/" style="color:var(--text-muted);text-decoration:none;">← Back to modih.in</a>
+        &nbsp;·&nbsp;
+        <a href="/#pricing" style="color:var(--text-muted);text-decoration:none;">Plans</a>
+        &nbsp;·&nbsp;
+        <a href="/privacy.html" style="color:var(--text-muted);text-decoration:none;">Privacy</a>
+      </footer>
 
-      <div class="docs-title">Usage Stats</div>
-      <div class="endpoint">
-        <div class="endpoint-row">
-          <span class="method get">GET</span>
-          <span class="endpoint-path">https://modih.in/api/developer/usage</span>
+    </div><!-- /dashboard -->
+
+  </div><!-- /dev-page -->
+
+  <!-- ── CREATE KEY MODAL ── -->
+  <div class="modal-backdrop" id="create-modal" onclick="handleModalBackdropClick(event)">
+    <div class="modal-card">
+
+      <div id="modal-form-state">
+        <h2 class="modal-title">New API Key</h2>
+        <p class="modal-sub">Give this key a descriptive name. You will only see the full key <strong style="color:var(--warning)">once</strong> — copy it somewhere safe.</p>
+        <label class="modal-label" for="key-name-input">Key Name</label>
+        <input class="modal-input" type="text" id="key-name-input" placeholder="e.g. Production, CI Pipeline, Local Dev" maxlength="50" onkeydown="if(event.key==='Enter')submitCreateKey()" />
+        <div class="modal-actions">
+          <button class="btn btn-primary glow-btn" id="modal-submit-btn" onclick="submitCreateKey()" style="flex:1;">
+            <span>Create Key</span>
+          </button>
+          <button class="modal-cancel" onclick="closeCreateModal()">Cancel</button>
         </div>
-        <div class="endpoint-desc">Returns your current monthly API usage against plan limits.</div>
-        <div class="code-block">curl https://modih.in/api/developer/usage \
-  -H "Authorization: Bearer &lt;firebase-id-token&gt;"</div>
+        <div class="modal-error" id="modal-error"></div>
       </div>
-    </div>
 
-  </main>
-
-</div><!-- dev-root -->
-
-<!-- CREATE KEY MODAL -->
-<div class="modal-backdrop" id="create-modal" onclick="handleModalBackdropClick(event)">
-  <div class="modal-card">
-    <div id="modal-form-state">
-      <div class="modal-title">New API Key</div>
-      <div class="modal-sub">Give this key a name so you can identify it later. You won't be able to see the full key again after this.</div>
-      <label class="modal-label" for="key-name-input">Key Name</label>
-      <input class="modal-input" type="text" id="key-name-input" placeholder="e.g. Production, CI Testing, Local Dev" maxlength="50" />
-      <div class="modal-actions">
-        <button class="modal-submit" id="modal-submit-btn" onclick="submitCreateKey()">Create Key</button>
-        <button class="modal-cancel" onclick="closeCreateModal()">Cancel</button>
+      <div id="modal-reveal-state" style="display:none;">
+        <h2 class="modal-title">Key Created ✦</h2>
+        <p class="modal-sub">This is the only time your key is shown. Copy it now — it cannot be recovered.</p>
+        <div class="key-reveal-box">
+          <div class="key-reveal-label">Your new API key</div>
+          <div class="key-reveal-value" id="revealed-key"></div>
+          <button class="key-copy-btn" onclick="copyRevealedKey()">Copy to Clipboard</button>
+        </div>
+        <button class="btn btn-primary glow-btn" onclick="closeCreateModal()" style="width:100%;">
+          <span>Done — I've saved it</span>
+        </button>
       </div>
-      <div class="modal-error" id="modal-error"></div>
-    </div>
 
-    <!-- Revealed key state (shown after creation) -->
-    <div id="modal-reveal-state" style="display:none;">
-      <div class="modal-title">Key Created</div>
-      <div class="modal-sub">Copy your key now. This is the <strong style="color:var(--warning)">only time</strong> it will be shown.</div>
-      <div class="key-reveal">
-        <div class="key-reveal-warn">Your new API key:</div>
-        <div class="key-reveal-value" id="revealed-key"></div>
-        <button class="key-copy-btn" onclick="copyRevealedKey()">Copy Key</button>
-      </div>
-      <div class="modal-actions">
-        <button class="modal-submit" onclick="closeCreateModal()">Done</button>
-      </div>
     </div>
   </div>
-</div>
 
-<!-- TOAST -->
-<div class="toast" id="toast"></div>
+  <!-- ── TOAST ── -->
+  <div class="dev-toast" id="dev-toast"></div>
 
-<!-- Firebase -->
-<script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-auth-compat.js"></script>
+  <script>
+    // ── NAV scroll effect ──
+    window.addEventListener('scroll', () => {
+      document.getElementById('dev-nav').classList.toggle('scrolled', window.scrollY > 40);
+    }, { passive: true });
 
-<script>
-const FIREBASE_CONFIG = {
-  apiKey: "AIzaSyDzUpWLWZDn20MlacZHjeBXDe8yyI1QSp4",
-  authDomain: "modih-mail.firebaseapp.com",
-  projectId: "modih-mail",
-  storageBucket: "modih-mail.firebasestorage.app",
-  messagingSenderId: "333202273259",
-  appId: "1:333202273259:web:279c458fa1c57b99d81fae"
-};
+    // ── Video autoplay ──
+    const v = document.getElementById('dev-bg-video');
+    if (v) v.play().catch(() => document.addEventListener('click', () => v.play().catch(() => {}), { once: true }));
 
-let firebaseAuth = null;
-let currentUser = null;
-let idToken = null;
-let allKeys = [];
-let revealedKey = null;
+    // ── Firebase ──
+    const FIREBASE_CONFIG = {
+      apiKey: "AIzaSyDzUpWLWZDn20MlacZHjeBXDe8yyI1QSp4",
+      authDomain: "modih-mail.firebaseapp.com",
+      projectId: "modih-mail",
+      storageBucket: "modih-mail.firebasestorage.app",
+      messagingSenderId: "333202273259",
+      appId: "1:333202273259:web:279c458fa1c57b99d81fae"
+    };
 
-// ── INIT ──
-if (typeof firebase !== 'undefined') {
-  firebase.initializeApp(FIREBASE_CONFIG);
-  firebaseAuth = firebase.auth();
+    let firebaseAuth = null;
+    let idToken = null;
+    let allKeys = [];
+    let revealedKey = null;
 
-  firebaseAuth.onAuthStateChanged(async (user) => {
-    if (!user) {
-      showGate('login');
-      return;
+    firebase.initializeApp(FIREBASE_CONFIG);
+    firebaseAuth = firebase.auth();
+
+    firebaseAuth.onAuthStateChanged(async (user) => {
+      if (!user) { showGate('login'); return; }
+      try {
+        idToken = await user.getIdToken();
+        const res = await fetch('/api/auth/me', {
+          headers: { 'Authorization': `Bearer ${idToken}` },
+          cache: 'no-store'
+        });
+        if (!res.ok) { showGate('login'); return; }
+        const data = await res.json();
+        if (data.plan !== 'developer') { showGate('upgrade'); return; }
+        document.getElementById('dev-nav-email').textContent = data.email || '';
+        showDashboard();
+      } catch (e) { showGate('login'); }
+    });
+
+    // ── Gate states ──
+    function showGate(state) {
+      document.getElementById('gate-section').style.display = 'flex';
+      document.getElementById('dashboard').style.display = 'none';
+      if (state === 'login') {
+        document.getElementById('gate-icon').textContent = '🔒';
+        document.getElementById('gate-title').textContent = 'Sign in required';
+        document.getElementById('gate-sub').textContent = 'Please sign in with your Developer account to access the API dashboard.';
+        document.getElementById('gate-action').innerHTML = `<a href="/login.html?redirect=/developer.html" class="btn btn-primary glow-btn" style="display:inline-flex;margin-top:1rem;"><span>Sign In ↗</span></a>`;
+      } else if (state === 'upgrade') {
+        document.getElementById('gate-icon').textContent = '🔑';
+        document.getElementById('gate-title').textContent = 'Developer plan required';
+        document.getElementById('gate-sub').textContent = 'API key management is exclusive to the Developer plan. Contact us to upgrade.';
+        document.getElementById('gate-action').innerHTML = `<a href="/#pricing" class="btn btn-primary glow-btn" style="display:inline-flex;margin-top:1rem;"><span>View Plans ↗</span></a>`;
+      }
     }
-    try {
-      idToken = await user.getIdToken();
-      const res = await fetch('/api/auth/me', {
-        headers: { 'Authorization': `Bearer ${idToken}` },
-        cache: 'no-store'
-      });
-      if (!res.ok) { showGate('login'); return; }
-      const data = await res.json();
 
-      if (data.plan !== 'developer') {
-        showGate('upgrade');
+    function showDashboard() {
+      document.getElementById('gate-section').style.display = 'none';
+      document.getElementById('dashboard').style.display = 'block';
+      loadUsage();
+      loadKeys();
+    }
+
+    // ── Usage ──
+    async function loadUsage() {
+      try {
+        const res = await fetch('/api/developer/usage', { headers: { 'Authorization': `Bearer ${idToken}` } });
+        if (!res.ok) return;
+        const d = await res.json();
+        const c = d.inbox_creates || {}, r = d.message_reads || {};
+        document.getElementById('stat-creates').textContent = (c.used || 0).toLocaleString();
+        document.getElementById('stat-reads').textContent   = (r.used || 0).toLocaleString();
+        setBar('bar-creates', c.used || 0, c.limit || 5000);
+        setBar('bar-reads',   r.used || 0, r.limit || 50000);
+        if (d.resets_at) {
+          const dt = new Date(d.resets_at * 1000);
+          document.getElementById('usage-reset-label').textContent =
+            `Resets ${dt.toLocaleDateString(undefined, { month:'long', day:'numeric' })}`;
+        }
+      } catch (e) {}
+    }
+
+    function setBar(id, used, limit) {
+      const pct = Math.min(100, (used / limit) * 100);
+      const el = document.getElementById(id);
+      el.style.width = pct + '%';
+      el.className = 'usage-bar-fill' + (pct >= 90 ? ' danger' : pct >= 70 ? ' warn' : '');
+    }
+
+    // ── Keys ──
+    async function loadKeys() {
+      try {
+        const res = await fetch('/api/developer/keys', { headers: { 'Authorization': `Bearer ${idToken}` } });
+        if (!res.ok) return;
+        const d = await res.json();
+        allKeys = d.keys || [];
+        renderKeys();
+        document.getElementById('stat-keys').textContent = allKeys.filter(k => k.is_active).length.toString();
+        document.getElementById('create-key-btn').disabled = allKeys.filter(k => k.is_active).length >= 10;
+      } catch (e) {}
+    }
+
+    function renderKeys() {
+      const body = document.getElementById('keys-body');
+      if (!allKeys.length) {
+        body.innerHTML = `<div class="keys-empty">No API keys yet. Create one above to get started.</div>`;
         return;
       }
-
-      currentUser = { uid: data.uid, email: data.email };
-      document.getElementById('topbar-user').textContent = data.email || '';
-      showDashboard();
-    } catch (e) {
-      showGate('login');
+      body.innerHTML = allKeys.map((k, i) => `
+        <div class="key-row" style="animation-delay:${i * 0.06}s">
+          <span class="key-name">${esc(k.name)}</span>
+          <span class="key-prefix">${esc(k.key_prefix)}</span>
+          <span class="key-date">${fmt(k.created_at)}</span>
+          <span class="key-date">${k.last_used_at ? fmt(k.last_used_at) : '—'}</span>
+          <span>
+            ${k.is_active
+              ? `<button class="revoke-btn" onclick="revokeKey('${k.id}',this)">Revoke</button>`
+              : `<span class="key-status revoked">Revoked</span>`}
+          </span>
+        </div>`).join('');
     }
-  });
-}
 
-// ── GATE STATES ──
-function showGate(state) {
-  document.getElementById('gate').style.display = 'flex';
-  document.getElementById('dev-main').classList.add('hidden');
-  const card = document.getElementById('gate-card');
-
-  if (state === 'login') {
-    card.innerHTML = `
-      <span class="gate-icon">🔒</span>
-      <h1 class="gate-title">Sign in required</h1>
-      <p class="gate-sub">Please sign in with your Developer account to access this dashboard.</p>
-      <a href="/login.html?redirect=/developer.html" class="gate-btn">Sign In</a>`;
-  } else if (state === 'upgrade') {
-    card.innerHTML = `
-      <span class="gate-icon">🔑</span>
-      <h1 class="gate-title">Developer Plan Required</h1>
-      <p class="gate-sub">API key management is exclusive to the Developer plan.<br>Contact us to upgrade your account.</p>
-      <a href="/#pricing" class="gate-btn">View Plans</a>`;
-  }
-}
-
-function showDashboard() {
-  document.getElementById('gate').style.display = 'none';
-  document.getElementById('dev-main').classList.remove('hidden');
-  loadUsage();
-  loadKeys();
-}
-
-// ── USAGE ──
-async function loadUsage() {
-  try {
-    const res = await fetch('/api/developer/usage', {
-      headers: { 'Authorization': `Bearer ${idToken}` }
-    });
-    if (!res.ok) return;
-    const data = await res.json();
-
-    const creates = data.inbox_creates || {};
-    const reads = data.message_reads || {};
-
-    document.getElementById('stat-creates').textContent = (creates.used || 0).toLocaleString();
-    document.getElementById('stat-reads').textContent = (reads.used || 0).toLocaleString();
-
-    setBar('bar-creates', creates.used || 0, creates.limit || 5000);
-    setBar('bar-reads', reads.used || 0, reads.limit || 50000);
-
-    if (data.resets_at) {
-      const resetDate = new Date(data.resets_at * 1000);
-      document.getElementById('usage-reset-label').textContent =
-        `Resets ${resetDate.toLocaleDateString(undefined, { month: 'long', day: 'numeric' })}`;
+    async function revokeKey(keyId, btn) {
+      if (!confirm('Revoke this key? Any integration using it will stop working immediately.')) return;
+      btn.disabled = true;
+      try {
+        const res = await fetch(`/api/developer/keys?id=${encodeURIComponent(keyId)}`, {
+          method: 'DELETE', headers: { 'Authorization': `Bearer ${idToken}` }
+        });
+        if (res.ok) { toast('Key revoked'); await loadKeys(); }
+        else { const d = await res.json().catch(()=>({})); toast(d.error || 'Failed'); btn.disabled = false; }
+      } catch (e) { toast('Network error'); btn.disabled = false; }
     }
-  } catch (e) {
-    console.error('loadUsage error:', e);
-  }
-}
 
-function setBar(id, used, limit) {
-  const pct = Math.min(100, (used / limit) * 100);
-  const bar = document.getElementById(id);
-  bar.style.width = pct + '%';
-  bar.className = 'usage-bar-fill' + (pct >= 90 ? ' danger' : pct >= 70 ? ' warn' : '');
-}
+    // ── Create modal ──
+    function openCreateModal() {
+      document.getElementById('modal-form-state').style.display = 'block';
+      document.getElementById('modal-reveal-state').style.display = 'none';
+      document.getElementById('key-name-input').value = '';
+      document.getElementById('modal-error').className = 'modal-error';
+      document.getElementById('modal-submit-btn').disabled = false;
+      document.getElementById('modal-submit-btn').querySelector('span').textContent = 'Create Key';
+      document.getElementById('create-modal').classList.add('open');
+      setTimeout(() => document.getElementById('key-name-input').focus(), 120);
+    }
 
-// ── KEYS ──
-async function loadKeys() {
-  try {
-    const res = await fetch('/api/developer/keys', {
-      headers: { 'Authorization': `Bearer ${idToken}` }
-    });
-    if (!res.ok) return;
-    const data = await res.json();
-    allKeys = data.keys || [];
-    renderKeys();
-    document.getElementById('stat-keys').textContent =
-      allKeys.filter(k => k.is_active).length.toString();
-  } catch (e) {
-    console.error('loadKeys error:', e);
-  }
-}
+    function closeCreateModal() {
+      document.getElementById('create-modal').classList.remove('open');
+      if (revealedKey) { revealedKey = null; loadKeys(); loadUsage(); }
+    }
 
-function renderKeys() {
-  const body = document.getElementById('keys-body');
-  const active = allKeys.filter(k => k.is_active);
+    function handleModalBackdropClick(e) {
+      if (e.target === document.getElementById('create-modal')) closeCreateModal();
+    }
 
-  if (allKeys.length === 0) {
-    body.innerHTML = `<div class="keys-empty">No API keys yet. Create one to get started.</div>`;
-    return;
-  }
-
-  body.innerHTML = allKeys.map((k, i) => `
-    <div class="key-row" style="animation-delay:${i * 0.05}s">
-      <span class="key-name">${escHtml(k.name)}</span>
-      <span class="key-prefix">${escHtml(k.key_prefix)}</span>
-      <span class="key-date">${fmtDate(k.created_at)}</span>
-      <span class="key-date">${k.last_used_at ? fmtDate(k.last_used_at) : '—'}</span>
-      <span>
-        ${k.is_active
-          ? `<button class="revoke-btn" onclick="revokeKey('${k.id}', this)">Revoke</button>`
-          : `<span class="key-status-badge revoked">Revoked</span>`
+    async function submitCreateKey() {
+      const name = document.getElementById('key-name-input').value.trim();
+      const errEl = document.getElementById('modal-error');
+      const btn = document.getElementById('modal-submit-btn');
+      errEl.className = 'modal-error';
+      if (!name) { errEl.textContent = 'Please enter a key name.'; errEl.className = 'modal-error visible'; return; }
+      btn.disabled = true;
+      btn.querySelector('span').textContent = 'Creating…';
+      try {
+        const res = await fetch('/api/developer/keys', {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${idToken}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name })
+        });
+        const data = await res.json();
+        if (!res.ok) {
+          errEl.textContent = data.error || 'Failed to create key.';
+          errEl.className = 'modal-error visible';
+          btn.disabled = false;
+          btn.querySelector('span').textContent = 'Create Key';
+          return;
         }
-      </span>
-    </div>
-  `).join('');
-
-  // Disable create button if at limit
-  document.getElementById('create-key-btn').disabled = active.length >= 10;
-}
-
-async function revokeKey(keyId, btn) {
-  if (!confirm('Revoke this API key? Any integrations using it will stop working immediately.')) return;
-  btn.disabled = true;
-  try {
-    const res = await fetch(`/api/developer/keys?id=${encodeURIComponent(keyId)}`, {
-      method: 'DELETE',
-      headers: { 'Authorization': `Bearer ${idToken}` }
-    });
-    if (res.ok) {
-      showToast('Key revoked');
-      await loadKeys();
-    } else {
-      const d = await res.json().catch(() => ({}));
-      showToast(d.error || 'Failed to revoke key');
-      btn.disabled = false;
-    }
-  } catch (e) {
-    showToast('Network error');
-    btn.disabled = false;
-  }
-}
-
-// ── CREATE KEY MODAL ──
-function openCreateModal() {
-  document.getElementById('modal-form-state').style.display = 'block';
-  document.getElementById('modal-reveal-state').style.display = 'none';
-  document.getElementById('key-name-input').value = '';
-  document.getElementById('modal-error').classList.remove('visible');
-  document.getElementById('create-modal').classList.add('open');
-  setTimeout(() => document.getElementById('key-name-input').focus(), 100);
-}
-
-function closeCreateModal() {
-  document.getElementById('create-modal').classList.remove('open');
-  if (revealedKey) {
-    revealedKey = null;
-    loadKeys();
-    loadUsage();
-  }
-}
-
-function handleModalBackdropClick(e) {
-  if (e.target === document.getElementById('create-modal')) closeCreateModal();
-}
-
-async function submitCreateKey() {
-  const name = document.getElementById('key-name-input').value.trim();
-  const errEl = document.getElementById('modal-error');
-  const submitBtn = document.getElementById('modal-submit-btn');
-
-  errEl.classList.remove('visible');
-
-  if (!name) {
-    errEl.textContent = 'Please enter a key name.';
-    errEl.classList.add('visible');
-    return;
-  }
-
-  submitBtn.disabled = true;
-  submitBtn.textContent = 'Creating…';
-
-  try {
-    const res = await fetch('/api/developer/keys', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${idToken}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({ name })
-    });
-    const data = await res.json();
-
-    if (!res.ok) {
-      errEl.textContent = data.error || 'Failed to create key.';
-      errEl.classList.add('visible');
-      submitBtn.disabled = false;
-      submitBtn.textContent = 'Create Key';
-      return;
+        revealedKey = data.key;
+        document.getElementById('revealed-key').textContent = data.key;
+        document.getElementById('modal-form-state').style.display = 'none';
+        document.getElementById('modal-reveal-state').style.display = 'block';
+      } catch (e) {
+        errEl.textContent = 'Network error. Please try again.';
+        errEl.className = 'modal-error visible';
+        btn.disabled = false;
+        btn.querySelector('span').textContent = 'Create Key';
+      }
     }
 
-    revealedKey = data.key;
-    document.getElementById('revealed-key').textContent = data.key;
-    document.getElementById('modal-form-state').style.display = 'none';
-    document.getElementById('modal-reveal-state').style.display = 'block';
-  } catch (e) {
-    errEl.textContent = 'Network error. Please try again.';
-    errEl.classList.add('visible');
-    submitBtn.disabled = false;
-    submitBtn.textContent = 'Create Key';
-  }
-}
+    function copyRevealedKey() {
+      if (!revealedKey) return;
+      navigator.clipboard.writeText(revealedKey).then(() => toast('Copied to clipboard'));
+    }
 
-function copyRevealedKey() {
-  if (!revealedKey) return;
-  navigator.clipboard.writeText(revealedKey).then(() => showToast('Key copied to clipboard'));
-}
+    async function handleSignOut() {
+      if (firebaseAuth) await firebaseAuth.signOut();
+      window.location.href = '/';
+    }
 
-// ── SIGN OUT ──
-async function handleSignOut() {
-  if (firebaseAuth) await firebaseAuth.signOut();
-  window.location.href = '/';
-}
-
-// ── HELPERS ──
-function escHtml(str) {
-  return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
-}
-
-function fmtDate(ts) {
-  if (!ts) return '—';
-  return new Date(ts * 1000).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
-}
-
-let toastTimer = null;
-function showToast(msg) {
-  const el = document.getElementById('toast');
-  el.textContent = msg;
-  el.classList.add('show');
-  clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => el.classList.remove('show'), 2800);
-}
-</script>
+    // ── Helpers ──
+    function esc(s) {
+      return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+    }
+    function fmt(ts) {
+      return new Date(ts * 1000).toLocaleDateString(undefined, { month:'short', day:'numeric', year:'numeric' });
+    }
+    let _toastTimer;
+    function toast(msg) {
+      const el = document.getElementById('dev-toast');
+      el.textContent = msg; el.classList.add('show');
+      clearTimeout(_toastTimer);
+      _toastTimer = setTimeout(() => el.classList.remove('show'), 2800);
+    }
+  </script>
 </body>
 </html>

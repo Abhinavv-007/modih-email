@@ -361,7 +361,13 @@ body {
 @media (max-width: 768px) {
   .nav-links { display: none; }
   .nav-cta { display: none; }
-  .nav-auth-pill { display: none; }
+  /* Keep auth pill visible on mobile but compact */
+  .nav-auth-pill {
+    gap: 0.4rem;
+    padding: 0.3rem 0.3rem 0.3rem 0.65rem;
+  }
+  .nav-user-email { max-width: 90px; font-size: 0.75rem; }
+  .nav-sign-out-btn { font-size: 0.72rem; padding: 0.25rem 0.6rem; }
 }
 
 /* ========== NAV AUTH ELEMENTS ========== */
@@ -2647,10 +2653,130 @@ body {
 @media (max-width: 900px) {
   .pricing-grid {
     grid-template-columns: 1fr;
+    max-width: 420px;
+    margin-left: auto;
+    margin-right: auto;
   }
 
   /* Force correct order: Free, Pro, Developer */
   .pricing-card:nth-child(1) { order: 1; } /* Free */
   .pricing-card:nth-child(2) { order: 2; } /* Pro */
   .pricing-card:nth-child(3) { order: 3; } /* Developer */
+}
+
+/* ========== COMPREHENSIVE MOBILE POLISH ========== */
+@media (max-width: 768px) {
+  /* Prevent any horizontal overflow */
+  body { overflow-x: hidden; }
+
+  /* Generate box — fix email input row cramping */
+  .email-input-wrap {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0;
+  }
+  .email-input {
+    border-radius: var(--radius) var(--radius) 0 0 !important;
+    border-bottom: none !important;
+  }
+  .email-domain {
+    border-radius: 0 0 var(--radius) var(--radius);
+    border-top: 1px solid rgba(255,255,255,0.1);
+    text-align: center;
+    padding: 0.55rem 1rem;
+    font-size: 0.88rem;
+    background: rgba(255,255,255,0.04);
+  }
+  .pro-input-badge {
+    top: 0.75rem;
+    right: 0.75rem;
+  }
+  .generate-actions {
+    flex-direction: column;
+    gap: 0.6rem;
+  }
+  .generate-actions .btn {
+    width: 100%;
+    justify-content: center;
+  }
+
+  /* Features grid — 1 column */
+  .features-grid {
+    grid-template-columns: 1fr;
+  }
+
+  /* Section inner max-width on mobile */
+  .section-inner { padding: 0 0.25rem; }
+  .section-title { font-size: clamp(1.8rem, 7vw, 2.8rem); }
+
+  /* Mail window — full screen friendly */
+  .mail-window { border-radius: 0; }
+  .mail-sidebar { width: 100% !important; border-right: none; }
+
+  /* Result email — prevent overflow */
+  .result-email {
+    font-size: 1rem;
+    word-break: break-all;
+    white-space: normal;
+    line-height: 1.4;
+  }
+  .result-email-row { flex-wrap: wrap; gap: 0.5rem; }
+
+  /* Inbox tabs — full width */
+  #inbox-tabs { margin-left: 0; }
+
+  /* Stats bubble — compact */
+  .stats-bubble-content {
+    gap: 1rem;
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+
+  /* Billing toggle wrapping */
+  .billing-toggle { flex-wrap: wrap; gap: 0.25rem; }
+
+  /* Contact modal full-width on mobile */
+  .modal-container {
+    padding: 1.75rem 1.25rem;
+    border-radius: 16px;
+    max-height: 90dvh;
+    overflow-y: auto;
+  }
+
+  /* Hero section tighter */
+  .hero-section { padding-top: 5rem; padding-bottom: 1rem; }
+  .hero-content { padding: 0 0.25rem; }
+
+  /* Dev API callout in generate section */
+  #dev-api-callout a { padding: 0.85rem 1rem; gap: 0.75rem; }
+}
+
+@media (max-width: 480px) {
+  /* Nav — very small screens */
+  .nav-inner { padding: 0 0.85rem; }
+  .nav-user-email { max-width: 70px; }
+  /* auth pill borderless on tiny screens */
+  .nav-auth-pill { gap: 0.3rem; padding: 0.25rem 0.3rem 0.25rem 0.5rem; }
+
+  /* Generate box tighter */
+  .glass-card-large { padding: 1.25rem; }
+  .generate-actions .btn { padding: 0.8rem 1rem; font-size: 0.9rem; }
+
+  /* Section spacing */
+  .section { padding: 4rem 1rem; }
+  .section-desc { font-size: 0.9rem; }
+  .section-title { font-size: clamp(1.6rem, 8vw, 2.4rem); }
+
+  /* Pricing cards */
+  .pricing-card { padding: 1.5rem; }
+  .pricing-price .pricing-currency { font-size: 1.2rem; }
+  .pricing-amount { font-size: 2.8rem; }
+
+  /* Features */
+  .feature-card { padding: 1.25rem; }
+  .feature-icon { width: 48px; height: 48px; }
+
+  /* Footer */
+  .footer { padding: 2rem 1rem; }
+  .footer-links { gap: 0.75rem; flex-direction: column; align-items: center; }
 }

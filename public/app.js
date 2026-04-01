@@ -98,15 +98,25 @@ function renderNavAuth() {
   // Update auto-expire stat bubble
   const expireStat = document.getElementById('stat-expire-label');
   if (expireStat) {
-    expireStat.textContent = (plan === 'pro' || plan === 'developer') ? '7d' : '3h';
+    expireStat.textContent = plan === 'developer' ? '30d' : plan === 'pro' ? '7d' : '3h';
   }
 
   // Update generate section description
   const genDesc = document.getElementById('generate-section-desc');
   if (genDesc) {
-    genDesc.textContent = (plan === 'pro' || plan === 'developer')
-      ? 'Generate a random address or enter a custom prefix — your inbox stays active for 7 days.'
-      : 'Generate a random address — your inbox will be ready instantly. Free plan: 3 inboxes per day.';
+    if (plan === 'developer') {
+      genDesc.textContent = 'Generate or name a custom inbox — stays active for 30 days. Use the API for automation.';
+    } else if (plan === 'pro') {
+      genDesc.textContent = 'Generate a random address or enter a custom prefix — your inbox stays active for 7 days.';
+    } else {
+      genDesc.textContent = 'Generate a random address — your inbox will be ready instantly. Free plan: 3 inboxes per day.';
+    }
+  }
+
+  // Show/hide Developer API callout in generate section
+  const devCallout = document.getElementById('dev-api-callout');
+  if (devCallout) {
+    devCallout.style.display = plan === 'developer' ? 'block' : 'none';
   }
 }
 
@@ -604,14 +614,14 @@ function showEmailResult(inbox) {
   // Update expire hint dynamically
   const hintEl = document.getElementById('result-expire-hint');
   if (hintEl) {
-    const sevenDaySeconds = 6 * 24 * 60 * 60; // ~6d threshold
     const plan = currentUser?.plan;
-    const isLong = (plan === 'pro' || plan === 'developer') ||
-                   (inbox.expires_at && inbox.expires_at - inbox.created_at > sevenDaySeconds);
-    const planLabel = currentUser?.plan === 'developer' ? 'Developer' : 'Pro';
-    hintEl.textContent = isLong
-      ? `Your inbox is active for 7 days. Enjoy ${planLabel}! ✦`
-      : 'Your inbox will auto-expire after 3 hours. Upgrade to Pro for 7-day retention.';
+    if (plan === 'developer') {
+      hintEl.textContent = 'Your inbox is active for 30 days. Enjoy Developer! ✦';
+    } else if (plan === 'pro' || (inbox.expires_at && inbox.expires_at - inbox.created_at > 6 * 24 * 60 * 60)) {
+      hintEl.textContent = 'Your inbox is active for 7 days. Enjoy Pro! ✦';
+    } else {
+      hintEl.textContent = 'Your inbox will auto-expire after 3 hours. Upgrade to Pro for 7-day retention.';
+    }
   }
   // Render the inbox tab strip (for Pro/Dev with multiple inboxes)
   renderInboxTabs();
