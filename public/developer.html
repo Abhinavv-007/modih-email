@@ -9,6 +9,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;0,600;0,700;1,300;1,400;1,500;1,600;1,700&family=Playfair+Display:ital,wght@0,400;0,700;1,400;1,700&family=Inter:wght@300;400;500;600;700&family=Dancing+Script:wght@400;500;600;700&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="/styles.css?v=3.0" />
+  <link rel="stylesheet" href="/auth.css" />
   <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🔑</text></svg>" />
   <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
@@ -17,17 +18,68 @@
     /* ── Page wrapper ── */
     .dev-page { position: relative; z-index: 1; }
 
-    /* ── Gate (auth check / upgrade required) ── */
+    /* ── Gate (auth check / upgrade required) — fullscreen auth-style ── */
     .gate-section {
-      min-height: 100vh; display: flex; align-items: center; justify-content: center;
-      padding: 2rem; position: relative; z-index: 1;
+      position: fixed; inset: 0; z-index: 500;
+      display: none; align-items: center; justify-content: center;
+      padding: 6rem 1.5rem 3rem;
     }
-    .gate-card {
-      width: 100%; max-width: 440px; text-align: center;
-      padding: 3rem 2.5rem;
+    .gate-section.visible { display: flex; }
+
+    /* Re-use auth-card from auth.css — just need these overrides */
+    .gate-oauth-btn {
+      display: flex; align-items: center; justify-content: center; gap: 0.75rem;
+      padding: 0.85rem 1.5rem; border-radius: 12px;
+      font-size: 0.95rem; font-weight: 500; font-family: inherit; cursor: pointer;
+      border: 1px solid rgba(255,255,255,0.15);
+      background: rgba(255,255,255,0.06);
+      backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+      color: var(--text-primary); transition: var(--transition);
+      text-decoration: none; width: 100%;
     }
-    .gate-icon { font-size: 3.5rem; display: block; margin-bottom: 1rem; }
-    .gate-subtitle { color: var(--text-secondary); font-size: 1rem; margin-bottom: 2rem; line-height: 1.7; }
+    .gate-oauth-btn:hover {
+      background: rgba(255,255,255,0.12); border-color: rgba(255,255,255,0.28);
+      transform: translateY(-1px); box-shadow: 0 6px 20px rgba(0,0,0,0.3);
+    }
+    .gate-oauth-btn:active { transform: scale(0.97); }
+    .gate-oauth-btn svg { width: 20px; height: 20px; flex-shrink: 0; }
+
+    .gate-submit {
+      width: 100%; padding: 1rem; border-radius: 12px;
+      font-size: 1rem; font-weight: 600; font-family: inherit; cursor: pointer;
+      border: none;
+      background: linear-gradient(135deg, rgba(212,167,106,0.95), rgba(200,149,106,0.9));
+      color: #0a0a0f; transition: var(--transition); letter-spacing: 0.02em;
+      box-shadow: 0 4px 20px rgba(212,167,106,0.35);
+      display: block; text-align: center; text-decoration: none;
+    }
+    .gate-submit:hover {
+      transform: translateY(-2px); box-shadow: 0 8px 32px rgba(212,167,106,0.5);
+      background: linear-gradient(135deg, rgba(230,185,120,1), rgba(212,167,106,1));
+    }
+    .gate-submit:active { transform: scale(0.97); }
+
+    .gate-plan-badge {
+      display: inline-flex; align-items: center; gap: 0.4rem;
+      font-size: 0.7rem; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase;
+      color: #a78bfa; background: rgba(167,139,250,0.12); border: 1px solid rgba(167,139,250,0.3);
+      border-radius: 100px; padding: 0.25rem 0.9rem; margin-bottom: 1rem;
+    }
+    .gate-plan-badge .dot {
+      width: 6px; height: 6px; border-radius: 50%; background: #a78bfa;
+      box-shadow: 0 0 6px rgba(167,139,250,0.7);
+    }
+
+    .gate-divider {
+      display: flex; align-items: center; gap: 1rem; margin: 1.25rem 0;
+    }
+    .gate-divider::before, .gate-divider::after {
+      content: ''; flex: 1; height: 1px; background: rgba(255,255,255,0.1);
+    }
+    .gate-divider span {
+      font-size: 0.78rem; color: var(--text-muted);
+      letter-spacing: 0.08em; text-transform: uppercase;
+    }
 
     /* ── Dashboard sections ── */
     .dev-section {
@@ -293,43 +345,16 @@
 </head>
 <body>
 
-  <!-- ========== PAGE TRANSITION LOADER ========== -->
+  <!-- ========== PAGE TRANSITION LOADER (transparent — shows bg video) ========== -->
   <div id="page-loader" style="
     position: fixed; inset: 0; z-index: 9999;
-    background: rgba(5, 3, 12, 0.92);
-    backdrop-filter: blur(24px); -webkit-backdrop-filter: blur(24px);
     display: flex; flex-direction: column;
     align-items: center; justify-content: center; gap: 1.5rem;
-    transition: opacity 0.6s ease;
+    transition: opacity 0.5s ease;
+    pointer-events: none;
   ">
-    <div style="position:relative; width:64px; height:64px;">
-      <!-- Outer ring -->
-      <svg viewBox="0 0 64 64" style="position:absolute;inset:0;animation:loaderSpin 2s linear infinite;">
-        <circle cx="32" cy="32" r="28" fill="none" stroke="rgba(167,139,250,0.2)" stroke-width="3"/>
-        <circle cx="32" cy="32" r="28" fill="none" stroke="#a78bfa" stroke-width="3"
-          stroke-linecap="round"
-          stroke-dasharray="44 132"
-          style="transform-origin:center;"/>
-      </svg>
-      <!-- Inner dot -->
-      <div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:1.6rem;">✉️</div>
-    </div>
-    <div style="text-align:center;">
-      <p style="font-family:'Cormorant Garamond',serif; font-size:1.4rem; font-style:italic; color:#eaddff; margin:0 0 0.3rem; letter-spacing:0.02em;" id="loader-text">Opening the API dashboard</p>
-      <p style="font-family:'Inter',sans-serif; font-size:0.78rem; color:rgba(167,139,250,0.7); margin:0; letter-spacing:0.06em; text-transform:uppercase;">modih.in · Developer</p>
-    </div>
-    <div style="display:flex;gap:6px;">
-      <span style="width:6px;height:6px;border-radius:50%;background:#a78bfa;animation:dotPulse 1.4s infinite ease-in-out;"></span>
-      <span style="width:6px;height:6px;border-radius:50%;background:#a78bfa;animation:dotPulse 1.4s 0.2s infinite ease-in-out;"></span>
-      <span style="width:6px;height:6px;border-radius:50%;background:#a78bfa;animation:dotPulse 1.4s 0.4s infinite ease-in-out;"></span>
-    </div>
   </div>
   <style>
-    @keyframes loaderSpin { to { transform: rotate(360deg); } }
-    @keyframes dotPulse {
-      0%, 80%, 100% { transform: scale(0.4); opacity: 0.3; }
-      40% { transform: scale(1); opacity: 1; }
-    }
     #page-loader.hidden { opacity: 0; pointer-events: none; }
   </style>
 
@@ -363,12 +388,89 @@
   <div class="dev-page">
 
     <!-- ========== GATE (auth loading / error states) ========== -->
-    <div id="gate-section" class="gate-section">
-      <div class="gate-card glass-card fade-up">
-        <span class="gate-icon" id="gate-icon">⏳</span>
-        <h2 class="section-title" id="gate-title" style="font-size:2rem;">Checking access…</h2>
-        <p class="gate-subtitle" id="gate-sub">Verifying your plan. Just a moment.</p>
-        <div id="gate-action"></div>
+    <!-- Login gate -->
+    <div id="gate-login" class="gate-section">
+      <div class="auth-card" style="animation: cardIn 0.55s cubic-bezier(0.34,1.56,0.64,1) both;">
+        <div class="auth-header">
+          <span class="auth-icon">🔑</span>
+          <h1 class="auth-title">Developer <span class="accent">API</span></h1>
+          <p class="auth-subtitle">Sign in to access your API keys and developer dashboard.</p>
+        </div>
+
+        <!-- OAuth -->
+        <div class="oauth-group">
+          <button class="oauth-btn" id="gate-btn-google" onclick="gateSignInGoogle()">
+            <svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+              <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
+              <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
+              <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/>
+              <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
+            </svg>
+            Continue with Google
+          </button>
+          <button class="oauth-btn" id="gate-btn-github" onclick="gateSignInGitHub()">
+            <svg viewBox="0 0 24 24" fill="currentColor">
+              <path d="M12 .297c-6.63 0-12 5.373-12 12 0 5.303 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61C4.422 18.07 3.633 17.7 3.633 17.7c-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.465-2.38 1.235-3.22-.135-.303-.54-1.523.105-3.176 0 0 1.005-.322 3.3 1.23.96-.267 1.98-.399 3-.405 1.02.006 2.04.138 3 .405 2.28-1.552 3.285-1.23 3.285-1.23.645 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.42.36.81 1.096.81 2.22 0 1.606-.015 2.896-.015 3.286 0 .315.21.69.825.57C20.565 22.092 24 17.592 24 12.297c0-6.627-5.373-12-12-12"/>
+            </svg>
+            Continue with GitHub
+          </button>
+        </div>
+
+        <div class="gate-divider"><span>or</span></div>
+
+        <a href="/login.html?redirect=/developer.html&plan=developer" class="gate-submit">Sign In with Email ↗</a>
+
+        <div id="gate-login-error" class="auth-error" style="margin-top:1rem;"></div>
+
+        <p class="auth-note" style="margin-top:1.5rem;">
+          Don't have an account? <a href="/signup.html?plan=developer&redirect=/developer.html" style="color:var(--accent-secondary);text-decoration:none;font-weight:500;">Sign up free ↗</a>
+        </p>
+        <p class="auth-footer-link" style="margin-top:0.75rem; font-size:0.8rem;">
+          <a href="/" style="color:var(--text-muted);text-decoration:none;">← Back to modih.in</a>
+        </p>
+      </div>
+    </div>
+
+    <!-- Upgrade gate (signed in, but not on developer plan) -->
+    <div id="gate-upgrade" class="gate-section">
+      <div class="auth-card" style="animation: cardIn 0.55s cubic-bezier(0.34,1.56,0.64,1) both; text-align:center;">
+        <div class="auth-header">
+          <span class="auth-icon" style="filter:drop-shadow(0 4px 12px rgba(167,139,250,0.5));">✦</span>
+          <div class="gate-plan-badge"><span class="dot"></span> Developer Plan Required</div>
+          <h1 class="auth-title" style="font-size:1.9rem;">Unlock the <span class="accent">API</span></h1>
+          <p class="auth-subtitle" style="margin-bottom:0;">
+            API key management and developer tools are exclusive to the
+            <strong style="color:rgba(255,255,255,0.9);">Developer plan</strong>.
+            Get 5k inbox creates/mo, 50k message reads/mo, and 30-day inbox retention.
+          </p>
+        </div>
+
+        <div style="background:rgba(167,139,250,0.06);border:1px solid rgba(167,139,250,0.18);border-radius:14px;padding:1.25rem 1.5rem;margin-bottom:1.5rem;text-align:left;">
+          <div style="display:flex;flex-direction:column;gap:0.6rem;">
+            <div style="display:flex;align-items:center;gap:0.6rem;font-size:0.9rem;color:rgba(255,255,255,0.82);">
+              <span style="color:#a78bfa;font-size:1rem;">✓</span> 5,000 inbox creates / month
+            </div>
+            <div style="display:flex;align-items:center;gap:0.6rem;font-size:0.9rem;color:rgba(255,255,255,0.82);">
+              <span style="color:#a78bfa;font-size:1rem;">✓</span> 50,000 message reads / month
+            </div>
+            <div style="display:flex;align-items:center;gap:0.6rem;font-size:0.9rem;color:rgba(255,255,255,0.82);">
+              <span style="color:#a78bfa;font-size:1rem;">✓</span> 30-day inbox retention (TTL)
+            </div>
+            <div style="display:flex;align-items:center;gap:0.6rem;font-size:0.9rem;color:rgba(255,255,255,0.82);">
+              <span style="color:#a78bfa;font-size:1rem;">✓</span> Custom inbox prefixes
+            </div>
+            <div style="display:flex;align-items:center;gap:0.6rem;font-size:0.9rem;color:rgba(255,255,255,0.82);">
+              <span style="color:#a78bfa;font-size:1rem;">✓</span> Up to 10 API keys
+            </div>
+          </div>
+        </div>
+
+        <a href="/#pricing" class="gate-submit">View Pricing ↗</a>
+
+        <p class="auth-footer-link" style="margin-top:1.25rem;">
+          <a href="/" style="color:var(--text-muted);text-decoration:none;margin-right:1rem;">← Back to app</a>
+          <button onclick="handleSignOut()" style="background:none;border:none;color:var(--text-muted);cursor:pointer;font-family:inherit;font-size:0.88rem;text-decoration:underline;">Sign out</button>
+        </p>
       </div>
     </div>
 
@@ -611,8 +713,10 @@
         });
         if (!res.ok) { showGate('login'); return; }
         const data = await res.json();
-        if (data.plan !== 'developer') { showGate('upgrade'); return; }
-        document.getElementById('dev-nav-email').textContent = data.email || '';
+        // /api/auth/me may return either { plan, email } or { success, data: { plan, email } }
+        const me = (data.data) || data;
+        if (me.plan !== 'developer') { showGate('upgrade'); return; }
+        document.getElementById('dev-nav-email').textContent = me.email || '';
         showDashboard();
       } catch (e) { showGate('login'); }
     });
@@ -628,24 +732,51 @@
 
     function showGate(state) {
       hideLoader();
-      document.getElementById('gate-section').style.display = 'flex';
       document.getElementById('dashboard').style.display = 'none';
       if (state === 'login') {
-        document.getElementById('gate-icon').textContent = '🔒';
-        document.getElementById('gate-title').textContent = 'Sign in required';
-        document.getElementById('gate-sub').textContent = 'Please sign in with your Developer account to access the API dashboard.';
-        document.getElementById('gate-action').innerHTML = `<a href="/login.html?redirect=/developer.html" class="btn btn-primary glow-btn" style="display:inline-flex;margin-top:1rem;"><span>Sign In ↗</span></a>`;
+        document.getElementById('gate-login').classList.add('visible');
+        document.getElementById('gate-upgrade').classList.remove('visible');
       } else if (state === 'upgrade') {
-        document.getElementById('gate-icon').textContent = '✦';
-        document.getElementById('gate-title').textContent = 'Developer plan required';
-        document.getElementById('gate-sub').textContent = 'API key management is exclusive to the Developer plan. Contact us to upgrade.';
-        document.getElementById('gate-action').innerHTML = `<a href="/#pricing" class="btn btn-primary glow-btn" style="display:inline-flex;margin-top:1rem;"><span>View Plans ↗</span></a>`;
+        document.getElementById('gate-upgrade').classList.add('visible');
+        document.getElementById('gate-login').classList.remove('visible');
+      }
+    }
+
+    // ── Gate OAuth sign-in handlers ──
+    async function gateSignInGoogle() {
+      const errEl = document.getElementById('gate-login-error');
+      errEl.classList.remove('visible');
+      try {
+        const provider = new firebase.auth.GoogleAuthProvider();
+        const cred = await firebaseAuth.signInWithPopup(provider);
+        // onAuthStateChanged will handle the plan check
+      } catch (e) {
+        if (e.code !== 'auth/popup-closed-by-user') {
+          errEl.textContent = e.message || 'Sign-in failed. Please try again.';
+          errEl.classList.add('visible');
+        }
+      }
+    }
+
+    async function gateSignInGitHub() {
+      const errEl = document.getElementById('gate-login-error');
+      errEl.classList.remove('visible');
+      try {
+        const provider = new firebase.auth.GithubAuthProvider();
+        const cred = await firebaseAuth.signInWithPopup(provider);
+        // onAuthStateChanged will handle the plan check
+      } catch (e) {
+        if (e.code !== 'auth/popup-closed-by-user') {
+          errEl.textContent = e.message || 'Sign-in failed. Please try again.';
+          errEl.classList.add('visible');
+        }
       }
     }
 
     function showDashboard() {
       hideLoader();
-      document.getElementById('gate-section').style.display = 'none';
+      document.getElementById('gate-login').classList.remove('visible');
+      document.getElementById('gate-upgrade').classList.remove('visible');
       document.getElementById('dashboard').style.display = 'block';
       loadUsage();
       loadKeys();
