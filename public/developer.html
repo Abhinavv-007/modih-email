@@ -683,7 +683,8 @@
         const res = await fetch('/api/developer/keys', { headers: { 'Authorization': `Bearer ${idToken}` } });
         if (!res.ok) return;
         const d = await res.json();
-        allKeys = d.keys || [];
+        // Backend wraps responses: { success, data: { keys: [...] } }
+        allKeys = (d.data && d.data.keys) ? d.data.keys : (d.keys || []);
         renderKeys();
         document.getElementById('stat-keys').textContent = allKeys.filter(k => k.is_active).length.toString();
         document.getElementById('create-key-btn').disabled = allKeys.filter(k => k.is_active).length >= 10;
@@ -774,16 +775,28 @@
           headers: { 'Authorization': `Bearer ${idToken}`, 'Content-Type': 'application/json' },
           body: JSON.stringify({ name })
         });
-        const data = await res.json();
+        const envelope = await res.json();
         if (!res.ok) {
-          errEl.textContent = data.error || 'Failed to create key.';
+          // Error envelope: { success: false, error: { code, message } }
+          const msg = (envelope.error && envelope.error.message) || envelope.error || 'Failed to create key.';
+          errEl.textContent = msg;
           errEl.className = 'modal-error visible';
           btn.disabled = false;
           btn.querySelector('span').textContent = 'Create Key';
           return;
         }
-        revealedKey = data.key;
-        document.getElementById('revealed-key').textContent = data.key;
+        // Success envelope: { success: true, data: { key, id, name, key_prefix, ... } }
+        const inner = (envelope.data) || envelope;
+        const rawKey = inner.key;
+        if (!rawKey) {
+          errEl.textContent = 'Key created but the key value was missing in the response. Please contact support.';
+          errEl.className = 'modal-error visible';
+          btn.disabled = false;
+          btn.querySelector('span').textContent = 'Create Key';
+          return;
+        }
+        revealedKey = rawKey;
+        document.getElementById('revealed-key').textContent = rawKey;
         document.getElementById('modal-form-state').style.display = 'none';
         document.getElementById('modal-reveal-state').style.display = 'block';
       } catch (e) {
