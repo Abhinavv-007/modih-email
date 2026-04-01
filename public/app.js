@@ -72,16 +72,37 @@ function renderNavAuth() {
     const planClass = currentUser.plan === 'pro' ? 'pro' : currentUser.plan === 'developer' ? 'developer' : '';
     const short = currentUser.email ? currentUser.email.split('@')[0].slice(0, 14) : 'Account';
     const planLabel = currentUser.plan === 'developer' ? 'Dev' : currentUser.plan === 'pro' ? 'Pro' : 'Free';
-    const devLink = currentUser.plan === 'developer'
+    const devLinkDesktop = currentUser.plan === 'developer'
       ? `<a href="/developer.html" style="font-size:0.72rem;color:var(--text-muted);text-decoration:none;border-left:1px solid rgba(255,255,255,0.1);padding-left:0.5rem;transition:color 0.2s;" onmouseover="this.style.color='var(--accent)'" onmouseout="this.style.color='var(--text-muted)'">API</a>`
       : '';
+    const devLinkMobile = currentUser.plan === 'developer'
+      ? `<a href="/developer.html" class="nav-mobile-menu-link">🔑 API Dashboard</a>`
+      : '';
     area.innerHTML = `
-      <div class="nav-auth-pill">
+      <!-- Desktop pill (hidden on mobile) -->
+      <div class="nav-auth-desktop">
         <span class="nav-plan-dot ${planClass}" title="${currentUser.plan} plan"></span>
         <span class="nav-user-email" title="${currentUser.email}">${short}</span>
         <span style="font-size:0.68rem;color:var(--text-muted);border-left:1px solid rgba(255,255,255,0.1);padding-left:0.5rem;">${planLabel}</span>
-        ${devLink}
+        ${devLinkDesktop}
         <button class="nav-sign-out-btn" onclick="handleSignOut()">Sign Out</button>
+      </div>
+      <!-- Mobile hamburger (shown only on mobile) -->
+      <button class="nav-hamburger" id="nav-hamburger-btn" onclick="toggleMobileNav()" aria-label="Menu" aria-expanded="false">
+        <span class="nav-plan-dot ${planClass}"></span>
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+          <line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/>
+        </svg>
+      </button>
+      <!-- Mobile dropdown -->
+      <div class="nav-mobile-menu" id="nav-mobile-menu">
+        <div class="nav-mobile-menu-user">
+          <span class="nav-plan-dot ${planClass}"></span>
+          <span title="${currentUser.email}">${currentUser.email || short}</span>
+          <span class="nav-mobile-plan-badge ${planClass}">${planLabel}</span>
+        </div>
+        ${devLinkMobile}
+        <button class="nav-mobile-signout" onclick="handleSignOut()">Sign Out</button>
       </div>`;
   } else {
     area.innerHTML = `
@@ -210,6 +231,27 @@ async function handleSignOut() {
   showToast('Signed out');
 }
 
+// ========== MOBILE NAV TOGGLE ==========
+function toggleMobileNav() {
+  const menu = document.getElementById('nav-mobile-menu');
+  const btn = document.getElementById('nav-hamburger-btn');
+  if (!menu) return;
+  const isOpen = menu.classList.toggle('open');
+  if (btn) btn.setAttribute('aria-expanded', String(isOpen));
+  if (isOpen) {
+    // Close when clicking outside
+    setTimeout(() => {
+      document.addEventListener('click', function closeMobileNav(e) {
+        if (!menu.contains(e.target) && (!btn || !btn.contains(e.target))) {
+          menu.classList.remove('open');
+          if (btn) btn.setAttribute('aria-expanded', 'false');
+        }
+        document.removeEventListener('click', closeMobileNav);
+      });
+    }, 10);
+  }
+}
+
 // ========== UPGRADE CLICK HANDLER ==========
 // If user is logged in → open contact modal (contact sales)
 // If not logged in → redirect to signup with plan param
@@ -239,32 +281,32 @@ function generateFallbackUUID() {
   });
 }
 
-// ========== VIDEO CONTROLLER (play once → freeze at end) ==========
+// ========== VIDEO CONTROLLER ==========
 function initVideoController() {
-  const videos = [
-    document.getElementById('bg-video'),
-    document.getElementById('bg-video-mobile')
-  ].filter(Boolean);
+  // On mobile: skip video entirely — poster image prevents scroll lag caused by
+  // GPU compositing layers (will-change + position:fixed) on iOS Safari.
+  if (window.innerWidth <= 768) return;
 
-  videos.forEach(video => {
-    const tryPlay = () => {
-      video.play().catch(() => {
-        const retry = () => {
-          video.play().catch(() => {});
-          document.removeEventListener('click', retry);
-          document.removeEventListener('touchstart', retry);
-        };
-        document.addEventListener('click', retry, { once: true });
-        document.addEventListener('touchstart', retry, { once: true });
-      });
-    };
+  const video = document.getElementById('bg-video');
+  if (!video) return;
 
-    if (video.readyState >= 3) {
-      tryPlay();
-    } else {
-      video.addEventListener('canplay', tryPlay, { once: true });
-    }
-  });
+  const tryPlay = () => {
+    video.play().catch(() => {
+      const retry = () => {
+        video.play().catch(() => {});
+        document.removeEventListener('click', retry);
+        document.removeEventListener('touchstart', retry);
+      };
+      document.addEventListener('click', retry, { once: true });
+      document.addEventListener('touchstart', retry, { once: true });
+    });
+  };
+
+  if (video.readyState >= 3) {
+    tryPlay();
+  } else {
+    video.addEventListener('canplay', tryPlay, { once: true });
+  }
 }
 
 // ========== TYPEWRITER EFFECT ==========

@@ -120,6 +120,19 @@ body {
     display: block;
     object-position: 50% 50%; /* Keep mobile video centred */
   }
+  /* Remove will-change on mobile to eliminate scroll lag */
+  .bg-media {
+    will-change: auto;
+    -webkit-transform: none;
+    transform: none;
+    -webkit-backface-visibility: visible;
+    backface-visibility: visible;
+  }
+  .bg-video {
+    will-change: auto;
+    -webkit-transform: none;
+    transform: none;
+  }
 }
 
 /* ========== GLASS UTILITIES (only for cards/buttons) ========== */
@@ -361,17 +374,115 @@ body {
 @media (max-width: 768px) {
   .nav-links { display: none; }
   .nav-cta { display: none; }
-  /* Keep auth pill visible on mobile but compact */
-  .nav-auth-pill {
-    gap: 0.4rem;
-    padding: 0.3rem 0.3rem 0.3rem 0.65rem;
-  }
-  .nav-user-email { max-width: 90px; font-size: 0.75rem; }
-  .nav-sign-out-btn { font-size: 0.72rem; padding: 0.25rem 0.6rem; }
+  /* Hide desktop auth pill, show hamburger instead */
+  .nav-auth-desktop { display: none !important; }
+  .nav-hamburger { display: flex !important; }
 }
 
-/* ========== NAV AUTH ELEMENTS ========== */
-.nav-auth-pill {
+/* ========== MOBILE HAMBURGER + DROPDOWN ========== */
+.nav-hamburger {
+  display: none;
+  align-items: center;
+  gap: 0.45rem;
+  background: rgba(255, 255, 255, 0.08);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 100px;
+  padding: 0.4rem 0.8rem 0.4rem 0.65rem;
+  cursor: pointer;
+  color: var(--text-primary);
+  transition: var(--transition);
+  pointer-events: auto;
+}
+.nav-hamburger:hover { background: rgba(255, 255, 255, 0.14); }
+
+.nav-mobile-menu {
+  display: none;
+  position: fixed;
+  top: 4.25rem;
+  right: 1rem;
+  background: rgba(12, 10, 9, 0.96);
+  backdrop-filter: blur(40px);
+  -webkit-backdrop-filter: blur(40px);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 16px;
+  padding: 0.75rem;
+  min-width: 220px;
+  z-index: 1001;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.7);
+  flex-direction: column;
+  gap: 0.3rem;
+  animation: dropdownIn 0.2s var(--bounce) both;
+}
+.nav-mobile-menu.open { display: flex; }
+
+@keyframes dropdownIn {
+  from { opacity: 0; transform: translateY(-8px) scale(0.96); }
+  to   { opacity: 1; transform: none; }
+}
+
+.nav-mobile-menu-user {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.6rem 0.75rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+  margin-bottom: 0.25rem;
+  font-size: 0.82rem;
+  color: var(--text-secondary);
+  overflow: hidden;
+}
+.nav-mobile-menu-user span:nth-child(2) {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.nav-mobile-plan-badge {
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding: 0.15rem 0.5rem;
+  border-radius: 100px;
+  background: rgba(52, 211, 153, 0.12);
+  color: var(--success);
+  border: 1px solid rgba(52, 211, 153, 0.25);
+  flex-shrink: 0;
+}
+.nav-mobile-plan-badge.pro { background: rgba(251,191,36,0.12); color: var(--warning); border-color: rgba(251,191,36,0.25); }
+.nav-mobile-plan-badge.developer { background: rgba(167,139,250,0.12); color: #a78bfa; border-color: rgba(167,139,250,0.25); }
+
+.nav-mobile-menu-link {
+  display: block;
+  padding: 0.6rem 0.75rem;
+  font-size: 0.88rem;
+  color: var(--text-secondary);
+  text-decoration: none;
+  border-radius: 10px;
+  transition: var(--transition);
+}
+.nav-mobile-menu-link:hover { background: rgba(255,255,255,0.06); color: var(--text-primary); }
+
+.nav-mobile-signout {
+  padding: 0.6rem 0.75rem;
+  font-size: 0.88rem;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+  border: none;
+  background: rgba(248, 113, 113, 0.06);
+  color: var(--danger);
+  border-radius: 10px;
+  text-align: left;
+  transition: var(--transition);
+  width: 100%;
+}
+.nav-mobile-signout:hover { background: rgba(248,113,113,0.14); }
+
+/* Desktop pill class (renamed from nav-auth-pill for clarity) */
+.nav-auth-desktop {
   display: flex;
   align-items: center;
   gap: 0.6rem;
@@ -383,6 +494,8 @@ body {
   padding: 0.35rem 0.35rem 0.35rem 0.9rem;
   transition: var(--transition);
 }
+
+/* ========== NAV AUTH ELEMENTS ========== */
 
 .nav-user-email {
   font-size: 0.82rem;
@@ -2207,9 +2320,20 @@ body {
 }
 
 @media (max-width: 600px) {
+  /* Pricing toggle — keep 3 buttons in one row, compact */
+  .billing-toggle-wrapper { padding: 0 0.5rem; }
+  .billing-toggle { width: 100%; }
   .billing-option {
-    padding: 0.5rem 1rem;
-    font-size: 0.78rem;
+    flex: 1;
+    padding: 0.55rem 0.35rem;
+    font-size: 0.75rem;
+    gap: 0.15rem;
+    justify-content: center;
+    min-width: 0;
+  }
+  .billing-badge {
+    font-size: 0.58rem;
+    padding: 0.1rem 0.28rem;
   }
 
   .pricing-amount {
@@ -2732,8 +2856,7 @@ body {
     justify-content: center;
   }
 
-  /* Billing toggle wrapping */
-  .billing-toggle { flex-wrap: wrap; gap: 0.25rem; }
+  /* Billing toggle — no wrap, handled at 600px */
 
   /* Contact modal full-width on mobile */
   .modal-container {

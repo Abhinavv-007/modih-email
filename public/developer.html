@@ -527,9 +527,11 @@
       document.getElementById('dev-nav').classList.toggle('scrolled', window.scrollY > 40);
     }, { passive: true });
 
-    // ── Video autoplay ──
-    const v = document.getElementById('dev-bg-video');
-    if (v) v.play().catch(() => document.addEventListener('click', () => v.play().catch(() => {}), { once: true }));
+    // ── Video autoplay (desktop only — skip on mobile to prevent scroll lag) ──
+    if (window.innerWidth > 768) {
+      const v = document.getElementById('dev-bg-video');
+      if (v) v.play().catch(() => document.addEventListener('click', () => v.play().catch(() => {}), { once: true }));
+    }
 
     // ── Firebase ──
     const FIREBASE_CONFIG = {
@@ -628,13 +630,8 @@
       } catch (e) {}
     }
 
-    function renderKeys() {
-      const body = document.getElementById('keys-body');
-      if (!allKeys.length) {
-        body.innerHTML = `<div class="keys-empty">No API keys yet. Create one above to get started.</div>`;
-        return;
-      }
-      body.innerHTML = allKeys.map((k, i) => `
+    function keyRowHtml(k, i) {
+      return `
         <div class="key-row" style="animation-delay:${i * 0.06}s">
           <span class="key-name">${esc(k.name)}</span>
           <span class="key-prefix">${esc(k.key_prefix)}</span>
@@ -643,9 +640,31 @@
           <span>
             ${k.is_active
               ? `<button class="revoke-btn" onclick="revokeKey('${k.id}',this)">Revoke</button>`
-              : `<span class="key-status revoked">Revoked</span>`}
+              : `<span class="key-status revoked">● Revoked</span>`}
           </span>
-        </div>`).join('');
+        </div>`;
+    }
+
+    function renderKeys() {
+      const body = document.getElementById('keys-body');
+      const active = allKeys.filter(k => k.is_active);
+      const revoked = allKeys.filter(k => !k.is_active);
+
+      if (!allKeys.length) {
+        body.innerHTML = `<div class="keys-empty">No API keys yet. Create one above to get started.</div>`;
+        return;
+      }
+
+      let html = active.length
+        ? active.map((k, i) => keyRowHtml(k, i)).join('')
+        : `<div class="keys-empty" style="padding:1.5rem 1.75rem;">No active keys.</div>`;
+
+      if (revoked.length) {
+        html += `<div style="padding:0.6rem 1.75rem;font-size:0.7rem;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;color:var(--text-muted);background:rgba(248,113,113,0.04);border-top:1px solid var(--glass-border);border-bottom:1px solid var(--glass-border);">Revoked</div>`;
+        html += revoked.map((k, i) => keyRowHtml(k, active.length + i)).join('');
+      }
+
+      body.innerHTML = html;
     }
 
     async function revokeKey(keyId, btn) {

@@ -410,6 +410,10 @@
           <button class="btn btn-ghost" onclick="createInbox('random')">
             <span>New Address</span>
           </button>
+          <button class="btn btn-ghost" onclick="deleteAddressAndReset()" title="Delete this inbox" style="color:var(--danger);border-color:rgba(248,113,113,0.25);">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4h6v2"/></svg>
+            <span>Delete</span>
+          </button>
         </div>
         <p class="result-hint" id="result-expire-hint">Your inbox will auto-expire after 3 hours. Upgrade to Pro for 7-day retention.</p>
       </div>
