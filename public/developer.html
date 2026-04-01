@@ -62,9 +62,9 @@
     /* ── Keys table ── */
     .keys-table {
       margin-top: 2rem; overflow: hidden;
-      background: rgba(30,25,20,0.55);
+      background: rgba(40,35,45,0.75);
       backdrop-filter: blur(24px); -webkit-backdrop-filter: blur(24px);
-      border: 1px solid var(--glass-border);
+      border: 1px solid rgba(255,255,255,0.15);
       border-radius: var(--radius);
     }
     .keys-head {
@@ -188,9 +188,9 @@
     .endpoint-path { font-family: 'Courier New', monospace; font-size: 0.9rem; color: var(--accent); }
     .endpoint-desc { font-size: 0.88rem; color: var(--text-muted); line-height: 1.6; margin-bottom: 0.75rem; }
     .code-block {
-      background: rgba(0,0,0,0.4); border: 1px solid rgba(255,255,255,0.07);
+      background: rgba(10,10,15,0.85); border: 1px solid rgba(255,255,255,0.15);
       border-radius: var(--radius-sm); padding: 1.25rem 1.5rem;
-      font-family: 'Courier New', monospace; font-size: 0.82rem; color: var(--text-secondary);
+      font-family: 'Courier New', monospace; font-size: 0.82rem; color: #f8f8f2;
       overflow-x: auto; white-space: pre; line-height: 1.7; margin-bottom: 0.75rem;
     }
     .section-divider { border: none; border-top: 1px solid var(--glass-border); margin: 2rem 0; }
@@ -338,6 +338,19 @@
       <!-- ── USAGE STATS ── -->
       <section class="dev-section">
         <div class="dev-section-inner">
+          <div style="background:rgba(167,139,250,0.1); border:1px solid rgba(167,139,250,0.3); border-radius:16px; padding:2.5rem; margin-bottom:4rem; display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:1.5rem; box-shadow: 0 10px 40px rgba(0,0,0,0.25);">
+            <div>
+              <p class="section-tag glass-pill" style="margin-bottom:1rem; background:rgba(167,139,250,0.15); border-color:rgba(167,139,250,0.4); color:#eaddff;">✦ Developer API</p>
+              <h1 class="section-title" style="font-size:2.5rem; margin-bottom:0.5rem; color:#fff;">Welcome to the <span style="font-family:'Dancing Script', cursive; color:#c4b5fd;">Dashboard.</span></h1>
+              <p class="section-desc" style="margin-bottom:0; max-width:600px; color:rgba(255,255,255,0.85);">
+                Manage your API keys and monitor your usage. Your developer quota includes <strong style="color:#eaddff">5k inbox creates/mo</strong> and <strong style="color:#eaddff">50k message reads/mo</strong> with a <strong style="color:#eaddff">30-day inbox retention</strong> (TTL).
+              </p>
+            </div>
+            <div style="text-align:right;">
+             <div style="font-size:4rem; filter:drop-shadow(0 0 16px rgba(167,139,250,0.4)); transform:rotate(-10deg);">🔑</div>
+            </div>
+          </div>
+
           <p class="section-tag glass-pill">✦ This Month</p>
           <h2 class="section-title">Your API <span class="cursive-accent">usage.</span></h2>
           <p class="section-desc" id="usage-reset-label" style="margin-bottom:0;">
@@ -404,7 +417,7 @@
             Pass your key in the <code style="font-family:'Courier New',monospace;font-size:0.9em;background:rgba(212,167,106,0.12);color:var(--accent);padding:0.1em 0.4em;border-radius:4px;">X-API-Key</code> header. Owner tokens from inbox creation are still required to read messages.
           </p>
 
-          <div class="glass-card-large" style="padding:2.5rem;">
+          <div class="glass-card-large" style="padding:2.5rem; background:rgba(20,15,25,0.8); border:1px solid rgba(255,255,255,0.18);">
 
             <!-- Create Inbox -->
             <div class="endpoint-block">

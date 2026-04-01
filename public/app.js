@@ -1016,10 +1016,14 @@ async function deleteAddressAndReset() {
   }
 
   // Only clear state after confirmed server deletion
+  const deletedId = currentInbox.id;
   currentInbox = null;
   currentMessages = [];
   currentMessageId = null;
-  clearSession();
+  
+  sessionInboxes = sessionInboxes.filter(i => i.id !== deletedId);
+  saveSession();
+
   if (countdownInterval) clearInterval(countdownInterval);
   stopAutoRefresh();
 
@@ -1027,13 +1031,23 @@ async function deleteAddressAndReset() {
     closeMailWindow();
   }
 
-  const resultEl = document.getElementById("email-result");
-  if (resultEl) resultEl.style.display = "none";
+  if (sessionInboxes.length > 0) {
+    // Switch to another valid inbox
+    currentInbox = sessionInboxes[0];
+    showEmailResult(currentInbox);
+    fetchMessages();
+    showToast("Address deleted.");
+  } else {
+    // No more active inboxes
+    clearSession();
+    const resultEl = document.getElementById("email-result");
+    if (resultEl) resultEl.style.display = "none";
 
-  setTimeout(() => {
-    scrollToSection('generate');
-    showToast("Address deleted. Create a new one!");
-  }, 400);
+    setTimeout(() => {
+      scrollToSection('generate');
+      showToast("Address deleted. Create a new one!");
+    }, 400);
+  }
 }
 
 // ========== DELETE ALL MESSAGES (keep address) ==========
