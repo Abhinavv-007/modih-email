@@ -188,7 +188,8 @@
       errEl.classList.remove('visible');
       verifyEl.style.display = 'none';
       btn.disabled = true;
-      btn.innerHTML = '<span class="spin">⟳</span> Signing in…';
+      btn.classList.add('is-loading');
+      btn.innerHTML = 'Signing in…';
 
       try {
         const cred = await auth.signInWithEmailAndPassword(email, password);
@@ -205,6 +206,7 @@
         window.location.replace(redirectTo);
       } catch (err) {
         btn.disabled = false;
+        btn.classList.remove('is-loading');
         btn.innerHTML = 'Sign In';
         errEl.textContent = friendlyError(err.code);
         errEl.classList.add('visible');
@@ -228,23 +230,25 @@
 
       btn.disabled = true;
       const originalText = btn.innerHTML;
-      btn.innerHTML = '<span class="spin">⟳</span> Sending...';
+      btn.classList.add('is-loading');
+      btn.innerHTML = 'Sending…';
 
       try {
         await auth.sendPasswordResetEmail(email);
-        btn.innerHTML = 'Reset link sent (check spam) ✓';
-        btn.style.background = 'transparent';
-        btn.style.border = '1px solid #34d399';
-        btn.style.color = '#34d399';
+        btn.classList.remove('is-loading');
+        btn.classList.add('is-success');
+        btn.innerHTML = '<span class="btn-check">✓</span> Reset link sent — check your inbox';
         setTimeout(() => {
+          btn.classList.remove('is-success');
           btn.innerHTML = originalText;
           btn.style.background = '';
           btn.style.border = '';
           btn.style.color = '';
           btn.disabled = false;
-        }, 5000);
+        }, 4000);
       } catch (err) {
         btn.disabled = false;
+        btn.classList.remove('is-loading');
         btn.innerHTML = originalText;
         errEl.textContent = friendlyError(err.code) || err.message;
         errEl.classList.add('visible');
@@ -267,7 +271,8 @@
 
       const originalText = btn.innerHTML;
       btn.disabled = true;
-      btn.innerHTML = '<span class="spin">⟳</span> Sending link...';
+      btn.classList.add('is-loading');
+      btn.innerHTML = 'Sending link…';
 
       const actionCodeSettings = {
         url: window.location.origin + '/login.html?emailLink=1&redirect=' + encodeURIComponent(redirectTo),
@@ -277,19 +282,20 @@
       try {
         await auth.sendSignInLinkToEmail(email, actionCodeSettings);
         window.localStorage.setItem('emailForSignIn', email);
-        btn.innerHTML = 'Link sent (check spam) ✓';
-        btn.style.background = 'transparent';
-        btn.style.border = '1px solid #34d399';
-        btn.style.color = '#34d399';
+        btn.classList.remove('is-loading');
+        btn.classList.add('is-success');
+        btn.innerHTML = '<span class="btn-check">✓</span> Link sent — check your inbox';
         setTimeout(() => {
+          btn.classList.remove('is-success');
           btn.innerHTML = originalText;
           btn.style.background = '';
           btn.style.border = '';
           btn.style.color = '';
           btn.disabled = false;
-        }, 5000);
+        }, 4000);
       } catch (err) {
         btn.disabled = false;
+        btn.classList.remove('is-loading');
         btn.innerHTML = originalText;
         errEl.textContent = friendlyError(err.code) || err.message;
         errEl.classList.add('visible');

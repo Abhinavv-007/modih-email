@@ -1546,59 +1546,83 @@ document.addEventListener('DOMContentLoaded', () => {
 
 async function submitContactForm(e) {
   e.preventDefault();
-  
+
   const btn = document.getElementById('btn-submit-contact');
-  const originalText = btn.innerHTML;
-  
-  const name = document.getElementById('contact-name').value;
-  const email = document.getElementById('contact-email').value;
+  const originalHTML = btn.innerHTML;
+  const originalStyle = btn.getAttribute('style') || '';
+
+  const name    = document.getElementById('contact-name').value;
+  const email   = document.getElementById('contact-email').value;
   const message = document.getElementById('contact-message').value;
-  
+
   let turnstileToken = '';
   if (window.turnstile && window.contactTurnstileWidgetId) {
     turnstileToken = window.turnstile.getResponse(window.contactTurnstileWidgetId);
   }
 
-  // Note: Turnstile is optional for the contact form — backend rate limiting handles spam
-  
-  btn.innerHTML = '<span>Sending...</span><div class="loading-dots" style="margin-top:0;"><span></span><span></span><span></span></div>';
+  // Loading state — shimmer
+  btn.disabled = true;
   btn.style.pointerEvents = 'none';
-  btn.style.opacity = '0.7';
+  btn.style.position = 'relative';
+  btn.style.overflow = 'hidden';
+  btn.style.opacity = '0.85';
+  btn.innerHTML = 'Sending\u2026';
+
+  // Shimmer overlay
+  const shimmer = document.createElement('span');
+  shimmer.style.cssText = 'position:absolute;inset:0;background:linear-gradient(90deg,transparent 0%,rgba(255,255,255,0.18) 50%,transparent 100%);animation:btn-shimmer 1.2s ease infinite;';
+  btn.appendChild(shimmer);
 
   try {
     const res = await fetch('/api/contact', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'X-Browser-Token': getBrowserToken() // For rate-limiting identical to inbox creation
+        'X-Browser-Token': getBrowserToken()
       },
-      body: JSON.stringify({
-        name,
-        email,
-        message,
-        turnstile_token: turnstileToken
-      })
+      body: JSON.stringify({ name, email, message, turnstile_token: turnstileToken })
     });
-    
+
+    shimmer.remove();
+
     if (res.ok) {
-      closeContactModal();
+      // Stripe-style success: green fill + checkmark
+      btn.style.opacity = '1';
+      btn.style.background = 'linear-gradient(135deg,#34d399,#10b981)';
+      btn.style.color = '#fff';
+      btn.style.boxShadow = '0 4px 20px rgba(52,211,153,0.45)';
+      btn.style.border = 'none';
+      btn.innerHTML = '<span style="display:inline-block;animation:checkPop 0.4s cubic-bezier(0.34,1.56,0.64,1) both;">\u2713</span>\u2002Message sent!';
+
+      // Inject checkPop keyframe if not already present
+      if (!document.getElementById('check-pop-kf')) {
+        const s = document.createElement('style');
+        s.id = 'check-pop-kf';
+        s.textContent = '@keyframes checkPop{from{opacity:0;transform:scale(0.4) rotate(-20deg)}to{opacity:1;transform:scale(1) rotate(0deg)}} @keyframes btn-shimmer{0%{transform:translateX(-100%)}100%{transform:translateX(100%)}}';
+        document.head.appendChild(s);
+      }
+
       setTimeout(() => {
-        showToast("Message sent successfully! We'll reply soon.");
-      }, 400);
+        closeContactModal();
+        setTimeout(() => showToast("Message sent! We\u2019ll reply soon."), 350);
+      }, 1800);
     } else {
       const data = await res.json().catch(() => ({}));
       showToast(data.error || "Failed to send message. Please try again.");
       if (window.turnstile && window.contactTurnstileWidgetId) {
         window.turnstile.reset(window.contactTurnstileWidgetId);
       }
+      btn.disabled = false;
+      btn.style.cssText = originalStyle;
+      btn.innerHTML = originalHTML;
     }
   } catch (error) {
+    shimmer.remove();
     console.error("Submit error:", error);
     showToast("Network error. Could not send message.");
-  } finally {
-    btn.innerHTML = originalText;
-    btn.style.pointerEvents = 'auto';
-    btn.style.opacity = '1';
+    btn.disabled = false;
+    btn.style.cssText = originalStyle;
+    btn.innerHTML = originalHTML;
   }
 }
 

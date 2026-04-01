@@ -234,7 +234,8 @@
 
       errEl.classList.remove('visible');
       btn.disabled = true;
-      btn.innerHTML = '<span class="spin">⟳</span> Creating account…';
+      btn.classList.add('is-loading');
+      btn.innerHTML = 'Creating account…';
 
       try {
         const cred = await auth.createUserWithEmailAndPassword(email, password);
@@ -245,6 +246,7 @@
         showSentState(email);
       } catch (err) {
         btn.disabled = false;
+        btn.classList.remove('is-loading');
         btn.innerHTML = 'Create Account';
         errEl.textContent = friendlyError(err.code);
         errEl.classList.add('visible');
@@ -295,7 +297,8 @@
 
       const originalText = btn.innerHTML;
       btn.disabled = true;
-      btn.innerHTML = '<span class="spin">⟳</span> Sending link...';
+      btn.classList.add('is-loading');
+      btn.innerHTML = 'Sending link…';
 
       const actionCodeSettings = {
         url: window.location.origin + '/login.html?emailLink=1&redirect=' + encodeURIComponent(redirectTo),
@@ -312,6 +315,7 @@
         document.getElementById('sent-email-display').textContent = email;
       } catch (err) {
         btn.disabled = false;
+        btn.classList.remove('is-loading');
         btn.innerHTML = originalText;
         errEl.textContent = 'Could not send link: ' + (friendlyError(err.code) || err.message);
         errEl.classList.add('visible');
