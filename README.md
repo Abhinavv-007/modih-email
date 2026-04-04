@@ -157,7 +157,7 @@ wrangler deploy
   <p>Built with ❤️ by Abhinav.</p>
   <p>
     <a href="https://abhnv.in">Portfolio</a> •
-    <a href="https://linkedin.com/in/iamabhnv">LinkedIn</a> •
+    <a href="https://linkedin.com/in/abhnv07">LinkedIn</a> •
     <a href="https://lnch.in">Launch</a>
   </p>
 </div>
