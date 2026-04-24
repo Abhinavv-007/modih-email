@@ -735,6 +735,8 @@
     let idToken = null;
     let allKeys = [];
     let revealedKey = null;
+    let usagePollTimer = null;
+    const USAGE_POLL_MS = 15000;
 
     firebase.initializeApp(FIREBASE_CONFIG);
     firebaseAuth = firebase.auth();
@@ -816,12 +818,22 @@
       document.getElementById('dashboard').style.display = 'block';
       loadUsage();
       loadKeys();
+      startUsagePolling();
     }
 
     // ── Usage ──
     async function loadUsage() {
       try {
-        const res = await fetch('/api/developer/usage', { headers: { 'Authorization': `Bearer ${idToken}` } });
+        // Keep idToken fresh — Firebase SDK caches & only hits the network if the
+        // token is near expiry, so it's safe to call on every poll.
+        if (firebaseAuth && firebaseAuth.currentUser) {
+          try { idToken = await firebaseAuth.currentUser.getIdToken(); } catch (_) {}
+        }
+        if (!idToken) return;
+        const res = await fetch('/api/developer/usage', {
+          headers: { 'Authorization': `Bearer ${idToken}` },
+          cache: 'no-store'
+        });
         if (!res.ok) return;
         const d = await res.json();
         const c = d.inbox_creates || {}, r = d.message_reads || {};
@@ -836,6 +848,28 @@
         }
       } catch (e) {}
     }
+
+    // ── Real-time usage polling ──
+    // The usage endpoint is cheap (two COUNT queries) and the dashboard is rarely
+    // open for long periods, so a 15s poll is a sensible trade-off between
+    // responsiveness and DB load. We skip polls when the tab is hidden and fire
+    // an immediate refresh the moment it becomes visible again.
+    function startUsagePolling() {
+      if (usagePollTimer) return;
+      usagePollTimer = setInterval(() => {
+        if (document.visibilityState === 'visible') loadUsage();
+      }, USAGE_POLL_MS);
+    }
+
+    function stopUsagePolling() {
+      if (usagePollTimer) { clearInterval(usagePollTimer); usagePollTimer = null; }
+    }
+
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState !== 'visible') return;
+      const dash = document.getElementById('dashboard');
+      if (dash && dash.style.display === 'block') loadUsage();
+    });
 
     function setBar(id, used, limit) {
       const pct = Math.min(100, (used / limit) * 100);
@@ -980,6 +1014,7 @@
     }
 
     async function handleSignOut() {
+      stopUsagePolling();
       if (firebaseAuth) await firebaseAuth.signOut();
       window.location.href = '/';
     }
