@@ -60,6 +60,10 @@ import {
   onRequestGet    as keysGet,
 } from "../functions/api/developer/keys.js";
 
+import {
+  onRequestPost as contactPost,
+} from "../functions/api/contact.js";
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Shared mock infrastructure
 // ─────────────────────────────────────────────────────────────────────────────
@@ -977,5 +981,124 @@ describe("response format consistency", () => {
     const body = await res.json();
     expect(res.status).toBe(400);
     expect(body.error.code).toBe("VALIDATION_ERROR");
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 11. POST /api/contact — HTML escaping & input validation
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe("POST /api/contact", () => {
+  function makeContactCtx({ body = {}, env = {} } = {}) {
+    const req = new Request("https://api.modih.in/api/contact", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    return {
+      request: req,
+      env: {
+        RESEND_API_KEY: "",   // empty -> handler returns success without calling Resend
+        TURNSTILE_SECRET: "",
+        ...env,
+      },
+    };
+  }
+
+  it("rejects requests missing required fields", async () => {
+    const res = await contactPost(makeContactCtx({ body: { name: "x" } }));
+    expect(res.status).toBe(400);
+    const body = await res.json();
+    expect(body.error).toMatch(/missing/i);
+  });
+
+  it("rejects malformed email addresses", async () => {
+    const res = await contactPost(makeContactCtx({
+      body: { name: "x", email: "not-an-email", message: "y" },
+    }));
+    expect(res.status).toBe(400);
+    const body = await res.json();
+    expect(body.error).toMatch(/invalid email/i);
+  });
+
+  it("rejects emails containing CRLF (header injection attempt)", async () => {
+    const res = await contactPost(makeContactCtx({
+      body: { name: "x", email: "a@b.com\r\nBcc: victim@x", message: "y" },
+    }));
+    expect(res.status).toBe(400);
+  });
+
+  it("escapes HTML in name/email/message before forwarding to Resend", async () => {
+    let captured = null;
+    const fakeFetch = async (url, init) => {
+      captured = { url, init };
+      return new Response(JSON.stringify({ id: "fake-resend-id" }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      });
+    };
+    const origFetch = globalThis.fetch;
+    globalThis.fetch = fakeFetch;
+    try {
+      const res = await contactPost(makeContactCtx({
+        body: {
+          name:    "<script>alert(1)</script>",
+          email:   "evil@example.com",
+          message: '<img src=x onerror=alert(1)> & "quoted" \'tick\'',
+        },
+        env: { RESEND_API_KEY: "test-key" },
+      }));
+      expect(res.status).toBe(200);
+      expect(captured).not.toBeNull();
+      const sent = JSON.parse(captured.init.body);
+      // Original raw payload must not be present in the outbound HTML.
+      expect(sent.html).not.toMatch(/<script>alert\(1\)<\/script>/);
+      expect(sent.html).not.toMatch(/<img src=x onerror=alert\(1\)>/);
+      // Escaped versions must be present.
+      expect(sent.html).toContain("&lt;script&gt;alert(1)&lt;/script&gt;");
+      expect(sent.html).toContain("&lt;img src=x onerror=alert(1)&gt;");
+      expect(sent.html).toContain("&amp;");
+      expect(sent.html).toContain("&quot;quoted&quot;");
+      expect(sent.html).toContain("&#39;tick&#39;");
+      // reply_to must still be the verified email (not escaped — it's a header).
+      expect(sent.reply_to).toBe("evil@example.com");
+    } finally {
+      globalThis.fetch = origFetch;
+    }
+  });
+
+  it("strips control characters from the subject line", async () => {
+    let captured = null;
+    const fakeFetch = async (url, init) => {
+      captured = JSON.parse(init.body);
+      return new Response(JSON.stringify({ id: "x" }), { status: 200 });
+    };
+    const origFetch = globalThis.fetch;
+    globalThis.fetch = fakeFetch;
+    try {
+      await contactPost(makeContactCtx({
+        body: {
+          name: "Alice\r\nBcc: attacker@x",
+          email: "alice@example.com",
+          message: "hello",
+        },
+        env: { RESEND_API_KEY: "test-key" },
+      }));
+      expect(captured.subject).not.toContain("\r");
+      expect(captured.subject).not.toContain("\n");
+      expect(captured.subject).toContain("Alice");
+    } finally {
+      globalThis.fetch = origFetch;
+    }
+  });
+
+  it("falls back to logged-success when RESEND_API_KEY is not configured", async () => {
+    const res = await contactPost(makeContactCtx({
+      body: { name: "x", email: "a@b.co", message: "y" },
+      env: { RESEND_API_KEY: "" },
+    }));
+    expect(res.status).toBe(200);
+    const body = await res.json();
+    expect(body.success).toBe(true);
   });
 });
