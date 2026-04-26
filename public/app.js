@@ -70,7 +70,9 @@ function renderNavAuth() {
 
   if (currentUser) {
     const planClass = currentUser.plan === 'pro' ? 'pro' : currentUser.plan === 'developer' ? 'developer' : '';
-    const short = currentUser.email ? currentUser.email.split('@')[0].slice(0, 14) : 'Account';
+    const rawEmail = currentUser.email || '';
+    const safeEmail = escapeHtml(rawEmail);
+    const short = escapeHtml(rawEmail ? rawEmail.split('@')[0].slice(0, 14) : 'Account');
     const planLabel = currentUser.plan === 'developer' ? 'Dev' : currentUser.plan === 'pro' ? 'Pro' : 'Free';
     const devLinkDesktop = currentUser.plan === 'developer'
       ? `<a href="/developer.html" style="font-size:0.72rem;color:var(--text-muted);text-decoration:none;border-left:1px solid rgba(255,255,255,0.1);padding-left:0.5rem;transition:color 0.2s;" onmouseover="this.style.color='var(--accent)'" onmouseout="this.style.color='var(--text-muted)'">API</a>`
@@ -81,8 +83,8 @@ function renderNavAuth() {
     area.innerHTML = `
       <!-- Desktop pill (hidden on mobile) -->
       <div class="nav-auth-desktop">
-        <span class="nav-plan-dot ${planClass}" title="${currentUser.plan} plan"></span>
-        <span class="nav-user-email" title="${currentUser.email}">${short}</span>
+        <span class="nav-plan-dot ${planClass}" title="${planLabel} plan"></span>
+        <span class="nav-user-email" title="${safeEmail}">${short}</span>
         <span style="font-size:0.68rem;color:var(--text-muted);border-left:1px solid rgba(255,255,255,0.1);padding-left:0.5rem;">${planLabel}</span>
         ${devLinkDesktop}
         <button class="nav-sign-out-btn" onclick="handleSignOut()">Sign Out</button>
@@ -98,7 +100,7 @@ function renderNavAuth() {
       <div class="nav-mobile-menu" id="nav-mobile-menu">
         <div class="nav-mobile-menu-user">
           <span class="nav-plan-dot ${planClass}"></span>
-          <span title="${currentUser.email}">${currentUser.email || short}</span>
+          <span title="${safeEmail}">${safeEmail || short}</span>
           <span class="nav-mobile-plan-badge ${planClass}">${planLabel}</span>
         </div>
         ${devLinkMobile}
@@ -433,10 +435,20 @@ function showTurnstile() {
     return;
   }
 
+  // Refuse to render with a missing/placeholder site key. A bogus key here
+  // would silently fail and break inbox creation for free-tier users — better
+  // to skip the captcha and let the server reject the request with a clear
+  // error so the operator sees the misconfiguration in logs.
+  const siteKey = window.TURNSTILE_SITE_KEY;
+  if (!siteKey || typeof siteKey !== "string" || siteKey.length < 10) {
+    console.warn("[Turnstile] No site key configured — captcha disabled.");
+    return;
+  }
+
   // Render turnstile widget
   if (window.turnstile) {
     turnstileWidgetId = window.turnstile.render('#turnstile-widget', {
-      sitekey: window.TURNSTILE_SITE_KEY || '0x4AAAAAAAAAAAAAAAAAAAAAAA', // placeholder, replaced by config
+      sitekey: siteKey,
       theme: 'dark',
       callback: function(token) {
         // Token is automatically picked up on next creation
@@ -1153,21 +1165,45 @@ function escapeHtml(text) {
   return div.innerHTML;
 }
 
+// Defensive HTML sanitizer for rendered email bodies.
+//
+// The email-worker also sanitizes server-side, but defense-in-depth matters:
+// a misbehaving worker, a stale cache, or future schema changes shouldn't
+// expose users to script execution or tracking pixels.
+//
+// Strategy:
+//   - Strip every active-content tag (script/style/iframe/object/embed/form/
+//     base/meta/svg/math/link/source/track) along with their contents.
+//   - Strip every on* event-handler attribute regardless of quoting style.
+//   - Neutralize every dangerous URL scheme (javascript:/data:/vbscript:/
+//     blob:/file:) — including HTML-entity-encoded variants.
+//   - Block all <img> tags so remote tracking pixels never leak the user's IP.
+//
+// Note: this is intentionally regex-based to avoid a heavy DOMPurify
+// dependency on a privacy-focused page. The sanitizer must stay strict —
+// favour false positives (over-blocking) over false negatives.
 function sanitizeRenderedHtml(html) {
+  if (typeof html !== "string") return "";
+
+  // Strip pairs of dangerous tags including their content.
+  const STRIP_PAIR = /<(script|style|iframe|object|form|svg|math|noscript|template)\b[\s\S]*?<\/\1\s*>/gi;
+  // Strip self-closing / standalone dangerous tags.
+  const STRIP_SINGLE = /<(embed|link|base|meta|source|track)\b[^>]*>/gi;
+
   return html
-    .replace(/<script[\s\S]*?<\/script>/gi, "")
-    .replace(/<style[\s\S]*?<\/style>/gi, "")
-    .replace(/on\w+\s*=\s*"[^"]*"/gi, "")
-    .replace(/on\w+\s*=\s*'[^']*'/gi, "")
-    .replace(/on\w+\s*=\s*[^\s>]+/gi, "")
-    .replace(/javascript\s*:/gi, "blocked:")
-    .replace(/<iframe[\s\S]*?<\/iframe>/gi, "")
-    .replace(/<object[\s\S]*?<\/object>/gi, "")
-    .replace(/<embed[\s\S]*?>/gi, "")
-    .replace(/<form[\s\S]*?<\/form>/gi, "")
-    .replace(/<base[\s\S]*?>/gi, "")
-    .replace(/<meta[\s\S]*?>/gi, "")
-    // Block remote images (tracking pixels, attacker-controlled URLs)
+    .replace(STRIP_PAIR, "")
+    .replace(STRIP_SINGLE, "")
+    // Any leftover unmatched script/style/iframe opener (truncated HTML).
+    .replace(/<\/?(script|style|iframe|object|svg|math|form|noscript|template)\b[^>]*>/gi, "")
+    // on* event handlers — quoted, single-quoted, and unquoted forms.
+    .replace(/\son\w+\s*=\s*"[^"]*"/gi, "")
+    .replace(/\son\w+\s*=\s*'[^']*'/gi, "")
+    .replace(/\son\w+\s*=\s*[^\s>]+/gi, "")
+    // Dangerous URL schemes — match optional whitespace and HTML-entity-
+    // encoded colons that would otherwise smuggle past the simple javascript:
+    // check (e.g. `java&#115;cript:`).
+    .replace(/(javascript|vbscript|livescript|data|blob|file)\s*(?:&#0*58;?|&#x0*3a;?|:)/gi, "blocked:")
+    // Block remote images (tracking pixels, attacker-controlled URLs).
     .replace(/<img\b[^>]*>/gi, "[image removed]");
 }
 
@@ -1285,11 +1321,17 @@ async function restoreSession() {
 
     if (res.ok) {
       const data = await res.json();
-      if (data.inbox && data.inbox.expires_at) {
-        inboxToActivate.expires_at = data.inbox.expires_at;
+      // /api/messages now returns { success, data: { inbox, messages, count } }.
+      // Older deployments (before the envelope refactor) returned the raw
+      // payload at the top level — keep that fallback so cached single-tab
+      // sessions don't break across rollouts.
+      const payload = data.data || data;
+      const inboxPayload = payload.inbox;
+      if (inboxPayload && inboxPayload.expires_at) {
+        inboxToActivate.expires_at = inboxPayload.expires_at;
         // Also update it in the array
         const idx = sessionInboxes.findIndex(i => i.id === inboxToActivate.id);
-        if (idx >= 0) sessionInboxes[idx].expires_at = data.inbox.expires_at;
+        if (idx >= 0) sessionInboxes[idx].expires_at = inboxPayload.expires_at;
       }
       currentInbox = inboxToActivate;
       showEmailResult(currentInbox);

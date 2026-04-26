@@ -61,23 +61,25 @@ export default {
       let bodyHtml = parsed.html || "";
       let bodyText = parsed.text || "";
 
-      // Sanitize HTML - strip dangerous elements and remote resources (tracking pixels)
+      // Sanitize HTML — strip active-content tags, event handlers, dangerous
+      // URL schemes, and remote images (tracking pixels). Mirrors the client-
+      // side sanitizer in public/app.js — keep both in sync if either changes.
       if (bodyHtml) {
         bodyHtml = bodyHtml
-          .replace(/<script[\s\S]*?<\/script>/gi, "")
-          .replace(/<iframe[\s\S]*?<\/iframe>/gi, "")
-          .replace(/<form[\s\S]*?<\/form>/gi, "")
-          .replace(/<object[\s\S]*?<\/object>/gi, "")
-          .replace(/<embed[\s\S]*?>/gi, "")
-          .replace(/<link[\s\S]*?>/gi, "")
-          .replace(/on\w+="[^"]*"/gi, "")
-          .replace(/on\w+='[^']*'/gi, "")
-          .replace(/on\w+=[^\s>]+/gi, "")
-          .replace(/javascript:/gi, "blocked:")
-          .replace(/vbscript:/gi, "blocked:")
-          .replace(/<base[\s\S]*?>/gi, "")
-          .replace(/<meta[\s\S]*?>/gi, "")
-          // Block ALL remote images to prevent IP leak via tracking pixels
+          // Strip pairs (tag + content) for execution-capable elements.
+          .replace(/<(script|style|iframe|object|form|svg|math|noscript|template)\b[\s\S]*?<\/\1\s*>/gi, "")
+          // Strip standalone tags that pull or redirect resources.
+          .replace(/<(embed|link|base|meta|source|track)\b[^>]*>/gi, "")
+          // Catch any unmatched openers (truncated / malformed HTML).
+          .replace(/<\/?(script|style|iframe|object|svg|math|form|noscript|template)\b[^>]*>/gi, "")
+          // on* event handlers — quoted, single-quoted, and unquoted forms.
+          .replace(/\son\w+\s*=\s*"[^"]*"/gi, "")
+          .replace(/\son\w+\s*=\s*'[^']*'/gi, "")
+          .replace(/\son\w+\s*=\s*[^\s>]+/gi, "")
+          // Dangerous URL schemes including HTML-entity-encoded colon
+          // variants (java&#115;cript: etc.).
+          .replace(/(javascript|vbscript|livescript|data|blob|file)\s*(?:&#0*58;?|&#x0*3a;?|:)/gi, "blocked:")
+          // Block ALL remote images to prevent IP leak via tracking pixels.
           .replace(/<img\b[^>]*>/gi, "[image removed]");
       }
 
