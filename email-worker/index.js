@@ -19,7 +19,7 @@ function isOtpLike(subject, bodyText, bodyHtml) {
   return haystack.includes("otp") || haystack.includes("verification") || haystack.includes("code");
 }
 
-function logAdminEvent(db, {
+async function logAdminEvent(db, {
   uid = null,
   email = "",
   inboxId = null,
@@ -30,25 +30,28 @@ function logAdminEvent(db, {
   isOtp = 0,
   createdAt = Math.floor(Date.now() / 1000),
 }) {
-  db.prepare(
-    `INSERT INTO admin_events
-       (event_type, uid, email, inbox_id, inbox_email, ip, browser_token, subject, is_otp, metadata, created_at)
-     VALUES ('message_received', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
-  )
-    .bind(
-      uid,
-      email || "",
-      inboxId,
-      inboxEmail || "",
-      ip,
-      browserToken,
-      subject,
-      isOtp ? 1 : 0,
-      null,
-      createdAt
+  try {
+    await db.prepare(
+      `INSERT INTO admin_events
+         (event_type, uid, email, inbox_id, inbox_email, ip, browser_token, subject, is_otp, metadata, created_at)
+       VALUES ('message_received', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
     )
-    .run()
-    .catch(() => {});
+      .bind(
+        uid,
+        email || "",
+        inboxId,
+        inboxEmail || "",
+        ip,
+        browserToken,
+        subject,
+        isOtp ? 1 : 0,
+        null,
+        createdAt
+      )
+      .run();
+  } catch (error) {
+    console.error("[admin_events] message_received write error:", error?.message || error);
+  }
 }
 
 async function getInboxByEmail(db, to) {
@@ -141,7 +144,7 @@ export default {
         .bind(msgId, inbox.id, fromAddress, fromName, subject, bodyHtml, bodyText, receivedAt)
         .run();
 
-      logAdminEvent(env.DB, {
+      await logAdminEvent(env.DB, {
         uid: inbox.creator_uid || null,
         email: inbox.creator_email || "",
         inboxId: inbox.id,

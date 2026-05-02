@@ -8,7 +8,8 @@ import {
   hmacHex,
   validateOwnerToken,
   resolveApiKey,
-  checkAuthRateLimit,
+  isAuthRateLimited,
+  recordAuthFailure,
   rateLimit,
   ok,
   err,
@@ -54,6 +55,12 @@ const API_MONTHLY_CREATE_LIMIT = 5000;
 const PLAN_RANK = { developer: 3, pro: 2, free: 1 };
 
 // ========== HELPERS ==========
+
+function normalizeBrowserToken(raw, ip) {
+  const token = String(raw || "").trim();
+  if (/^[A-Za-z0-9._:-]{8,128}$/.test(token)) return token;
+  return `ip:${ip || "unknown"}`;
+}
 
 function betterPlan(a, b) {
   return (PLAN_RANK[a] || 0) >= (PLAN_RANK[b] || 0) ? a : b;
@@ -101,32 +108,38 @@ async function getMonthlyCreateCount(db, uid, keyId = null) {
   return row?.cnt || 0;
 }
 
-function logApiUsage(db, { uid, keyId = null, action, endpoint, ip = null, inboxId = null, statusCode = 200 }) {
+async function logApiUsage(db, { uid, keyId = null, action, endpoint, ip = null, inboxId = null, statusCode = 200 }) {
   const now = Math.floor(Date.now() / 1000);
-  db.prepare(
-    `INSERT INTO api_usage
-       (uid, key_id, action, endpoint, inbox_id, ip, status_code, created_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
-  )
-    .bind(uid, keyId, action, endpoint, inboxId, ip, statusCode, now)
-    .run()
-    .catch(() => {
-      db.prepare("INSERT INTO api_usage (uid, action, created_at) VALUES (?, ?, ?)")
+  try {
+    await db.prepare(
+      `INSERT INTO api_usage
+         (uid, key_id, action, endpoint, inbox_id, ip, status_code, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+    )
+      .bind(uid, keyId, action, endpoint, inboxId, ip, statusCode, now)
+      .run();
+  } catch (error) {
+    try {
+      await db.prepare("INSERT INTO api_usage (uid, action, created_at) VALUES (?, ?, ?)")
         .bind(uid, action, now)
-        .run()
-        .catch(() => {});
-    });
-  db.prepare(
-    `INSERT INTO admin_events
-       (event_type, uid, inbox_id, ip, subject, is_otp, metadata, created_at)
-     VALUES ('api_usage', ?, ?, ?, ?, 0, ?, ?)`
-  )
-    .bind(uid, inboxId, ip, action, endpoint || keyId || "", now)
-    .run()
-    .catch(() => {});
+        .run();
+    } catch (fallbackError) {
+      console.error("[api_usage] write error:", fallbackError?.message || error?.message || fallbackError);
+    }
+  }
+
+  try {
+    await db.prepare(
+      `INSERT INTO admin_events
+         (event_type, uid, inbox_id, ip, subject, is_otp, metadata, created_at)
+       VALUES ('api_usage', ?, ?, ?, ?, 0, ?, ?)`
+    )
+      .bind(uid, inboxId, ip, action, endpoint || keyId || "", now)
+      .run();
+  } catch (_) {}
 }
 
-function logAdminEvent(db, {
+async function logAdminEvent(db, {
   eventType,
   uid = null,
   email = "",
@@ -138,26 +151,27 @@ function logAdminEvent(db, {
   isOtp = 0,
   createdAt = Math.floor(Date.now() / 1000),
 }) {
-  db.prepare(
-    `INSERT INTO admin_events
-       (event_type, uid, email, inbox_id, inbox_email, ip, browser_token, subject, is_otp, metadata, created_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
-  )
-    .bind(
-      eventType,
-      uid,
-      email || "",
-      inboxId,
-      inboxEmail || "",
-      ip,
-      browserToken,
-      subject,
-      isOtp ? 1 : 0,
-      null,
-      createdAt
+  try {
+    await db.prepare(
+      `INSERT INTO admin_events
+         (event_type, uid, email, inbox_id, inbox_email, ip, browser_token, subject, is_otp, metadata, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
     )
-    .run()
-    .catch(() => {});
+      .bind(
+        eventType,
+        uid,
+        email || "",
+        inboxId,
+        inboxEmail || "",
+        ip,
+        browserToken,
+        subject,
+        isOtp ? 1 : 0,
+        null,
+        createdAt
+      )
+      .run();
+  } catch (_) {}
 }
 
 // Resolve Firebase Bearer token to creator identity + current plan.
@@ -376,7 +390,7 @@ async function insertInbox(db, {
 export async function onRequestPost(context) {
   const { env, request } = context;
   const ip           = request.headers.get("CF-Connecting-IP") || "unknown";
-  const browserToken = request.headers.get("X-Browser-Token") || "unknown";
+  const browserToken = normalizeBrowserToken(request.headers.get("X-Browser-Token"), ip);
 
   try {
     // IP-level rate limit (protects against rapid inbox spam from one IP)
@@ -394,14 +408,14 @@ export async function onRequestPost(context) {
     const apiKeyHeader = request.headers.get("X-API-Key") || "";
     let apiKeyAuth = null;
     if (apiKeyHeader) {
-      // Auth-failure rate limit before attempting the lookup
-      const authOk = await checkAuthRateLimit(env.RATE_LIMIT, ip, "api_key");
-      if (!authOk) {
+      // Check prior auth failures without counting this request as a failure.
+      if (await isAuthRateLimited(env.RATE_LIMIT, ip, "api_key")) {
         return err("RATE_LIMITED", "Too many failed authentication attempts. Try again later.", 429);
       }
 
       apiKeyAuth = await resolveApiKey(apiKeyHeader, env.DB, env);
       if (!apiKeyAuth) {
+        await recordAuthFailure(env.RATE_LIMIT, ip, "api_key");
         auditLog(env.DB, "api_key.auth_failed", { ip });
         return err("UNAUTHORIZED", "Invalid or revoked API key.", 401);
       }
@@ -520,7 +534,7 @@ export async function onRequestPost(context) {
             ...creatorMeta,
             now, expiresAt,
           });
-          logAdminEvent(env.DB, {
+          await logAdminEvent(env.DB, {
             eventType: "inbox_created",
             uid: authContext.uid,
             email: authContext.email,
@@ -575,7 +589,7 @@ export async function onRequestPost(context) {
           ...creatorMeta,
           now, expiresAt,
         });
-        logAdminEvent(env.DB, {
+        await logAdminEvent(env.DB, {
           eventType: "inbox_created",
           uid: authContext.uid,
           email: authContext.email,
@@ -586,7 +600,7 @@ export async function onRequestPost(context) {
           createdAt: now,
         });
         if (apiKeyAuth) {
-          logApiUsage(env.DB, {
+          await logApiUsage(env.DB, {
             uid: apiKeyAuth.uid,
             keyId: apiKeyAuth.keyId,
             action: "inbox_create",
@@ -620,7 +634,7 @@ export async function onRequestPost(context) {
           ...creatorMeta,
           now, expiresAt,
         });
-        logAdminEvent(env.DB, {
+        await logAdminEvent(env.DB, {
           eventType: "inbox_created",
           uid: authContext.uid,
           email: authContext.email,
@@ -631,7 +645,7 @@ export async function onRequestPost(context) {
           createdAt: now,
         });
         if (apiKeyAuth) {
-          logApiUsage(env.DB, {
+          await logApiUsage(env.DB, {
             uid: apiKeyAuth.uid,
             keyId: apiKeyAuth.keyId,
             action: "inbox_create",
@@ -673,8 +687,7 @@ export async function onRequestDelete(context) {
   }
 
   // Brute-force protection
-  const authOk = await checkAuthRateLimit(env.RATE_LIMIT, ip, "inbox_token");
-  if (!authOk) {
+  if (await isAuthRateLimited(env.RATE_LIMIT, ip, "inbox_token")) {
     return err("RATE_LIMITED", "Too many failed authentication attempts. Try again later.", 429);
   }
 
@@ -690,6 +703,7 @@ export async function onRequestDelete(context) {
 
     const valid = await validateOwnerToken(inbox, ownerToken, env.TOKEN_PEPPER || "");
     if (!valid) {
+      await recordAuthFailure(env.RATE_LIMIT, ip, "inbox_token");
       auditLog(env.DB, "owner_token.invalid", { inboxId, ip });
       return err("FORBIDDEN", "Owner token mismatch.", 403);
     }

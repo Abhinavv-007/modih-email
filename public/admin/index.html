@@ -257,7 +257,7 @@
     @keyframes spin { to { transform: rotate(360deg); } }
 
     /* ===== ACTIVITY ===== */
-    .activity-grid { display:grid; grid-template-columns:repeat(3, 1fr); gap:1rem; margin-top:1.25rem; }
+    .activity-grid { display:grid; grid-template-columns:repeat(auto-fit, minmax(260px, 1fr)); gap:1rem; margin-top:1.25rem; }
     .activity-card { min-height:280px; background:rgba(14,10,7,.62); border:1px solid var(--glass-border); border-radius:var(--radius); backdrop-filter:blur(20px); -webkit-backdrop-filter:blur(20px); overflow:hidden; }
     .activity-head { padding:1rem 1.15rem; border-bottom:1px solid var(--glass-border); }
     .activity-title { font-family:'Cormorant Garamond',serif; font-size:1.35rem; font-weight:600; font-style:italic; }
@@ -474,6 +474,15 @@
             <div class="activity-sub">all user API activity in the selected range</div>
           </div>
           <div class="activity-list" id="activity-api">
+            <div class="table-loading">Loading…</div>
+          </div>
+        </article>
+        <article class="activity-card">
+          <div class="activity-head">
+            <div class="activity-title">User IP History</div>
+            <div class="activity-sub">signed-in account access by IP and time</div>
+          </div>
+          <div class="activity-list" id="activity-logins">
             <div class="table-loading">Loading…</div>
           </div>
         </article>
@@ -798,7 +807,7 @@
           <div class="user-row" style="animation-delay:${i * 0.02}s">
             <div>
               <div class="user-email">${escHtml(u.email || 'Anonymous / not signed up')}</div>
-              <div class="user-detail">${isAnonymous ? anonymousDetail(u) : `UID ${escHtml(u.uid || '')}`}</div>
+              <div class="user-detail">${isAnonymous ? anonymousDetail(u) : registeredDetail(u)}</div>
             </div>
             <div>
               <span class="plan-badge ${plan}">
@@ -864,6 +873,10 @@
       renderActivityList('activity-api', activity.api || [], item => ({
         main: `${item.action || 'api'}${item.status_code ? ` · ${item.status_code}` : ''}`,
         meta: `${item.actor || item.uid || 'Unknown'} · ${item.endpoint || item.key_id || 'API'} · ${formatDateTime(item.created_at)}`
+      }));
+      renderActivityList('activity-logins', activity.logins || [], item => ({
+        main: item.actor || item.uid || 'Unknown user',
+        meta: `${item.ip || 'unknown IP'} · ${formatDateTime(item.created_at)}`
       }));
     }
 
@@ -995,6 +1008,13 @@
       if (user.creator_ip) return `IP ${escHtml(user.creator_ip)}`;
       if (user.creator_token) return `Browser token ${escHtml(String(user.creator_token).slice(0, 12))}...`;
       return 'No signed-in account';
+    }
+
+    function registeredDetail(user) {
+      const uid = `UID ${escHtml(user.uid || '')}`;
+      if (!user.last_ip) return uid;
+      const ipText = `${escHtml(user.last_ip)}${user.ip_count > 1 ? ` · ${formatNumber(user.ip_count)} IPs` : ''}`;
+      return `${uid} · Last IP ${ipText}`;
     }
 
     function safePlan(plan) {

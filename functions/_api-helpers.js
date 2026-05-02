@@ -150,7 +150,7 @@ export async function validateOwnerToken(inbox, provided, pepper) {
  * Two-phase lookup with transparent migration:
  *   1. Try key_hash_peppered = HMAC-SHA256(SHA-256(rawKey), API_KEY_PEPPER)
  *   2. Fall back to legacy key_hash = SHA-256(rawKey)
- *      → on match, writes the peppered hash automatically (fire-and-forget)
+ *      → on match, writes the peppered hash automatically
  *
  * Format validation: "modih-" + exactly 32 lowercase hex chars.
  *
@@ -190,15 +190,15 @@ export async function resolveApiKey(keyValue, db, env) {
       return null;
     }
 
-    // Touch last_used_at (best-effort, non-blocking)
-    db.prepare("UPDATE api_keys SET last_used_at = ? WHERE id = ?")
+    // Touch last_used_at before returning so dashboards reflect real usage.
+    await db.prepare("UPDATE api_keys SET last_used_at = ? WHERE id = ?")
       .bind(now, keyRow.id)
       .run()
       .catch(() => {});
 
     // Auto-migrate legacy key on first successful use
     if (needsMigration) {
-      db.prepare("UPDATE api_keys SET key_hash_peppered = ? WHERE id = ?")
+      await db.prepare("UPDATE api_keys SET key_hash_peppered = ? WHERE id = ?")
         .bind(pepperedHash, keyRow.id)
         .run()
         .catch(() => {});
@@ -270,14 +270,34 @@ export async function rateLimit(kv, key, max, windowSecs) {
 }
 
 /**
- * Track auth failures per IP per action and return false when the threshold
- * is exceeded (brute-force protection).
+ * Return true when an IP has already exceeded auth failures for an action.
+ * This does not increment the counter; call recordAuthFailure only after an
+ * actual failed auth check so successful API clients are not throttled as
+ * "failed attempts".
+ */
+export async function isAuthRateLimited(kv, ip, action, max = 10) {
+  try {
+    const count = parseInt(await kv.get(`af:${action}:${ip}`) || "0", 10);
+    return count >= max;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Track an auth failure per IP per action and return false when the threshold
+ * is exceeded after incrementing (brute-force protection).
  *
  * Default: 10 failures per 15 minutes per IP per action type.
  * Key format: af:{action}:{ip}
  */
-export async function checkAuthRateLimit(kv, ip, action, max = 10, windowSecs = 900) {
+export async function recordAuthFailure(kv, ip, action, max = 10, windowSecs = 900) {
   return rateLimit(kv, `af:${action}:${ip}`, max, windowSecs);
+}
+
+// Backward-compatible alias used by tests and older call sites.
+export async function checkAuthRateLimit(kv, ip, action, max = 10, windowSecs = 900) {
+  return recordAuthFailure(kv, ip, action, max, windowSecs);
 }
 
 // ── Response helpers ─────────────────────────────────────────────────────────
@@ -310,13 +330,17 @@ export function ok(data, status = 200) {
  * @param {object} [extra] Additional fields merged into the error object
  */
 export function err(code, message, status, extra = {}) {
+  const headers = {};
+  if (status === 429) {
+    headers["Retry-After"] = String(extra.retry_after || 60);
+  }
   return Response.json(
     {
       success: false,
       error: { code, message, ...extra },
       meta: { request_id: newRequestId() },
     },
-    { status }
+    { status, headers }
   );
 }
 

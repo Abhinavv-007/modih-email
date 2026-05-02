@@ -38,6 +38,27 @@ async function expireExpiredPlans(db, now) {
   }
 }
 
+async function logAuthSeen(db, { uid, email, ip, userAgent, now }) {
+  try {
+    await db.prepare(
+      `INSERT INTO admin_events
+         (event_type, uid, email, ip, subject, is_otp, metadata, created_at)
+       VALUES ('auth_seen', ?, ?, ?, ?, 0, ?, ?)`
+    )
+      .bind(
+        uid,
+        email || "",
+        ip || "unknown",
+        "login",
+        JSON.stringify({ user_agent: String(userAgent || "").slice(0, 180) }),
+        now
+      )
+      .run();
+  } catch (error) {
+    if (!String(error?.message || "").includes("admin_events")) throw error;
+  }
+}
+
 export async function onRequestGet(context) {
   const { env, request } = context;
   const NO_CACHE = {
@@ -104,6 +125,14 @@ export async function onRequestGet(context) {
         "DELETE FROM user_plans WHERE LOWER(email) = LOWER(?) AND uid != ?"
       ).bind(email, uid).run();
     }
+
+    await logAuthSeen(env.DB, {
+      uid,
+      email,
+      ip: request.headers.get("CF-Connecting-IP") || "unknown",
+      userAgent: request.headers.get("User-Agent") || "",
+      now,
+    });
 
     return Response.json({ uid, email, email_verified, plan: finalPlan }, { headers: NO_CACHE });
   } catch (e) {

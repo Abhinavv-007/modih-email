@@ -7,7 +7,8 @@
 import {
   validateOwnerToken,
   resolveApiKey,
-  checkAuthRateLimit,
+  isAuthRateLimited,
+  recordAuthFailure,
   rateLimit,
   ok,
   err,
@@ -50,29 +51,35 @@ async function getMonthlyReadCount(db, uid, keyId = null) {
   return row?.cnt || 0;
 }
 
-function logReadUsage(db, { uid, keyId, endpoint, ip, inboxId, statusCode = 200 }) {
+async function logReadUsage(db, { uid, keyId, endpoint, ip, inboxId, statusCode = 200 }) {
   const now = Math.floor(Date.now() / 1000);
-  db.prepare(
-    `INSERT INTO api_usage
-       (uid, key_id, action, endpoint, inbox_id, ip, status_code, created_at)
-     VALUES (?, ?, 'message_read', ?, ?, ?, ?, ?)`
-  )
-    .bind(uid, keyId, endpoint, inboxId, ip, statusCode, now)
-    .run()
-    .catch(() => {
-      db.prepare("INSERT INTO api_usage (uid, action, created_at) VALUES (?, 'message_read', ?)")
+  try {
+    await db.prepare(
+      `INSERT INTO api_usage
+         (uid, key_id, action, endpoint, inbox_id, ip, status_code, created_at)
+       VALUES (?, ?, 'message_read', ?, ?, ?, ?, ?)`
+    )
+      .bind(uid, keyId, endpoint, inboxId, ip, statusCode, now)
+      .run();
+  } catch (error) {
+    try {
+      await db.prepare("INSERT INTO api_usage (uid, action, created_at) VALUES (?, 'message_read', ?)")
         .bind(uid, now)
-        .run()
-        .catch(() => {});
-    });
-  db.prepare(
-    `INSERT INTO admin_events
-       (event_type, uid, inbox_id, ip, subject, is_otp, metadata, created_at)
-     VALUES ('api_usage', ?, ?, ?, 'message_read', 0, ?, ?)`
-  )
-    .bind(uid, inboxId, ip, endpoint || keyId || "", now)
-    .run()
-    .catch(() => {});
+        .run();
+    } catch (fallbackError) {
+      console.error("[api_usage] write error:", fallbackError?.message || error?.message || fallbackError);
+    }
+  }
+
+  try {
+    await db.prepare(
+      `INSERT INTO admin_events
+         (event_type, uid, inbox_id, ip, subject, is_otp, metadata, created_at)
+       VALUES ('api_usage', ?, ?, ?, 'message_read', 0, ?, ?)`
+    )
+      .bind(uid, inboxId, ip, endpoint || keyId || "", now)
+      .run();
+  } catch (_) {}
 }
 
 // ── GET /api/messages ────────────────────────────────────────────────────────
@@ -97,13 +104,13 @@ export async function onRequestGet(context) {
   const apiKeyHeader = request.headers.get("X-API-Key") || "";
   let apiKeyAuth = null;
   if (apiKeyHeader) {
-    const authOk = await checkAuthRateLimit(env.RATE_LIMIT, ip, "api_key");
-    if (!authOk) {
+    if (await isAuthRateLimited(env.RATE_LIMIT, ip, "api_key")) {
       return err("RATE_LIMITED", "Too many failed authentication attempts. Try again later.", 429);
     }
 
     apiKeyAuth = await resolveApiKey(apiKeyHeader, env.DB, env);
     if (!apiKeyAuth) {
+      await recordAuthFailure(env.RATE_LIMIT, ip, "api_key");
       auditLog(env.DB, "api_key.auth_failed", { ip });
       return err("UNAUTHORIZED", "Invalid or revoked API key.", 401);
     }
@@ -135,8 +142,7 @@ export async function onRequestGet(context) {
   }
 
   // Auth-failure rate limit before token validation (brute-force protection)
-  const authOk = await checkAuthRateLimit(env.RATE_LIMIT, ip, "inbox_token");
-  if (!authOk) {
+  if (await isAuthRateLimited(env.RATE_LIMIT, ip, "inbox_token")) {
     return err("RATE_LIMITED", "Too many failed authentication attempts. Try again later.", 429);
   }
 
@@ -159,6 +165,7 @@ export async function onRequestGet(context) {
 
     const valid = await validateOwnerToken(inbox, ownerToken, env.TOKEN_PEPPER || "");
     if (!valid) {
+      await recordAuthFailure(env.RATE_LIMIT, ip, "inbox_token");
       auditLog(env.DB, "owner_token.invalid", { inboxId, ip });
       return err("FORBIDDEN", "Owner token mismatch.", 403);
     }
@@ -173,7 +180,7 @@ export async function onRequestGet(context) {
     const messages = result.results || [];
 
     if (apiKeyAuth) {
-      logReadUsage(env.DB, {
+      await logReadUsage(env.DB, {
         uid: apiKeyAuth.uid,
         keyId: apiKeyAuth.keyId,
         endpoint: "GET /api/messages",
@@ -222,8 +229,7 @@ export async function onRequestDelete(context) {
   }
 
   // Auth-failure rate limit
-  const authOk = await checkAuthRateLimit(env.RATE_LIMIT, ip, "inbox_token");
-  if (!authOk) {
+  if (await isAuthRateLimited(env.RATE_LIMIT, ip, "inbox_token")) {
     return err("RATE_LIMITED", "Too many failed authentication attempts. Try again later.", 429);
   }
 
@@ -244,6 +250,7 @@ export async function onRequestDelete(context) {
 
     const valid = await validateOwnerToken(inbox, ownerToken, env.TOKEN_PEPPER || "");
     if (!valid) {
+      await recordAuthFailure(env.RATE_LIMIT, ip, "inbox_token");
       auditLog(env.DB, "owner_token.invalid", { inboxId, ip });
       return err("FORBIDDEN", "Owner token mismatch.", 403);
     }

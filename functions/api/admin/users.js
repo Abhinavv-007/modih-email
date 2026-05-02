@@ -155,6 +155,7 @@ async function safeAll(db, sql, bindings = [], fallback = []) {
     if (
       isMissingColumn(error, "creator_uid") ||
       isMissingColumn(error, "api_usage") ||
+      isMissingColumn(error, "admin_events") ||
       isMissingColumn(error, "key_id") ||
       isMissingColumn(error, "status_code")
     ) {
@@ -175,6 +176,7 @@ async function safeFirst(db, sql, bindings = {}, fallback = {}) {
       isMissingColumn(error, "creator_uid") ||
       isMissingColumn(error, "api_usage") ||
       isMissingColumn(error, "api_keys") ||
+      isMissingColumn(error, "admin_events") ||
       isMissingColumn(error, "plan_expires_at")
     ) {
       return fallback;
@@ -204,7 +206,7 @@ function toMap(rows, key, defaults = {}) {
 async function getUserRows(db, { filter, emailSearch, since, useEvents }) {
   const users = await selectUserPlans(db, filter, emailSearch);
 
-  const [inboxRows, messageRows, apiRows] = await Promise.all([
+  const [inboxRows, messageRows, apiRows, authRows] = await Promise.all([
     useEvents
       ? safeAll(db, `
           SELECT uid, COUNT(*) AS inbox_count, MAX(created_at) AS last_inbox_at
@@ -232,33 +234,50 @@ async function getUserRows(db, { filter, emailSearch, since, useEvents }) {
           WHERE i.creator_uid IS NOT NULL AND i.creator_uid != '' AND m.received_at >= ?
           GROUP BY i.creator_uid
         `, [since]),
+    safeAll(db, `
+      SELECT uid, COUNT(*) AS api_count, MAX(created_at) AS last_api_at
+      FROM api_usage
+      WHERE created_at >= ?
+      GROUP BY uid
+    `, [since]),
     useEvents
       ? safeAll(db, `
-          SELECT uid, COUNT(*) AS api_count, MAX(created_at) AS last_api_at
+          SELECT uid, ip, created_at
           FROM admin_events
-          WHERE event_type = 'api_usage' AND uid IS NOT NULL AND uid != '' AND created_at >= ?
-          GROUP BY uid
+          WHERE event_type = 'auth_seen'
+            AND uid IS NOT NULL
+            AND uid != ''
+            AND created_at >= ?
+          ORDER BY created_at DESC
+          LIMIT 2000
         `, [since])
-      : safeAll(db, `
-          SELECT uid, COUNT(*) AS api_count, MAX(created_at) AS last_api_at
-          FROM api_usage
-          WHERE created_at >= ?
-          GROUP BY uid
-        `, [since]),
+      : [],
   ]);
 
   const inboxMap = toMap(inboxRows, "uid", { inbox_count: 0, last_inbox_at: null });
   const messageMap = toMap(messageRows, "uid", { message_count: 0, last_message_at: null });
   const apiMap = toMap(apiRows, "uid", { api_count: 0, last_api_at: null });
+  const authMap = new Map();
+  const ipSets = new Map();
+  for (const row of authRows) {
+    if (!row.uid) continue;
+    if (!authMap.has(row.uid)) {
+      authMap.set(row.uid, { last_ip: row.ip || "", last_seen_at: row.created_at || null });
+    }
+    if (!ipSets.has(row.uid)) ipSets.set(row.uid, new Set());
+    if (row.ip) ipSets.get(row.uid).add(row.ip);
+  }
 
   const enriched = users.map((user) => {
     const inbox = inboxMap.get(user.uid) || {};
     const messages = messageMap.get(user.uid) || {};
     const api = apiMap.get(user.uid) || {};
+    const auth = authMap.get(user.uid) || {};
     const lastActivityAt = Math.max(
       Number(inbox.last_inbox_at || 0),
       Number(messages.last_message_at || 0),
       Number(api.last_api_at || 0),
+      Number(auth.last_seen_at || 0),
       Number(user.updated_at || 0)
     ) || null;
 
@@ -268,6 +287,9 @@ async function getUserRows(db, { filter, emailSearch, since, useEvents }) {
       inbox_count: normalizeCount(inbox.inbox_count),
       message_count: normalizeCount(messages.message_count),
       api_count: normalizeCount(api.api_count),
+      last_ip: auth.last_ip || "",
+      last_seen_at: auth.last_seen_at || null,
+      ip_count: ipSets.get(user.uid)?.size || 0,
       last_inbox_at: inbox.last_inbox_at || null,
       last_message_at: messages.last_message_at || null,
       last_api_at: api.last_api_at || null,
@@ -418,26 +440,18 @@ async function getStats(db, since, useEvents) {
       WHERE received_at >= ?
     `;
 
-  const apiStatsQuery = useEvents
-    ? `
-      SELECT
-        SUM(CASE WHEN event_type = 'api_usage' THEN 1 ELSE 0 END) AS total_api_calls,
-        SUM(CASE WHEN event_type = 'api_usage' AND subject = 'inbox_create' THEN 1 ELSE 0 END) AS api_inbox_creates,
-        SUM(CASE WHEN event_type = 'api_usage' AND subject = 'message_read' THEN 1 ELSE 0 END) AS api_message_reads
-      FROM admin_events
-      WHERE created_at >= ?
-    `
-    : `
-      SELECT
-        COUNT(*) AS total_api_calls,
-        SUM(CASE WHEN action = 'inbox_create' THEN 1 ELSE 0 END) AS api_inbox_creates,
-        SUM(CASE WHEN action = 'message_read' THEN 1 ELSE 0 END) AS api_message_reads
-      FROM api_usage
-      WHERE created_at >= ?
-    `;
+  const apiStatsQuery = `
+    SELECT
+      COUNT(*) AS total_api_calls,
+      SUM(CASE WHEN action = 'inbox_create' THEN 1 ELSE 0 END) AS api_inbox_creates,
+      SUM(CASE WHEN action = 'message_read' THEN 1 ELSE 0 END) AS api_message_reads
+    FROM api_usage
+    WHERE created_at >= ?
+  `;
 
-  const [planRows, inboxStats, messageStats, apiStats, keyStats] = await Promise.all([
+  const [planRows, totalUsers, inboxStats, messageStats, apiStats, keyStats] = await Promise.all([
     safeAll(db, "SELECT plan, COUNT(*) AS count FROM user_plans GROUP BY plan"),
+    safeFirst(db, "SELECT COUNT(*) AS total_users FROM user_plans", [], { total_users: 0 }),
     safeFirst(db, inboxStatsQuery, [since], { total_inboxes: 0, signed_in_inboxes: 0, anonymous_inboxes: 0 }),
     safeFirst(db, messageStatsQuery, [since], { total_messages: 0, otp_messages: 0 }),
     safeFirst(db, apiStatsQuery, [since], { total_api_calls: 0, api_inbox_creates: 0, api_message_reads: 0 }),
@@ -448,7 +462,7 @@ async function getStats(db, since, useEvents) {
   for (const row of planRows) plans[row.plan] = normalizeCount(row.count);
 
   return {
-    total: Object.values(plans).reduce((sum, count) => sum + count, 0),
+    total: normalizeCount(totalUsers.total_users),
     free: plans.free || 0,
     pro: plans.pro || 0,
     developer: plans.developer || 0,
@@ -534,51 +548,50 @@ async function getActivity(db, since, useEvents) {
       LIMIT 80
     `;
 
-  const apiActivityQuery = useEvents
-    ? `
-      SELECT
-        e.uid,
-        e.email,
-        NULL AS key_id,
-        e.subject AS action,
-        e.metadata AS endpoint,
-        e.inbox_id,
-        e.ip,
-        NULL AS status_code,
-        e.created_at
-      FROM admin_events e
-      WHERE e.event_type = 'api_usage' AND e.created_at >= ?
-      ORDER BY e.created_at DESC
-      LIMIT 80
-    `
-    : `
-      SELECT
-        a.uid,
-        u.email,
-        a.key_id,
-        a.action,
-        a.endpoint,
-        a.inbox_id,
-        a.ip,
-        a.status_code,
-        a.created_at
-      FROM api_usage a
-      LEFT JOIN user_plans u ON u.uid = a.uid
-      WHERE a.created_at >= ?
-      ORDER BY a.created_at DESC
-      LIMIT 80
-    `;
+  const apiActivityQuery = `
+    SELECT
+      a.uid,
+      u.email,
+      a.key_id,
+      a.action,
+      a.endpoint,
+      a.inbox_id,
+      a.ip,
+      a.status_code,
+      a.created_at
+    FROM api_usage a
+    LEFT JOIN user_plans u ON u.uid = a.uid
+    WHERE a.created_at >= ?
+    ORDER BY a.created_at DESC
+    LIMIT 80
+  `;
 
-  const [inboxes, messages, api] = await Promise.all([
+  const loginActivityQuery = `
+    SELECT
+      e.uid,
+      u.email,
+      e.ip,
+      e.metadata,
+      e.created_at
+    FROM admin_events e
+    LEFT JOIN user_plans u ON u.uid = e.uid
+    WHERE e.event_type = 'auth_seen' AND e.created_at >= ?
+    ORDER BY e.created_at DESC
+    LIMIT 80
+  `;
+
+  const [inboxes, messages, api, logins] = await Promise.all([
     safeAll(db, inboxActivityQuery, [since]),
     safeAll(db, messageActivityQuery, [since]),
     safeAll(db, apiActivityQuery, [since]),
+    useEvents ? safeAll(db, loginActivityQuery, [since]) : [],
   ]);
 
   return {
     inboxes: inboxes.map((row) => ({ ...row, actor: normalizeActor(row) })),
     messages: messages.map((row) => ({ ...row, actor: normalizeActor(row) })),
     api: api.map((row) => ({ ...row, actor: row.email || row.uid || "Unknown user" })),
+    logins: logins.map((row) => ({ ...row, actor: row.email || row.uid || "Unknown user" })),
   };
 }
 

@@ -40,7 +40,7 @@ CREATE INDEX IF NOT EXISTS idx_messages_received ON messages(received_at);
 -- but these aggregate events remain for lifetime admin stats.
 CREATE TABLE IF NOT EXISTS admin_events (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
-  event_type TEXT NOT NULL,
+  event_type TEXT NOT NULL, -- 'inbox_created' | 'message_received' | 'api_usage' | 'auth_seen'
   uid TEXT DEFAULT NULL,
   email TEXT DEFAULT NULL,
   inbox_id TEXT DEFAULT NULL,

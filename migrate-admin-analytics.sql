@@ -22,7 +22,7 @@ CREATE INDEX IF NOT EXISTS idx_inboxes_created ON inboxes(created_at);
 -- purged when temporary mailboxes expire.
 CREATE TABLE IF NOT EXISTS admin_events (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
-  event_type TEXT NOT NULL,        -- 'inbox_created' | 'message_received' | 'api_usage'
+  event_type TEXT NOT NULL,        -- 'inbox_created' | 'message_received' | 'api_usage' | 'auth_seen'
   uid TEXT DEFAULT NULL,
   email TEXT DEFAULT NULL,
   inbox_id TEXT DEFAULT NULL,
