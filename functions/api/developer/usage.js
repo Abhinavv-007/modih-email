@@ -15,12 +15,28 @@ function getMonthStart() {
 async function requireDeveloper(request, db) {
   const user = await getAuthUser(request);
   if (!user) return null;
-  const row = await db
-    .prepare("SELECT plan FROM user_plans WHERE uid = ?")
-    .bind(user.uid)
-    .first();
+  const row = await getCurrentPlanRow(db, user.uid);
   if (row?.plan !== "developer") return null;
+  if (row.plan_expires_at && Number(row.plan_expires_at) <= Math.floor(Date.now() / 1000)) {
+    db.prepare("UPDATE user_plans SET plan = 'free', updated_at = ?, plan_expires_at = NULL WHERE uid = ?")
+      .bind(Math.floor(Date.now() / 1000), user.uid)
+      .run()
+      .catch(() => {});
+    return null;
+  }
   return user;
+}
+
+async function getCurrentPlanRow(db, uid) {
+  try {
+    return await db
+      .prepare("SELECT plan, plan_expires_at FROM user_plans WHERE uid = ?")
+      .bind(uid)
+      .first();
+  } catch (error) {
+    if (!String(error?.message || "").includes("plan_expires_at")) throw error;
+    return db.prepare("SELECT plan FROM user_plans WHERE uid = ?").bind(uid).first();
+  }
 }
 
 export async function onRequestGet(context) {

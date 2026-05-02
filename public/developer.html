@@ -120,14 +120,14 @@
       border-radius: var(--radius);
     }
     .keys-head {
-      display: grid; grid-template-columns: 1fr 180px 160px 160px 110px;
+      display: grid; grid-template-columns: 1fr 170px 135px 135px 135px 150px;
       padding: 0.9rem 1.75rem;
       border-bottom: 1px solid var(--glass-border);
       font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.12em;
       color: var(--text-muted); font-weight: 600;
     }
     .key-row {
-      display: grid; grid-template-columns: 1fr 180px 160px 160px 110px;
+      display: grid; grid-template-columns: 1fr 170px 135px 135px 135px 150px;
       padding: 1.1rem 1.75rem;
       border-bottom: 1px solid rgba(255,255,255,0.04);
       align-items: center;
@@ -140,6 +140,21 @@
     .key-name { font-weight: 500; font-size: 0.95rem; }
     .key-prefix { font-family: 'Courier New', monospace; font-size: 0.82rem; color: var(--text-muted); }
     .key-date { font-size: 0.82rem; color: var(--text-muted); }
+    .key-limit {
+      font-size: 0.78rem; color: var(--text-secondary); display: flex;
+      flex-direction: column; gap: 0.35rem; padding-right: 0.5rem;
+    }
+    .key-limit small { color: var(--text-muted); font-size: 0.68rem; }
+    .key-meter {
+      width: 100%; height: 3px; border-radius: 999px; overflow: hidden;
+      background: rgba(255,255,255,0.08);
+    }
+    .key-meter span {
+      display: block; height: 100%; width: 0; border-radius: inherit;
+      background: var(--accent); transition: width 0.35s ease;
+    }
+    .key-meter span.warn { background: var(--warning); }
+    .key-meter span.danger { background: var(--danger); }
     .key-status {
       display: inline-flex; align-items: center; gap: 0.35rem;
       font-size: 0.68rem; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase;
@@ -155,6 +170,14 @@
     }
     .revoke-btn:hover { background: rgba(248,113,113,0.15); border-color: rgba(248,113,113,0.5); }
     .revoke-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+    .details-btn {
+      font-size: 0.78rem; font-weight: 600; font-family: inherit; cursor: pointer;
+      border: 1px solid rgba(212,167,106,0.3); background: rgba(212,167,106,0.08);
+      color: var(--accent); border-radius: 8px; padding: 0.35rem 0.8rem;
+      transition: var(--transition);
+    }
+    .details-btn:hover { background: rgba(212,167,106,0.16); border-color: rgba(212,167,106,0.55); }
+    .key-actions { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; }
     .keys-empty { padding: 3rem; text-align: center; color: var(--text-muted); font-size: 0.95rem; }
 
     /* ── Modals ── */
@@ -195,6 +218,10 @@
     }
     .modal-input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-glow); }
     .modal-input::placeholder { color: var(--text-muted); }
+    .modal-select-grid {
+      display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1.25rem;
+    }
+    .modal-help { margin-top: -0.85rem; margin-bottom: 1.25rem; color: var(--text-muted); font-size: 0.78rem; line-height: 1.5; }
     .modal-actions { display: flex; gap: 0.75rem; }
     .modal-cancel {
       padding: 0.85rem 1.4rem; border-radius: var(--radius-sm); font-size: 0.92rem;
@@ -226,6 +253,47 @@
       color: var(--success); border-radius: 8px; padding: 0.4rem 1rem; transition: var(--transition);
     }
     .key-copy-btn:hover { background: rgba(52,211,153,0.2); }
+
+    /* ── Key detail modal ── */
+    .detail-card { max-width: 820px; }
+    .detail-header {
+      display: flex; align-items: flex-start; justify-content: space-between;
+      gap: 1.25rem; margin-bottom: 1.5rem;
+    }
+    .detail-meta { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 0.75rem; }
+    .detail-pill {
+      font-size: 0.72rem; color: var(--text-muted); border: 1px solid var(--glass-border);
+      background: rgba(255,255,255,0.04); border-radius: 999px; padding: 0.25rem 0.7rem;
+    }
+    .detail-grid {
+      display: grid; grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 1rem; margin-bottom: 1.5rem;
+    }
+    .detail-stat {
+      border: 1px solid rgba(255,255,255,0.12); border-radius: 14px;
+      background: rgba(255,255,255,0.04); padding: 1rem;
+    }
+    .detail-stat-label {
+      color: var(--text-muted); font-size: 0.7rem; text-transform: uppercase;
+      letter-spacing: 0.1em; font-weight: 700; margin-bottom: 0.4rem;
+    }
+    .detail-stat-value {
+      font-family: 'Cormorant Garamond', serif; font-size: 2rem;
+      color: var(--accent); line-height: 1; font-weight: 600;
+    }
+    .activity-list {
+      border: 1px solid var(--glass-border); border-radius: 14px;
+      background: rgba(0,0,0,0.18); overflow: hidden; max-height: 340px; overflow-y: auto;
+    }
+    .activity-row {
+      display: grid; grid-template-columns: 120px 1fr 150px 120px;
+      gap: 0.75rem; padding: 0.85rem 1rem; border-bottom: 1px solid rgba(255,255,255,0.06);
+      font-size: 0.8rem; align-items: center;
+    }
+    .activity-row:last-child { border-bottom: none; }
+    .activity-action { color: var(--accent); font-weight: 700; }
+    .activity-muted { color: var(--text-muted); }
+    .activity-empty { padding: 1.25rem; color: var(--text-muted); font-size: 0.88rem; text-align: center; }
 
     /* ── Docs / code blocks ── */
     .endpoint-block { margin-bottom: 2rem; }
@@ -307,10 +375,12 @@
     .dev-toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
 
     @media (max-width: 900px) {
-      .keys-head { grid-template-columns: 1fr 170px 110px; }
-      .key-row  { grid-template-columns: 1fr 170px 110px; }
-      .keys-head span:nth-child(3), .key-row > *:nth-child(3),
-      .keys-head span:nth-child(4), .key-row > *:nth-child(4) { display: none; }
+      .keys-head { grid-template-columns: 1fr 150px 130px 130px; }
+      .key-row  { grid-template-columns: 1fr 150px 130px 130px; }
+      .keys-head span:nth-child(2), .key-row > *:nth-child(2),
+      .keys-head span:nth-child(5), .key-row > *:nth-child(5) { display: none; }
+      .activity-row { grid-template-columns: 110px 1fr; }
+      .activity-row > *:nth-child(3), .activity-row > *:nth-child(4) { display: none; }
     }
     @media (max-width: 600px) {
       .dev-nav-inner { padding: 0 1rem; gap: 0.5rem; }
@@ -334,6 +404,8 @@
       .modal-card { padding: 1.5rem 1.25rem; }
       .modal-actions { flex-direction: column; }
       .modal-cancel { width: 100%; }
+      .modal-select-grid, .detail-grid { grid-template-columns: 1fr; }
+      .detail-header { flex-direction: column; }
       .code-block { font-size: 0.72rem; padding: 1rem; }
       .gate-card { padding: 2.5rem 1.5rem; }
       .dev-section:first-of-type { padding-top: 5rem; }
@@ -572,7 +644,8 @@
             <div class="keys-head">
               <span>Name</span>
               <span>Key Prefix</span>
-              <span>Created</span>
+              <span>Creates</span>
+              <span>Reads</span>
               <span>Last Used</span>
               <span>Action</span>
             </div>
@@ -681,6 +754,29 @@
         <p class="modal-sub">Give this key a descriptive name. You will only see the full key <strong style="color:var(--warning)">once</strong> — copy it somewhere safe.</p>
         <label class="modal-label" for="key-name-input">Key Name</label>
         <input class="modal-input" type="text" id="key-name-input" placeholder="e.g. Production, CI Pipeline, Local Dev" maxlength="50" onkeydown="if(event.key==='Enter')submitCreateKey()" />
+        <div class="modal-select-grid">
+          <div>
+            <label class="modal-label" for="key-create-limit">Inbox create limit</label>
+            <select class="modal-input" id="key-create-limit">
+              <option value="5000">5,000 / month</option>
+              <option value="2500">2,500 / month</option>
+              <option value="1000">1,000 / month</option>
+              <option value="500">500 / month</option>
+              <option value="100">100 / month</option>
+            </select>
+          </div>
+          <div>
+            <label class="modal-label" for="key-read-limit">Message read limit</label>
+            <select class="modal-input" id="key-read-limit">
+              <option value="50000">50,000 / month</option>
+              <option value="25000">25,000 / month</option>
+              <option value="10000">10,000 / month</option>
+              <option value="5000">5,000 / month</option>
+              <option value="1000">1,000 / month</option>
+            </select>
+          </div>
+        </div>
+        <p class="modal-help">Limits are enforced server-side for this key. The total Developer plan quota still applies across all keys.</p>
         <div class="modal-actions">
           <button class="btn btn-primary glow-btn" id="modal-submit-btn" onclick="submitCreateKey()" style="flex:1;">
             <span>Create Key</span>
@@ -703,6 +799,72 @@
         </button>
       </div>
 
+    </div>
+  </div>
+
+  <!-- ── KEY DETAIL MODAL ── -->
+  <div class="modal-backdrop" id="key-detail-modal" onclick="handleKeyDetailBackdropClick(event)">
+    <div class="modal-card detail-card">
+      <div class="detail-header">
+        <div>
+          <h2 class="modal-title" id="detail-key-name">API Key</h2>
+          <p class="modal-sub" id="detail-key-sub" style="margin-bottom:0;">Usage and limits for this key.</p>
+          <div class="detail-meta">
+            <span class="detail-pill" id="detail-key-prefix">—</span>
+            <span class="detail-pill" id="detail-key-created">Created —</span>
+            <span class="detail-pill" id="detail-key-last-used">Last used —</span>
+          </div>
+        </div>
+        <button class="modal-cancel" onclick="closeKeyDetails()">Close</button>
+      </div>
+
+      <div class="detail-grid">
+        <div class="detail-stat">
+          <div class="detail-stat-label">Inbox Creates</div>
+          <div class="detail-stat-value" id="detail-creates-value">—</div>
+          <div class="usage-of" id="detail-creates-limit">of — / month</div>
+          <div class="usage-bar"><div class="usage-bar-fill" id="detail-creates-bar" style="width:0%"></div></div>
+        </div>
+        <div class="detail-stat">
+          <div class="detail-stat-label">Message Reads</div>
+          <div class="detail-stat-value" id="detail-reads-value">—</div>
+          <div class="usage-of" id="detail-reads-limit">of — / month</div>
+          <div class="usage-bar"><div class="usage-bar-fill" id="detail-reads-bar" style="width:0%"></div></div>
+        </div>
+      </div>
+
+      <div class="modal-select-grid">
+        <div>
+          <label class="modal-label" for="detail-create-limit">Inbox create limit</label>
+          <select class="modal-input" id="detail-create-limit">
+            <option value="5000">5,000 / month</option>
+            <option value="2500">2,500 / month</option>
+            <option value="1000">1,000 / month</option>
+            <option value="500">500 / month</option>
+            <option value="100">100 / month</option>
+          </select>
+        </div>
+        <div>
+          <label class="modal-label" for="detail-read-limit">Message read limit</label>
+          <select class="modal-input" id="detail-read-limit">
+            <option value="50000">50,000 / month</option>
+            <option value="25000">25,000 / month</option>
+            <option value="10000">10,000 / month</option>
+            <option value="5000">5,000 / month</option>
+            <option value="1000">1,000 / month</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="modal-actions" style="margin-bottom:1.5rem;">
+        <button class="btn btn-primary glow-btn" id="detail-save-btn" onclick="saveKeyLimits()" style="flex:1;"><span>Save Limits</span></button>
+        <button class="modal-cancel" id="detail-revoke-btn" onclick="revokeSelectedKey()">Revoke Key</button>
+      </div>
+
+      <h3 style="font-size:0.8rem;text-transform:uppercase;letter-spacing:0.12em;color:var(--text-muted);margin-bottom:0.75rem;">Recent activity</h3>
+      <div class="activity-list" id="detail-activity-list">
+        <div class="activity-empty">Loading activity…</div>
+      </div>
     </div>
   </div>
 
@@ -734,6 +896,7 @@
     let firebaseAuth = null;
     let idToken = null;
     let allKeys = [];
+    let selectedKey = null;
     let revealedKey = null;
     let usagePollTimer = null;
     const USAGE_POLL_MS = 15000;
@@ -893,13 +1056,21 @@
     }
 
     function keyRowHtml(k, i) {
+      const createsUsed = k.usage?.inbox_create || 0;
+      const readsUsed = k.usage?.message_read || 0;
+      const createLimit = k.monthly_create_limit || 5000;
+      const readLimit = k.monthly_read_limit || 50000;
       return `
         <div class="key-row" style="animation-delay:${i * 0.06}s">
-          <span class="key-name">${esc(k.name)}</span>
-          <span class="key-prefix">${esc(k.key_prefix)}</span>
-          <span class="key-date">${fmt(k.created_at)}</span>
-          <span class="key-date">${k.last_used_at ? fmt(k.last_used_at) : '—'}</span>
           <span>
+            <button class="details-btn" onclick="openKeyDetails('${k.id}')" style="margin-right:0.55rem;">Stats</button>
+            <span class="key-name">${esc(k.name)}</span>
+          </span>
+          <span class="key-prefix">${esc(k.key_prefix)}</span>
+          ${limitCell(createsUsed, createLimit)}
+          ${limitCell(readsUsed, readLimit)}
+          <span class="key-date">${k.last_used_at ? fmt(k.last_used_at) : '—'}</span>
+          <span class="key-actions">
             ${k.is_active
               ? `<button class="revoke-btn" onclick="revokeKey('${k.id}',this)">Revoke</button>`
               : `<span class="key-status revoked">● Revoked</span>`}
@@ -931,14 +1102,25 @@
 
     async function revokeKey(keyId, btn) {
       if (!confirm('Revoke this key? Any integration using it will stop working immediately.')) return;
-      btn.disabled = true;
+      if (btn) btn.disabled = true;
       try {
         const res = await fetch(`/api/developer/keys?id=${encodeURIComponent(keyId)}`, {
           method: 'DELETE', headers: { 'Authorization': `Bearer ${idToken}` }
         });
-        if (res.ok) { toast('Key revoked'); await loadKeys(); }
-        else { const d = await res.json().catch(()=>({})); toast(d.error || 'Failed'); btn.disabled = false; }
-      } catch (e) { toast('Network error'); btn.disabled = false; }
+        if (res.ok) {
+          toast('Key revoked');
+          if (selectedKey && selectedKey.id === keyId) closeKeyDetails();
+          await loadKeys();
+          await loadUsage();
+        } else {
+          const d = await res.json().catch(()=>({}));
+          toast(apiErrorMessage(d, 'Failed'));
+          if (btn) btn.disabled = false;
+        }
+      } catch (e) {
+        toast('Network error');
+        if (btn) btn.disabled = false;
+      }
     }
 
     // ── Create modal ──
@@ -946,6 +1128,8 @@
       document.getElementById('modal-form-state').style.display = 'block';
       document.getElementById('modal-reveal-state').style.display = 'none';
       document.getElementById('key-name-input').value = '';
+      document.getElementById('key-create-limit').value = '5000';
+      document.getElementById('key-read-limit').value = '50000';
       document.getElementById('modal-error').className = 'modal-error';
       document.getElementById('modal-submit-btn').disabled = false;
       document.getElementById('modal-submit-btn').querySelector('span').textContent = 'Create Key';
@@ -964,6 +1148,8 @@
 
     async function submitCreateKey() {
       const name = document.getElementById('key-name-input').value.trim();
+      const monthlyCreateLimit = Number(document.getElementById('key-create-limit').value);
+      const monthlyReadLimit = Number(document.getElementById('key-read-limit').value);
       const errEl = document.getElementById('modal-error');
       const btn = document.getElementById('modal-submit-btn');
       errEl.className = 'modal-error';
@@ -974,12 +1160,16 @@
         const res = await fetch('/api/developer/keys', {
           method: 'POST',
           headers: { 'Authorization': `Bearer ${idToken}`, 'Content-Type': 'application/json' },
-          body: JSON.stringify({ name })
+          body: JSON.stringify({
+            name,
+            monthly_create_limit: monthlyCreateLimit,
+            monthly_read_limit: monthlyReadLimit
+          })
         });
         const envelope = await res.json();
         if (!res.ok) {
           // Error envelope: { success: false, error: { code, message } }
-          const msg = (envelope.error && envelope.error.message) || envelope.error || 'Failed to create key.';
+          const msg = apiErrorMessage(envelope, 'Failed to create key.');
           errEl.textContent = msg;
           errEl.className = 'modal-error visible';
           btn.disabled = false;
@@ -1013,6 +1203,108 @@
       navigator.clipboard.writeText(revealedKey).then(() => toast('Copied to clipboard'));
     }
 
+    async function openKeyDetails(keyId) {
+      selectedKey = allKeys.find(k => k.id === keyId) || { id: keyId };
+      document.getElementById('key-detail-modal').classList.add('open');
+      document.getElementById('detail-key-name').textContent = selectedKey.name || 'API Key';
+      document.getElementById('detail-activity-list').innerHTML = '<div class="activity-empty">Loading activity…</div>';
+      try {
+        const res = await fetch(`/api/developer/keys?id=${encodeURIComponent(keyId)}`, {
+          headers: { 'Authorization': `Bearer ${idToken}` },
+          cache: 'no-store'
+        });
+        const envelope = await res.json();
+        if (!res.ok) throw new Error(apiErrorMessage(envelope, 'Could not load key details.'));
+        selectedKey = (envelope.data && envelope.data.key) || envelope.key;
+        renderKeyDetails(selectedKey);
+      } catch (e) {
+        document.getElementById('detail-activity-list').innerHTML = `<div class="activity-empty">${esc(e.message || 'Could not load key details.')}</div>`;
+      }
+    }
+
+    function closeKeyDetails() {
+      selectedKey = null;
+      document.getElementById('key-detail-modal').classList.remove('open');
+    }
+
+    function handleKeyDetailBackdropClick(e) {
+      if (e.target === document.getElementById('key-detail-modal')) closeKeyDetails();
+    }
+
+    function renderKeyDetails(k) {
+      const createsUsed = k.usage?.inbox_create || 0;
+      const readsUsed = k.usage?.message_read || 0;
+      const createLimit = k.monthly_create_limit || 5000;
+      const readLimit = k.monthly_read_limit || 50000;
+
+      document.getElementById('detail-key-name').textContent = k.name || 'API Key';
+      document.getElementById('detail-key-sub').textContent = k.is_active ? 'Active key usage and limits.' : 'Revoked key usage history.';
+      document.getElementById('detail-key-prefix').textContent = k.key_prefix || '—';
+      document.getElementById('detail-key-created').textContent = `Created ${fmt(k.created_at)}`;
+      document.getElementById('detail-key-last-used').textContent = k.last_used_at ? `Last used ${fmt(k.last_used_at)}` : 'Last used —';
+      document.getElementById('detail-create-limit').value = String(createLimit);
+      document.getElementById('detail-read-limit').value = String(readLimit);
+
+      document.getElementById('detail-creates-value').textContent = createsUsed.toLocaleString();
+      document.getElementById('detail-creates-limit').textContent = `of ${createLimit.toLocaleString()} / month`;
+      document.getElementById('detail-reads-value').textContent = readsUsed.toLocaleString();
+      document.getElementById('detail-reads-limit').textContent = `of ${readLimit.toLocaleString()} / month`;
+      setUsageBar('detail-creates-bar', createsUsed, createLimit);
+      setUsageBar('detail-reads-bar', readsUsed, readLimit);
+
+      document.getElementById('detail-save-btn').disabled = !k.is_active;
+      document.getElementById('detail-revoke-btn').disabled = !k.is_active;
+      renderActivity(k.recent || []);
+    }
+
+    async function saveKeyLimits() {
+      if (!selectedKey) return;
+      const btn = document.getElementById('detail-save-btn');
+      btn.disabled = true;
+      try {
+        const monthlyCreateLimit = Number(document.getElementById('detail-create-limit').value);
+        const monthlyReadLimit = Number(document.getElementById('detail-read-limit').value);
+        const res = await fetch(`/api/developer/keys?id=${encodeURIComponent(selectedKey.id)}`, {
+          method: 'PATCH',
+          headers: { 'Authorization': `Bearer ${idToken}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            monthly_create_limit: monthlyCreateLimit,
+            monthly_read_limit: monthlyReadLimit
+          })
+        });
+        const envelope = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(apiErrorMessage(envelope, 'Could not save limits.'));
+        toast('Limits saved');
+        await loadKeys();
+        await openKeyDetails(selectedKey.id);
+      } catch (e) {
+        toast(e.message || 'Could not save limits.');
+      } finally {
+        btn.disabled = false;
+      }
+    }
+
+    function revokeSelectedKey() {
+      if (!selectedKey) return;
+      revokeKey(selectedKey.id, document.getElementById('detail-revoke-btn'));
+    }
+
+    function renderActivity(rows) {
+      const list = document.getElementById('detail-activity-list');
+      if (!rows.length) {
+        list.innerHTML = '<div class="activity-empty">No usage recorded for this key yet.</div>';
+        return;
+      }
+      list.innerHTML = rows.map(row => `
+        <div class="activity-row">
+          <span class="activity-action">${row.action === 'inbox_create' ? 'Create' : 'Read'}</span>
+          <span>${esc(row.endpoint || 'API request')}</span>
+          <span class="activity-muted">${row.inbox_id ? esc(row.inbox_id) : '—'}</span>
+          <span class="activity-muted">${fmtDateTime(row.created_at)}</span>
+        </div>
+      `).join('');
+    }
+
     async function handleSignOut() {
       stopUsagePolling();
       if (firebaseAuth) await firebaseAuth.signOut();
@@ -1025,6 +1317,36 @@
     }
     function fmt(ts) {
       return new Date(ts * 1000).toLocaleDateString(undefined, { month:'short', day:'numeric', year:'numeric' });
+    }
+    function fmtDateTime(ts) {
+      return new Date(ts * 1000).toLocaleString(undefined, {
+        month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit'
+      });
+    }
+    function apiErrorMessage(envelope, fallback) {
+      return (envelope.error && envelope.error.message) || envelope.error || fallback;
+    }
+    function limitPercent(used, limit) {
+      if (!limit) return 0;
+      return Math.max(0, Math.min(100, (used / limit) * 100));
+    }
+    function meterClass(pct) {
+      return pct >= 90 ? 'danger' : pct >= 70 ? 'warn' : '';
+    }
+    function limitCell(used, limit) {
+      const pct = limitPercent(used, limit);
+      return `
+        <span class="key-limit">
+          <span>${Number(used || 0).toLocaleString()} <small>/ ${Number(limit || 0).toLocaleString()}</small></span>
+          <span class="key-meter"><span class="${meterClass(pct)}" style="width:${pct}%"></span></span>
+        </span>`;
+    }
+    function setUsageBar(id, used, limit) {
+      const pct = limitPercent(used, limit);
+      const el = document.getElementById(id);
+      if (!el) return;
+      el.style.width = pct + '%';
+      el.className = 'usage-bar-fill ' + meterClass(pct);
     }
     let _toastTimer;
     function toast(msg) {

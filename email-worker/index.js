@@ -14,6 +14,54 @@ async function cleanupExpired(db) {
   }
 }
 
+function isOtpLike(subject, bodyText, bodyHtml) {
+  const haystack = `${subject || ""} ${bodyText || ""} ${bodyHtml || ""}`.toLowerCase();
+  return haystack.includes("otp") || haystack.includes("verification") || haystack.includes("code");
+}
+
+function logAdminEvent(db, {
+  uid = null,
+  email = "",
+  inboxId = null,
+  inboxEmail = "",
+  ip = null,
+  browserToken = null,
+  subject = null,
+  isOtp = 0,
+  createdAt = Math.floor(Date.now() / 1000),
+}) {
+  db.prepare(
+    `INSERT INTO admin_events
+       (event_type, uid, email, inbox_id, inbox_email, ip, browser_token, subject, is_otp, metadata, created_at)
+     VALUES ('message_received', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+  )
+    .bind(
+      uid,
+      email || "",
+      inboxId,
+      inboxEmail || "",
+      ip,
+      browserToken,
+      subject,
+      isOtp ? 1 : 0,
+      null,
+      createdAt
+    )
+    .run()
+    .catch(() => {});
+}
+
+async function getInboxByEmail(db, to) {
+  try {
+    return await db.prepare(
+      "SELECT id, email, expires_at, creator_uid, creator_email, creator_ip, creator_token FROM inboxes WHERE email = ?"
+    ).bind(to).first();
+  } catch (error) {
+    if (!String(error?.message || "").includes("creator_uid")) throw error;
+    return db.prepare("SELECT id, email, expires_at FROM inboxes WHERE email = ?").bind(to).first();
+  }
+}
+
 export default {
   // ========== SCHEDULED CRON: purge expired inboxes & messages ==========
   async scheduled(event, env, ctx) {
@@ -31,11 +79,7 @@ export default {
 
     try {
       // Check if inbox exists
-      const inbox = await env.DB.prepare(
-        "SELECT id, expires_at FROM inboxes WHERE email = ?"
-      )
-        .bind(to)
-        .first();
+      const inbox = await getInboxByEmail(env.DB, to);
 
       if (!inbox) {
         message.setReject("Mailbox not found");
@@ -96,6 +140,18 @@ export default {
       )
         .bind(msgId, inbox.id, fromAddress, fromName, subject, bodyHtml, bodyText, receivedAt)
         .run();
+
+      logAdminEvent(env.DB, {
+        uid: inbox.creator_uid || null,
+        email: inbox.creator_email || "",
+        inboxId: inbox.id,
+        inboxEmail: inbox.email || to,
+        ip: inbox.creator_ip || null,
+        browserToken: inbox.creator_token || null,
+        subject,
+        isOtp: isOtpLike(subject, bodyText, bodyHtml),
+        createdAt: receivedAt,
+      });
 
     } catch (e) {
       console.error("Email worker error:", e);

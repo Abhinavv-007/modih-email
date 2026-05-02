@@ -8,6 +8,8 @@ CREATE TABLE IF NOT EXISTS api_keys (
   name TEXT NOT NULL DEFAULT 'Default Key',
   key_prefix TEXT NOT NULL,     -- First ~12 chars for display (e.g., mdh_xxxxxxxx...)
   key_hash TEXT NOT NULL,       -- SHA-256 hash of the full key (never store plaintext)
+  monthly_create_limit INTEGER NOT NULL DEFAULT 5000,
+  monthly_read_limit INTEGER NOT NULL DEFAULT 50000,
   created_at INTEGER NOT NULL,
   last_used_at INTEGER DEFAULT NULL,
   is_active INTEGER NOT NULL DEFAULT 1
@@ -16,7 +18,12 @@ CREATE TABLE IF NOT EXISTS api_keys (
 CREATE TABLE IF NOT EXISTS api_usage (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   uid TEXT NOT NULL,
+  key_id TEXT DEFAULT NULL,
   action TEXT NOT NULL,         -- 'inbox_create' | 'message_read'
+  endpoint TEXT DEFAULT NULL,
+  inbox_id TEXT DEFAULT NULL,
+  ip TEXT DEFAULT NULL,
+  status_code INTEGER DEFAULT NULL,
   created_at INTEGER NOT NULL
 );
 
@@ -24,3 +31,5 @@ CREATE INDEX IF NOT EXISTS idx_api_keys_uid ON api_keys(uid);
 CREATE INDEX IF NOT EXISTS idx_api_keys_hash ON api_keys(key_hash);
 CREATE INDEX IF NOT EXISTS idx_api_usage_uid_created ON api_usage(uid, created_at);
 CREATE INDEX IF NOT EXISTS idx_api_usage_uid_action_created ON api_usage(uid, action, created_at);
+CREATE INDEX IF NOT EXISTS idx_api_usage_key_created ON api_usage(key_id, created_at);
+CREATE INDEX IF NOT EXISTS idx_api_usage_key_action_created ON api_usage(key_id, action, created_at);

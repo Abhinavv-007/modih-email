@@ -22,11 +22,25 @@ const MSG_READ_WIN    = 60;    // 120 reads  / 60 s per IP
 const MSG_DELETE_MAX  = 30;
 const MSG_DELETE_WIN  = 60;    // 30  deletes / 60 s per IP
 
-async function getMonthlyReadCount(db, uid) {
+async function getMonthlyReadCount(db, uid, keyId = null) {
   const now = new Date();
   const monthStart = Math.floor(
     new Date(now.getFullYear(), now.getMonth(), 1).getTime() / 1000
   );
+  if (keyId) {
+    try {
+      const row = await db
+        .prepare(
+          "SELECT COUNT(*) as cnt FROM api_usage WHERE uid = ? AND key_id = ? AND action = 'message_read' AND created_at >= ?"
+        )
+        .bind(uid, keyId, monthStart)
+        .first();
+      return row?.cnt || 0;
+    } catch (error) {
+      if (!String(error?.message || "").includes("key_id")) throw error;
+      return 0;
+    }
+  }
   const row = await db
     .prepare(
       "SELECT COUNT(*) as cnt FROM api_usage WHERE uid = ? AND action = 'message_read' AND created_at >= ?"
@@ -36,10 +50,27 @@ async function getMonthlyReadCount(db, uid) {
   return row?.cnt || 0;
 }
 
-function logReadUsage(db, uid) {
+function logReadUsage(db, { uid, keyId, endpoint, ip, inboxId, statusCode = 200 }) {
   const now = Math.floor(Date.now() / 1000);
-  db.prepare("INSERT INTO api_usage (uid, action, created_at) VALUES (?, 'message_read', ?)")
-    .bind(uid, now)
+  db.prepare(
+    `INSERT INTO api_usage
+       (uid, key_id, action, endpoint, inbox_id, ip, status_code, created_at)
+     VALUES (?, ?, 'message_read', ?, ?, ?, ?, ?)`
+  )
+    .bind(uid, keyId, endpoint, inboxId, ip, statusCode, now)
+    .run()
+    .catch(() => {
+      db.prepare("INSERT INTO api_usage (uid, action, created_at) VALUES (?, 'message_read', ?)")
+        .bind(uid, now)
+        .run()
+        .catch(() => {});
+    });
+  db.prepare(
+    `INSERT INTO admin_events
+       (event_type, uid, inbox_id, ip, subject, is_otp, metadata, created_at)
+     VALUES ('api_usage', ?, ?, ?, 'message_read', 0, ?, ?)`
+  )
+    .bind(uid, inboxId, ip, endpoint || keyId || "", now)
     .run()
     .catch(() => {});
 }
@@ -84,6 +115,16 @@ export async function onRequestGet(context) {
         `Monthly API message read limit (${API_MONTHLY_READ_LIMIT.toLocaleString()}) reached. Resets on the 1st of next month.`,
         429,
         { used: monthlyReads, limit: API_MONTHLY_READ_LIMIT }
+      );
+    }
+
+    const keyMonthlyReads = await getMonthlyReadCount(env.DB, apiKeyAuth.uid, apiKeyAuth.keyId);
+    if (keyMonthlyReads >= apiKeyAuth.monthlyReadLimit) {
+      return err(
+        "KEY_LIMIT_EXCEEDED",
+        `This API key has reached its monthly message read limit (${apiKeyAuth.monthlyReadLimit.toLocaleString()}).`,
+        429,
+        { used: keyMonthlyReads, limit: apiKeyAuth.monthlyReadLimit, key_id: apiKeyAuth.keyId }
       );
     }
   }
@@ -131,7 +172,16 @@ export async function onRequestGet(context) {
 
     const messages = result.results || [];
 
-    if (apiKeyAuth) logReadUsage(env.DB, apiKeyAuth.uid);
+    if (apiKeyAuth) {
+      logReadUsage(env.DB, {
+        uid: apiKeyAuth.uid,
+        keyId: apiKeyAuth.keyId,
+        endpoint: "GET /api/messages",
+        ip,
+        inboxId,
+        statusCode: 200,
+      });
+    }
 
     return ok({
       inbox: {

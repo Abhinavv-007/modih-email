@@ -10,6 +10,8 @@
     "db:migrate": "wrangler d1 execute modih-mail-db --remote --file=migrate-add-owner-token.sql",
     "db:migrate:free-tier": "wrangler d1 execute modih-mail-db --remote --file=migrate-free-tier.sql",
     "db:migrate:security": "wrangler d1 execute modih-mail-db --remote --file=migrate-security-hardening.sql",
+    "db:migrate:key-limits": "wrangler d1 execute modih-mail-db --remote --file=migrate-api-key-limits.sql",
+    "db:migrate:admin": "wrangler d1 execute modih-mail-db --remote --file=migrate-admin-analytics.sql",
     "test": "vitest run",
     "test:watch": "vitest"
   },

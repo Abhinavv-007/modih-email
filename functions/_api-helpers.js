@@ -154,7 +154,7 @@ export async function validateOwnerToken(inbox, provided, pepper) {
  *
  * Format validation: "modih-" + exactly 32 lowercase hex chars.
  *
- * @returns {{ uid: string, plan: "developer", keyId: string } | null}
+ * @returns {{ uid: string, plan: "developer", keyId: string, monthlyCreateLimit: number, monthlyReadLimit: number } | null}
  */
 export async function resolveApiKey(keyValue, db, env) {
   if (!keyValue || typeof keyValue !== "string") return null;
@@ -170,30 +170,25 @@ export async function resolveApiKey(keyValue, db, env) {
     const pepperedHash = await hmacHex(rawHash, pepper);
 
     // 1. Peppered lookup (new keys and already-migrated old keys)
-    let keyRow = await db
-      .prepare("SELECT id, uid FROM api_keys WHERE key_hash_peppered = ? AND is_active = 1")
-      .bind(pepperedHash)
-      .first();
+    let keyRow = await lookupApiKeyRow(db, "key_hash_peppered", pepperedHash);
 
     let needsMigration = false;
     if (!keyRow) {
       // 2. Legacy SHA-256-only lookup (pre-migration keys)
-      keyRow = await db
-        .prepare("SELECT id, uid FROM api_keys WHERE key_hash = ? AND is_active = 1")
-        .bind(rawHash)
-        .first();
+      keyRow = await lookupApiKeyRow(db, "key_hash", rawHash);
       if (!keyRow) return null;
       needsMigration = true;
     }
 
-    // Plan gate — key must belong to a developer-plan user
-    const planRow = await db
-      .prepare("SELECT plan FROM user_plans WHERE uid = ?")
-      .bind(keyRow.uid)
-      .first();
-    if (planRow?.plan !== "developer") return null;
-
     const now = Math.floor(Date.now() / 1000);
+    const planRow = await getCurrentPlanRow(db, keyRow.uid);
+    if (planRow?.plan !== "developer") return null;
+    if (planRow.plan_expires_at && Number(planRow.plan_expires_at) <= now) {
+      db.prepare(
+        "UPDATE user_plans SET plan = 'free', updated_at = ?, plan_expires_at = NULL WHERE uid = ?"
+      ).bind(now, keyRow.uid).run().catch(() => {});
+      return null;
+    }
 
     // Touch last_used_at (best-effort, non-blocking)
     db.prepare("UPDATE api_keys SET last_used_at = ? WHERE id = ?")
@@ -209,11 +204,51 @@ export async function resolveApiKey(keyValue, db, env) {
         .catch(() => {});
     }
 
-    return { uid: keyRow.uid, plan: "developer", keyId: keyRow.id };
+    return {
+      uid: keyRow.uid,
+      plan: "developer",
+      keyId: keyRow.id,
+      monthlyCreateLimit: normalizeApiLimit(keyRow.monthly_create_limit, 5000),
+      monthlyReadLimit: normalizeApiLimit(keyRow.monthly_read_limit, 50000),
+    };
   } catch (e) {
     console.error("[auth] resolveApiKey error:", e.message);
     return null;
   }
+}
+
+async function getCurrentPlanRow(db, uid) {
+  try {
+    return await db
+      .prepare("SELECT plan, plan_expires_at FROM user_plans WHERE uid = ?")
+      .bind(uid)
+      .first();
+  } catch (e) {
+    if (!String(e?.message || "").includes("plan_expires_at")) throw e;
+    return db.prepare("SELECT plan FROM user_plans WHERE uid = ?").bind(uid).first();
+  }
+}
+
+async function lookupApiKeyRow(db, hashColumn, hashValue) {
+  try {
+    return await db
+      .prepare(`SELECT id, uid, monthly_create_limit, monthly_read_limit FROM api_keys WHERE ${hashColumn} = ? AND is_active = 1`)
+      .bind(hashValue)
+      .first();
+  } catch (e) {
+    // Keeps existing keys working during deploys where code reaches production
+    // before the D1 limit columns are migrated.
+    if (!String(e?.message || "").includes("monthly_create_limit")) throw e;
+    return db
+      .prepare(`SELECT id, uid FROM api_keys WHERE ${hashColumn} = ? AND is_active = 1`)
+      .bind(hashValue)
+      .first();
+  }
+}
+
+function normalizeApiLimit(value, fallback) {
+  const n = Number(value);
+  return Number.isFinite(n) && n >= 0 ? Math.floor(n) : fallback;
 }
 
 // ── Rate limiting ────────────────────────────────────────────────────────────

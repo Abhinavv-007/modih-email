@@ -51,14 +51,47 @@ const PLAN_CONFIG = {
 const TWENTY_FOUR_HOURS = 24 * 60 * 60;
 const TURNSTILE_VERIFY_URL = "https://challenges.cloudflare.com/turnstile/v0/siteverify";
 const API_MONTHLY_CREATE_LIMIT = 5000;
+const PLAN_RANK = { developer: 3, pro: 2, free: 1 };
 
 // ========== HELPERS ==========
 
-async function getMonthlyCreateCount(db, uid) {
+function betterPlan(a, b) {
+  return (PLAN_RANK[a] || 0) >= (PLAN_RANK[b] || 0) ? a : b;
+}
+
+async function expireExpiredPlans(db, now) {
+  try {
+    await db.prepare(
+      `UPDATE user_plans
+         SET plan = 'free', updated_at = ?, plan_expires_at = NULL
+       WHERE plan != 'free'
+         AND plan_expires_at IS NOT NULL
+         AND plan_expires_at <= ?`
+    ).bind(now, now).run();
+  } catch (error) {
+    if (!String(error?.message || "").includes("plan_expires_at")) throw error;
+  }
+}
+
+async function getMonthlyCreateCount(db, uid, keyId = null) {
   const now = new Date();
   const monthStart = Math.floor(
     new Date(now.getFullYear(), now.getMonth(), 1).getTime() / 1000
   );
+  if (keyId) {
+    try {
+      const row = await db
+        .prepare(
+          "SELECT COUNT(*) as cnt FROM api_usage WHERE uid = ? AND key_id = ? AND action = 'inbox_create' AND created_at >= ?"
+        )
+        .bind(uid, keyId, monthStart)
+        .first();
+      return row?.cnt || 0;
+    } catch (error) {
+      if (!String(error?.message || "").includes("key_id")) throw error;
+      return 0;
+    }
+  }
   const row = await db
     .prepare(
       "SELECT COUNT(*) as cnt FROM api_usage WHERE uid = ? AND action = 'inbox_create' AND created_at >= ?"
@@ -68,24 +101,77 @@ async function getMonthlyCreateCount(db, uid) {
   return row?.cnt || 0;
 }
 
-function logApiUsage(db, uid, action) {
+function logApiUsage(db, { uid, keyId = null, action, endpoint, ip = null, inboxId = null, statusCode = 200 }) {
   const now = Math.floor(Date.now() / 1000);
-  db.prepare("INSERT INTO api_usage (uid, action, created_at) VALUES (?, ?, ?)")
-    .bind(uid, action, now)
+  db.prepare(
+    `INSERT INTO api_usage
+       (uid, key_id, action, endpoint, inbox_id, ip, status_code, created_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+  )
+    .bind(uid, keyId, action, endpoint, inboxId, ip, statusCode, now)
+    .run()
+    .catch(() => {
+      db.prepare("INSERT INTO api_usage (uid, action, created_at) VALUES (?, ?, ?)")
+        .bind(uid, action, now)
+        .run()
+        .catch(() => {});
+    });
+  db.prepare(
+    `INSERT INTO admin_events
+       (event_type, uid, inbox_id, ip, subject, is_otp, metadata, created_at)
+     VALUES ('api_usage', ?, ?, ?, ?, 0, ?, ?)`
+  )
+    .bind(uid, inboxId, ip, action, endpoint || keyId || "", now)
     .run()
     .catch(() => {});
 }
 
-// Resolve Firebase Bearer token to a plan (free | pro | developer)
-async function getPlan(request, db) {
+function logAdminEvent(db, {
+  eventType,
+  uid = null,
+  email = "",
+  inboxId = null,
+  inboxEmail = "",
+  ip = null,
+  browserToken = null,
+  subject = null,
+  isOtp = 0,
+  createdAt = Math.floor(Date.now() / 1000),
+}) {
+  db.prepare(
+    `INSERT INTO admin_events
+       (event_type, uid, email, inbox_id, inbox_email, ip, browser_token, subject, is_otp, metadata, created_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+  )
+    .bind(
+      eventType,
+      uid,
+      email || "",
+      inboxId,
+      inboxEmail || "",
+      ip,
+      browserToken,
+      subject,
+      isOtp ? 1 : 0,
+      null,
+      createdAt
+    )
+    .run()
+    .catch(() => {});
+}
+
+// Resolve Firebase Bearer token to creator identity + current plan.
+async function getAuthContext(request, db) {
   try {
     const authHeader = request.headers.get("Authorization") || "";
-    if (!authHeader.startsWith("Bearer ")) return "free";
+    if (!authHeader.startsWith("Bearer ")) return { uid: null, email: "", plan: "free" };
     const token = authHeader.slice(7).trim();
-    if (!token) return "free";
+    if (!token) return { uid: null, email: "", plan: "free" };
 
     const user = await verifyFirebaseToken(token);
-    if (!user?.uid) return "free";
+    if (!user?.uid) return { uid: null, email: "", plan: "free" };
+
+    await expireExpiredPlans(db, Math.floor(Date.now() / 1000));
 
     const row = await db
       .prepare("SELECT plan FROM user_plans WHERE uid = ?")
@@ -101,17 +187,19 @@ async function getPlan(request, db) {
         .all();
       let emailBest = "free";
       for (const r of emailRows.results || []) {
-        if (r.plan === "developer") { emailBest = "developer"; break; }
-        if (r.plan === "pro") emailBest = "pro";
+        emailBest = betterPlan(emailBest, r.plan);
       }
-      const rank = { developer: 3, pro: 2, free: 1 };
-      if ((rank[emailBest] || 0) > (rank[plan] || 0)) plan = emailBest;
+      plan = betterPlan(plan, emailBest);
     }
 
-    return ["pro", "developer"].includes(plan) ? plan : "free";
+    return {
+      uid: user.uid,
+      email: user.email || "",
+      plan: ["pro", "developer"].includes(plan) ? plan : "free",
+    };
   } catch (e) {
-    console.error("getPlan error:", e.message);
-    return "free";
+    console.error("getAuthContext error:", e.message);
+    return { uid: null, email: "", plan: "free" };
   }
 }
 
@@ -238,15 +326,50 @@ async function verifyTurnstile(secret, token, ip) {
  * Insert a new inbox row.
  * Stores the HMAC hash of the owner token — never the raw token.
  */
-async function insertInbox(db, { id, email, ownerTokenHash, creatorIp, creatorToken, now, expiresAt }) {
-  await db
-    .prepare(
-      `INSERT INTO inboxes
-         (id, email, owner_token, owner_token_hash, token_version, creator_ip, creator_token, created_at, expires_at)
-       VALUES (?, ?, ?, ?, 2, ?, ?, ?, ?)`
-    )
-    .bind(id, email, "", ownerTokenHash, creatorIp, creatorToken, now, expiresAt)
-    .run();
+async function insertInbox(db, {
+  id,
+  email,
+  ownerTokenHash,
+  creatorIp,
+  creatorToken,
+  creatorUid = null,
+  creatorEmail = "",
+  creatorPlan = "free",
+  now,
+  expiresAt,
+}) {
+  try {
+    await db
+      .prepare(
+        `INSERT INTO inboxes
+           (id, email, owner_token, owner_token_hash, token_version, creator_ip, creator_token, creator_uid, creator_email, creator_plan, created_at, expires_at)
+         VALUES (?, ?, ?, ?, 2, ?, ?, ?, ?, ?, ?, ?)`
+      )
+      .bind(
+        id,
+        email,
+        "",
+        ownerTokenHash,
+        creatorIp,
+        creatorToken,
+        creatorUid,
+        creatorEmail || "",
+        creatorPlan || "free",
+        now,
+        expiresAt
+      )
+      .run();
+  } catch (error) {
+    if (!String(error?.message || "").includes("creator_")) throw error;
+    await db
+      .prepare(
+        `INSERT INTO inboxes
+           (id, email, owner_token, owner_token_hash, token_version, creator_ip, creator_token, created_at, expires_at)
+         VALUES (?, ?, ?, ?, 2, ?, ?, ?, ?)`
+      )
+      .bind(id, email, "", ownerTokenHash, creatorIp, creatorToken, now, expiresAt)
+      .run();
+  }
 }
 
 // ========== POST /api/inbox — Create inbox ==========
@@ -284,9 +407,17 @@ export async function onRequestPost(context) {
       }
     }
 
-    // ── Resolve user plan ────────────────────────────────────────────────
-    const plan   = apiKeyAuth ? apiKeyAuth.plan : await getPlan(request, env.DB);
+    // ── Resolve user plan + creator attribution ─────────────────────────
+    const authContext = apiKeyAuth
+      ? { uid: apiKeyAuth.uid, email: "", plan: apiKeyAuth.plan }
+      : await getAuthContext(request, env.DB);
+    const plan = authContext.plan;
     const limits = PLAN_CONFIG[plan] || PLAN_CONFIG.free;
+    const creatorMeta = {
+      creatorUid: authContext.uid,
+      creatorEmail: authContext.email,
+      creatorPlan: plan,
+    };
 
     // ── Monthly creation limit for API key requests ──────────────────────
     if (apiKeyAuth) {
@@ -297,6 +428,16 @@ export async function onRequestPost(context) {
           `Monthly API inbox creation limit (${API_MONTHLY_CREATE_LIMIT.toLocaleString()}) reached. Resets on the 1st of next month.`,
           429,
           { used: monthlyCreates, limit: API_MONTHLY_CREATE_LIMIT }
+        );
+      }
+
+      const keyMonthlyCreates = await getMonthlyCreateCount(env.DB, apiKeyAuth.uid, apiKeyAuth.keyId);
+      if (keyMonthlyCreates >= apiKeyAuth.monthlyCreateLimit) {
+        return err(
+          "KEY_LIMIT_EXCEEDED",
+          `This API key has reached its monthly inbox creation limit (${apiKeyAuth.monthlyCreateLimit.toLocaleString()}).`,
+          429,
+          { used: keyMonthlyCreates, limit: apiKeyAuth.monthlyCreateLimit, key_id: apiKeyAuth.keyId }
         );
       }
     }
@@ -376,10 +517,21 @@ export async function onRequestPost(context) {
           await insertInbox(env.DB, {
             id, email, ownerTokenHash,
             creatorIp: ip, creatorToken: browserToken,
+            ...creatorMeta,
             now, expiresAt,
           });
+          logAdminEvent(env.DB, {
+            eventType: "inbox_created",
+            uid: authContext.uid,
+            email: authContext.email,
+            inboxId: id,
+            inboxEmail: email,
+            ip,
+            browserToken,
+            createdAt: now,
+          });
           await logVisitorAction(env.DB, ip, browserToken);
-          auditLog(env.DB, "inbox.created", { inboxId: id, ip });
+          auditLog(env.DB, "inbox.created", { uid: authContext.uid, inboxId: id, ip });
           return ok({
             id,
             email,
@@ -420,10 +572,31 @@ export async function onRequestPost(context) {
         await insertInbox(env.DB, {
           id, email, ownerTokenHash,
           creatorIp: ip, creatorToken: browserToken,
+          ...creatorMeta,
           now, expiresAt,
         });
-        if (apiKeyAuth) logApiUsage(env.DB, apiKeyAuth.uid, "inbox_create");
-        auditLog(env.DB, "inbox.created", { uid: apiKeyAuth?.uid, inboxId: id, ip });
+        logAdminEvent(env.DB, {
+          eventType: "inbox_created",
+          uid: authContext.uid,
+          email: authContext.email,
+          inboxId: id,
+          inboxEmail: email,
+          ip,
+          browserToken,
+          createdAt: now,
+        });
+        if (apiKeyAuth) {
+          logApiUsage(env.DB, {
+            uid: apiKeyAuth.uid,
+            keyId: apiKeyAuth.keyId,
+            action: "inbox_create",
+            endpoint: "POST /api/inbox",
+            ip,
+            inboxId: id,
+            statusCode: 201,
+          });
+        }
+        auditLog(env.DB, "inbox.created", { uid: authContext.uid, inboxId: id, ip });
         return ok({ id, email, created_at: now, expires_at: expiresAt, owner_token: rawToken, plan }, 201);
       } catch (e) {
         if (e.message?.includes("UNIQUE")) {
@@ -444,10 +617,31 @@ export async function onRequestPost(context) {
         await insertInbox(env.DB, {
           id, email, ownerTokenHash,
           creatorIp: ip, creatorToken: browserToken,
+          ...creatorMeta,
           now, expiresAt,
         });
-        if (apiKeyAuth) logApiUsage(env.DB, apiKeyAuth.uid, "inbox_create");
-        auditLog(env.DB, "inbox.created", { uid: apiKeyAuth?.uid, inboxId: id, ip });
+        logAdminEvent(env.DB, {
+          eventType: "inbox_created",
+          uid: authContext.uid,
+          email: authContext.email,
+          inboxId: id,
+          inboxEmail: email,
+          ip,
+          browserToken,
+          createdAt: now,
+        });
+        if (apiKeyAuth) {
+          logApiUsage(env.DB, {
+            uid: apiKeyAuth.uid,
+            keyId: apiKeyAuth.keyId,
+            action: "inbox_create",
+            endpoint: "POST /api/inbox",
+            ip,
+            inboxId: id,
+            statusCode: 201,
+          });
+        }
+        auditLog(env.DB, "inbox.created", { uid: authContext.uid, inboxId: id, ip });
         return ok({ id, email, created_at: now, expires_at: expiresAt, owner_token: rawToken, plan }, 201);
       } catch (e) {
         if (e.message?.includes("UNIQUE")) continue;

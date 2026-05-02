@@ -353,7 +353,32 @@ describe("resolveApiKey", () => {
 
     const env = { API_KEY_PEPPER: KEY_PEPPER };
     const result = await resolveApiKey(rawKey, db, env);
-    expect(result).toEqual({ uid: TEST_UID, plan: "developer", keyId: "kid1" });
+    expect(result).toEqual({
+      uid: TEST_UID,
+      plan: "developer",
+      keyId: "kid1",
+      monthlyCreateLimit: 5000,
+      monthlyReadLimit: 50000,
+    });
+  });
+
+  it("returns per-key monthly limits when present", async () => {
+    const rawKey = "modih-" + secureHex(16);
+    const db = makeDb();
+    db._queue.push({
+      id: "kid_limited",
+      uid: TEST_UID,
+      monthly_create_limit: 1000,
+      monthly_read_limit: 10000,
+    });
+    db._queue.push({ plan: "developer" });
+    db._queue.push(null);
+
+    const env = { API_KEY_PEPPER: KEY_PEPPER };
+    const result = await resolveApiKey(rawKey, db, env);
+
+    expect(result?.monthlyCreateLimit).toBe(1000);
+    expect(result?.monthlyReadLimit).toBe(10000);
   });
 
   it("auto-migrates a legacy SHA-256-only key", async () => {

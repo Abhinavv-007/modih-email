@@ -23,6 +23,21 @@ function bestOfTwo(a, b) {
   return (PLAN_RANK[a] || 0) >= (PLAN_RANK[b] || 0) ? a : b;
 }
 
+async function expireExpiredPlans(db, now) {
+  try {
+    await db.prepare(
+      `UPDATE user_plans
+         SET plan = 'free', updated_at = ?, plan_expires_at = NULL
+       WHERE plan != 'free'
+         AND plan_expires_at IS NOT NULL
+         AND plan_expires_at <= ?`
+    ).bind(now, now).run();
+  } catch (error) {
+    // Older databases may not have plan_expires_at until the admin migration runs.
+    if (!String(error?.message || "").includes("plan_expires_at")) throw error;
+  }
+}
+
 export async function onRequestGet(context) {
   const { env, request } = context;
   const NO_CACHE = {
@@ -47,6 +62,8 @@ export async function onRequestGet(context) {
   const now = Math.floor(Date.now() / 1000);
 
   try {
+    await expireExpiredPlans(env.DB, now);
+
     // ── Step 1: Look up by exact UID ──────────────────────────────────────
     const byUID = await env.DB.prepare(
       "SELECT uid, email, plan FROM user_plans WHERE uid = ?"
