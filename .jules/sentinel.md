@@ -1,0 +1,4 @@
+## 2024-05-02 - XSS filter bypass via slashes before event handlers
+**Vulnerability:** The HTML sanitizer (used both on frontend and worker) only stripped inline event handlers if they were preceded by a whitespace character (`\s`). This allowed an attacker to bypass the filter using slashes (e.g., `<a/onclick=alert(1)>`).
+**Learning:** Whitespaces are not the only valid delimiters in HTML attributes. The HTML parser also accepts `/` and other characters as delimiters between the tag name and the first attribute or between attributes.
+**Prevention:** Instead of requiring a whitespace (`\s`), I updated the regex to look for either a whitespace or a slash `(?:\s|\/)+` before the `on*` event handler. Additionally, replacing multiple occurrences with one single robust regex improves performance and avoids weird corner-case behaviors.
