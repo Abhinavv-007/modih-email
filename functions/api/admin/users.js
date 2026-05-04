@@ -12,9 +12,11 @@ const RANGE_SECONDS = {
   "365d": 365 * 24 * 60 * 60,
 };
 
+import { safeEqual } from "../../_api-helpers.js";
+
 function isAdmin(request, env) {
   const secret = request.headers.get("X-Admin-Secret");
-  return secret && env.ADMIN_SECRET && secret === env.ADMIN_SECRET;
+  return secret && env.ADMIN_SECRET && safeEqual(secret, env.ADMIN_SECRET);
 }
 
 function adminUnauth() {
