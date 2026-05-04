@@ -1171,6 +1171,11 @@ function escapeHtml(text) {
 // a misbehaving worker, a stale cache, or future schema changes shouldn't
 // expose users to script execution or tracking pixels.
 //
+// IMPORTANT: keep these rules in sync with functions/_sanitize-html.js.
+// Both files run the same logic — this one inline because public/app.js is
+// loaded as a plain <script> (no bundler), and the other as an ES module
+// for the email-worker and Pages Functions tests.
+//
 // Strategy:
 //   - Strip every active-content tag (script/style/iframe/object/embed/form/
 //     base/meta/svg/math/link/source/track) along with their contents.
@@ -1185,25 +1190,46 @@ function escapeHtml(text) {
 function sanitizeRenderedHtml(html) {
   if (typeof html !== "string") return "";
 
+  // Normalise NULL bytes — some HTML parsers ignore them, our regex
+  // wouldn't, which historically allowed attackers to smuggle attributes.
+  const denul = html.replace(/\u0000/g, "");
+
+  // Decode numeric HTML entities for the printable ASCII range. The browser
+  // decodes these when parsing href/src values, so an attacker can sneak
+  // `java&#115;cript:` past a literal `javascript:` check otherwise. Named
+  // entities (&lt; &gt; &amp;) are intentionally left alone — those are how
+  // legitimate authors escape `<>&` for display.
+  const normalised = denul.replace(/&#(x?)([0-9a-fA-F]+);/g, (match, hex, num) => {
+    const code = parseInt(num, hex ? 16 : 10);
+    if (!Number.isFinite(code)) return match;
+    if (code >= 0x20 && code <= 0x7e) return String.fromCharCode(code);
+    return match;
+  });
+
   // Strip pairs of dangerous tags including their content.
-  const STRIP_PAIR = /<(script|style|iframe|object|form|svg|math|noscript|template)\b[\s\S]*?<\/\1\s*>/gi;
+  const STRIP_PAIR   = /<(script|style|iframe|object|form|svg|math|noscript|template)\b[\s\S]*?<\/\1\s*>/gi;
   // Strip self-closing / standalone dangerous tags.
   const STRIP_SINGLE = /<(embed|link|base|meta|source|track)\b[^>]*>/gi;
+  // Catch any unmatched openers (truncated / malformed HTML).
+  const STRIP_OPENER = /<\/?(script|style|iframe|object|svg|math|form|noscript|template)\b[^>]*>/gi;
 
-  return html
-    .replace(STRIP_PAIR, "")
+  return normalised
+    .replace(STRIP_PAIR,   "")
     .replace(STRIP_SINGLE, "")
-    // Any leftover unmatched script/style/iframe opener (truncated HTML).
-    .replace(/<\/?(script|style|iframe|object|svg|math|form|noscript|template)\b[^>]*>/gi, "")
+    .replace(STRIP_OPENER, "")
     // on* event handlers — quoted, single-quoted, and unquoted forms.
-    .replace(/\son\w+\s*=\s*"[^"]*"/gi, "")
-    .replace(/\son\w+\s*=\s*'[^']*'/gi, "")
-    .replace(/\son\w+\s*=\s*[^\s>]+/gi, "")
-    // Dangerous URL schemes — match optional whitespace and HTML-entity-
-    // encoded colons that would otherwise smuggle past the simple javascript:
-    // check (e.g. `java&#115;cript:`).
+    // The leading `[\s/]` handles slash-delimited attributes too — HTML
+    // parsers treat `<a/onclick=…>` exactly the same as `<a onclick=…>`,
+    // so the older `\son\w+` pattern was bypassable.
+    // We replace the match with a single space so the tag stays well-formed.
+    .replace(/[\s/]on\w+\s*=\s*"[^"]*"/gi, " ")
+    .replace(/[\s/]on\w+\s*=\s*'[^']*'/gi, " ")
+    .replace(/[\s/]on\w+\s*=\s*[^\s/>]+/gi, " ")
+    // Dangerous URL schemes — covers entity-encoded colons that bypass the
+    // literal `:` check (`java&#115;cript&#58;` etc.).
     .replace(/(javascript|vbscript|livescript|data|blob|file)\s*(?:&#0*58;?|&#x0*3a;?|:)/gi, "blocked:")
-    // Block remote images (tracking pixels, attacker-controlled URLs).
+    // Block ALL <img …> tags (tracking pixels + onerror handlers + remote
+    // URLs). The `\b` boundary catches the slash-delimited form too.
     .replace(/<img\b[^>]*>/gi, "[image removed]");
 }
 
