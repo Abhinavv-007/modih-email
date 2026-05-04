@@ -12,83 +12,9 @@ const RANGE_SECONDS = {
   "365d": 365 * 24 * 60 * 60,
 };
 
-import {
-  safeEqual,
-  isAuthRateLimited,
-  recordAuthFailure,
-  auditLog,
-} from "../../_api-helpers.js";
+import { auditLog } from "../../_api-helpers.js";
+import { checkAdminAuth } from "../../_admin-auth.js";
 
-// Brute-force protection for the admin secret. After ADMIN_AUTH_MAX failed
-// attempts within ADMIN_AUTH_WINDOW seconds (per IP) every further request
-// is short-circuited to 429 — even if the eventual guess would be correct.
-const ADMIN_AUTH_MAX    = 8;
-const ADMIN_AUTH_WINDOW = 15 * 60; // 15 minutes
-
-function clientIp(request) {
-  return request.headers.get("CF-Connecting-IP") || "unknown";
-}
-
-/**
- * Verify the X-Admin-Secret header.
- *
- * Returns one of:
- *   { ok: true }                       admin secret matches
- *   { ok: false, response: Response }  caller must return this response
- *
- * Always uses constant-time comparison via safeEqual so partial-match
- * timing oracles can't leak the secret one character at a time.
- *
- * Records a failure (per IP) on every non-empty wrong attempt and pre-checks
- * the rate-limit counter before attempting the comparison so an attacker
- * can't hammer the endpoint indefinitely. Empty-secret requests fail fast
- * without incrementing the counter so an honest "logged-out" probe (e.g.
- * a browser refresh) doesn't accidentally lock the legitimate operator out.
- *
- * Error responses are intentionally generic — the body never reveals
- * whether the secret was empty, partially correct, or fully wrong.
- */
-async function checkAdminAuth(request, env) {
-  const ip = clientIp(request);
-
-  if (env.RATE_LIMIT && await isAuthRateLimited(env.RATE_LIMIT, ip, "admin_secret", ADMIN_AUTH_MAX)) {
-    return {
-      ok: false,
-      response: Response.json(
-        { error: "Too many failed admin attempts. Try again later." },
-        { status: 429, headers: { "Retry-After": String(ADMIN_AUTH_WINDOW) } }
-      ),
-    };
-  }
-
-  const secret = request.headers.get("X-Admin-Secret") || "";
-  const expected = env.ADMIN_SECRET || "";
-
-  // Server-side secret missing — refuse access without leaking why.
-  if (!expected) {
-    return { ok: false, response: adminUnauthResponse() };
-  }
-
-  // Empty submission — treat as "not logged in" (don't burn a rate-limit
-  // slot on every page-load probe).
-  if (!secret) {
-    return { ok: false, response: adminUnauthResponse() };
-  }
-
-  if (!safeEqual(secret, expected)) {
-    if (env.RATE_LIMIT) {
-      await recordAuthFailure(env.RATE_LIMIT, ip, "admin_secret", ADMIN_AUTH_MAX, ADMIN_AUTH_WINDOW);
-    }
-    auditLog(env.DB, "admin_secret.invalid", { ip });
-    return { ok: false, response: adminUnauthResponse() };
-  }
-
-  return { ok: true };
-}
-
-function adminUnauthResponse() {
-  return Response.json({ error: "Unauthorized" }, { status: 401 });
-}
 
 function jsonError(error, status = 400) {
   return Response.json({ error }, { status });

@@ -112,6 +112,20 @@
     .gate-btn:hover { transform: translateY(-2px); box-shadow: 0 8px 28px rgba(212,167,106,0.45); }
     .gate-error { display: none; padding: 0.7rem 1rem; background: rgba(248,113,113,0.1); border: 1px solid rgba(248,113,113,0.22); border-radius: 10px; color: #fca5a5; font-size: 0.85rem; margin-top: 0.75rem; }
     .gate-error.visible { display: block; }
+    .gate-divider { display: flex; align-items: center; gap: 0.5rem; color: var(--text-3); font-size: 0.72rem; letter-spacing: 0.18em; text-transform: uppercase; margin: 1rem 0 0.85rem; }
+    .gate-divider::before, .gate-divider::after { content: ""; flex: 1; height: 1px; background: var(--glass-border); }
+    .gate-passkey-btn { width: 100%; padding: 0.85rem; border-radius: 12px; font-size: 0.92rem; font-weight: 600; font-family: inherit; cursor: pointer; background: rgba(255,255,255,0.04); border: 1px solid var(--glass-border); color: var(--text); transition: var(--t); display: inline-flex; align-items: center; justify-content: center; gap: 0.5rem; }
+    .gate-passkey-btn:hover { background: rgba(255,255,255,0.07); border-color: rgba(212,167,106,0.4); }
+    .gate-passkey-btn[disabled] { opacity: 0.5; cursor: not-allowed; }
+    .passkey-section { margin-top: 1.5rem; padding: 1.25rem; background: rgba(20,14,9,0.65); border: 1px solid var(--glass-border); border-radius: 16px; }
+    .passkey-section h2 { font-family: 'Cormorant Garamond', serif; font-style: italic; font-size: 1.4rem; margin: 0 0 0.4rem; }
+    .passkey-section p { font-size: 0.82rem; color: var(--text-3); margin: 0 0 1rem; }
+    .passkey-list { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 0.5rem; }
+    .passkey-item { display: flex; align-items: center; gap: 0.85rem; padding: 0.7rem 0.9rem; background: rgba(255,255,255,0.03); border: 1px solid var(--glass-border); border-radius: 10px; font-size: 0.85rem; }
+    .passkey-item .pk-label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .passkey-item .pk-meta { font-size: 0.72rem; color: var(--text-3); }
+    .passkey-item button { background: rgba(248,113,113,0.08); color: #fca5a5; border: 1px solid rgba(248,113,113,0.22); border-radius: 8px; padding: 0.35rem 0.7rem; font-size: 0.75rem; font-family: inherit; cursor: pointer; }
+    .passkey-empty { color: var(--text-3); font-size: 0.82rem; padding: 0.5rem 0; }
 
     /* ===== MAIN CONTENT ===== */
     .admin-main { flex: 1; padding: 2rem; max-width: 1500px; margin: 0 auto; width: 100%; }
@@ -419,6 +433,8 @@
         <p class="gate-sub">Enter your admin secret to continue</p>
         <input type="password" class="gate-input" id="gate-secret" placeholder="Admin secret…" autocomplete="off" onkeydown="if(event.key==='Enter') unlockAdmin()" />
         <button class="gate-btn" onclick="unlockAdmin()">Unlock Dashboard</button>
+        <div class="gate-divider" id="passkey-divider" style="display:none">or</div>
+        <button class="gate-passkey-btn" id="passkey-login-btn" type="button" onclick="loginWithPasskey()" style="display:none">🔑 Sign in with a passkey</button>
         <div class="gate-error" id="gate-error">Incorrect secret. Please try again.</div>
       </div>
     </div>
@@ -552,6 +568,16 @@
             <div class="table-loading">Loading…</div>
           </div>
         </article>
+      </section>
+
+      <!-- ===== PASSKEYS ===== -->
+      <section class="passkey-section" id="passkeys-card">
+        <h2>Passkeys</h2>
+        <p>Sign in to /admin with a hardware-backed passkey instead of typing the admin secret. Registration requires the current admin secret/session.</p>
+        <ul class="passkey-list" id="passkey-list">
+          <li class="passkey-empty">Loading registered passkeys…</li>
+        </ul>
+        <button type="button" class="gate-passkey-btn" style="margin-top:1rem; width:auto; padding:0.55rem 1rem;" id="passkey-register-btn" onclick="registerPasskey()">+ Add a passkey on this device</button>
       </section>
 
     </main>
@@ -808,6 +834,7 @@
           document.getElementById('logout-btn').style.display = 'block';
           const data = await res.json();
           applyDashboardData(data);
+          if (typeof loadPasskeys === 'function') loadPasskeys();
         } else {
           errEl.textContent = 'Admin API returned an error.';
           errEl.classList.add('visible');
@@ -1206,6 +1233,248 @@
     document.getElementById('gate-secret')?.addEventListener('keydown', e => {
       if (e.key === 'Enter') unlockAdmin();
     });
+
+    // ===== PASSKEYS =====
+    function passkeysSupported() {
+      return !!(window.PublicKeyCredential && navigator.credentials && navigator.credentials.create && navigator.credentials.get);
+    }
+
+    function b64uToBytes(input) {
+      const pad = '='.repeat((4 - (input.length % 4)) % 4);
+      const b64 = (input + pad).replace(/-/g, '+').replace(/_/g, '/');
+      const bin = atob(b64);
+      const out = new Uint8Array(bin.length);
+      for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+      return out;
+    }
+    function bytesToB64u(bytes) {
+      let s = '';
+      const arr = new Uint8Array(bytes);
+      for (let i = 0; i < arr.length; i++) s += String.fromCharCode(arr[i]);
+      return btoa(s).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+    }
+
+    async function passkeyApi(action, payload, extraHeaders = {}) {
+      return fetch('/api/admin/passkeys', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...extraHeaders },
+        body: JSON.stringify({ action, ...(payload || {}) }),
+      });
+    }
+
+    async function loginWithPasskey() {
+      const errEl = document.getElementById('gate-error');
+      const btn = document.getElementById('passkey-login-btn');
+      if (!passkeysSupported()) {
+        errEl.textContent = 'This browser does not support passkeys.';
+        errEl.classList.add('visible');
+        return;
+      }
+      errEl.classList.remove('visible');
+      btn.disabled = true;
+      try {
+        const beginRes = await passkeyApi('login/begin');
+        if (beginRes.status === 404) {
+          errEl.textContent = 'No passkeys registered yet. Sign in with the admin secret first, then add one.';
+          errEl.classList.add('visible');
+          return;
+        }
+        if (!beginRes.ok) throw new Error('login/begin failed');
+        const opts = await beginRes.json();
+        const assertion = await navigator.credentials.get({
+          publicKey: {
+            challenge: b64uToBytes(opts.challenge),
+            rpId: opts.rpId,
+            timeout: opts.timeout,
+            userVerification: opts.userVerification,
+            allowCredentials: (opts.allowCredentials || []).map(c => ({ type: c.type, id: b64uToBytes(c.id) })),
+          },
+        });
+        if (!assertion) throw new Error('Cancelled');
+        const finishRes = await passkeyApi('login/finish', {
+          credential: {
+            id: assertion.id,
+            type: assertion.type,
+            response: {
+              clientDataJSON: bytesToB64u(assertion.response.clientDataJSON),
+              authenticatorData: bytesToB64u(assertion.response.authenticatorData),
+              signature: bytesToB64u(assertion.response.signature),
+              userHandle: assertion.response.userHandle ? bytesToB64u(assertion.response.userHandle) : null,
+            },
+          },
+        });
+        if (!finishRes.ok) {
+          const data = await finishRes.json().catch(() => ({}));
+          throw new Error(data.error || 'login/finish failed');
+        }
+        // Cookie is set; no in-memory secret needed.
+        adminSecret = '';
+        document.getElementById('gate-view').style.display = 'none';
+        document.getElementById('admin-main').classList.remove('hidden');
+        document.getElementById('logout-btn').style.display = 'block';
+        loadUsers();
+        loadPasskeys();
+      } catch (err) {
+        errEl.textContent = err && err.name === 'NotAllowedError' ? 'Passkey prompt cancelled.' : (err.message || 'Passkey login failed.');
+        errEl.classList.add('visible');
+      } finally {
+        btn.disabled = false;
+      }
+    }
+
+    async function registerPasskey() {
+      if (!passkeysSupported()) { showToast('This browser does not support passkeys.'); return; }
+      const btn = document.getElementById('passkey-register-btn');
+      btn.disabled = true;
+      try {
+        const beginRes = await passkeyApi('register/begin', null, adminHeaders());
+        if (beginRes.status === 401 || beginRes.status === 429) {
+          showToast('Re-authenticate first.');
+          return;
+        }
+        if (!beginRes.ok) throw new Error('register/begin failed');
+        const opts = await beginRes.json();
+        const created = await navigator.credentials.create({
+          publicKey: {
+            challenge: b64uToBytes(opts.challenge),
+            rp: opts.rp,
+            user: { id: new TextEncoder().encode(opts.user.id), name: opts.user.name, displayName: opts.user.displayName },
+            pubKeyCredParams: opts.pubKeyCredParams,
+            timeout: opts.timeout,
+            attestation: opts.attestation,
+            authenticatorSelection: opts.authenticatorSelection,
+            excludeCredentials: (opts.excludeCredentials || []).map(c => ({ type: c.type, id: b64uToBytes(c.id) })),
+          },
+        });
+        if (!created) throw new Error('Cancelled');
+        const label = window.prompt('Name this passkey (e.g. "MacBook Touch ID"):', 'Passkey ' + new Date().toLocaleDateString()) || '';
+        const transports = (typeof created.response.getTransports === 'function') ? created.response.getTransports() : [];
+        const finishRes = await passkeyApi('register/finish', {
+          label,
+          transports,
+          credential: {
+            id: created.id,
+            type: created.type,
+            response: {
+              clientDataJSON: bytesToB64u(created.response.clientDataJSON),
+              attestationObject: bytesToB64u(created.response.attestationObject),
+            },
+          },
+        }, adminHeaders());
+        const data = await finishRes.json().catch(() => ({}));
+        if (!finishRes.ok) throw new Error(data.error || 'register/finish failed');
+        showToast('Passkey added.');
+        loadPasskeys();
+      } catch (err) {
+        showToast(err && err.name === 'NotAllowedError' ? 'Passkey prompt cancelled.' : (err.message || 'Could not register passkey.'));
+      } finally {
+        btn.disabled = false;
+      }
+    }
+
+    function adminHeaders(extra = {}) {
+      const headers = { ...extra };
+      if (adminSecret) headers['X-Admin-Secret'] = adminSecret;
+      return headers;
+    }
+
+    function escHtmlSafe(s) {
+      return String(s == null ? '' : s)
+        .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+    }
+
+    async function loadPasskeys() {
+      const ul = document.getElementById('passkey-list');
+      if (!ul) return;
+      try {
+        const res = await passkeyApi('list', null, adminHeaders());
+        if (!res.ok) {
+          ul.innerHTML = '<li class="passkey-empty">Could not load passkeys.</li>';
+          return;
+        }
+        const data = await res.json();
+        const items = data.passkeys || [];
+        if (!items.length) {
+          ul.innerHTML = '<li class="passkey-empty">No passkeys yet — add one to skip the secret next time.</li>';
+          return;
+        }
+        ul.innerHTML = items.map(p => {
+          const created = p.created_at ? new Date(p.created_at * 1000).toLocaleString() : '—';
+          const last = p.last_used_at ? new Date(p.last_used_at * 1000).toLocaleString() : 'never';
+          const transports = p.transports ? `· ${escHtmlSafe(p.transports)}` : '';
+          return `<li class="passkey-item">
+            <div class="pk-label">
+              <div>${escHtmlSafe(p.label || 'Unnamed passkey')}</div>
+              <div class="pk-meta">added ${escHtmlSafe(created)} · last used ${escHtmlSafe(last)} ${transports}</div>
+            </div>
+            <button type="button" data-passkey-delete="${escHtmlSafe(p.id)}">Remove</button>
+          </li>`;
+        }).join('');
+      } catch {
+        ul.innerHTML = '<li class="passkey-empty">Could not load passkeys.</li>';
+      }
+    }
+
+    async function deletePasskey(id) {
+      if (!confirm('Remove this passkey? It can no longer be used to sign in.')) return;
+      try {
+        const res = await passkeyApi('delete', { id: Number(id) }, adminHeaders());
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({}));
+          throw new Error(data.error || 'delete failed');
+        }
+        showToast('Passkey removed.');
+        loadPasskeys();
+      } catch (err) {
+        showToast(err.message || 'Could not remove passkey.');
+      }
+    }
+
+    document.addEventListener('click', e => {
+      const btn = e.target.closest && e.target.closest('[data-passkey-delete]');
+      if (!btn) return;
+      e.preventDefault();
+      e.stopPropagation();
+      deletePasskey(btn.getAttribute('data-passkey-delete'));
+    });
+
+    async function showPasskeyGateButton() {
+      if (!passkeysSupported()) return;
+      try {
+        const res = await passkeyApi('available');
+        if (!res.ok) return;
+        const data = await res.json();
+        if (data.available) {
+          document.getElementById('passkey-divider').style.display = 'flex';
+          document.getElementById('passkey-login-btn').style.display = 'inline-flex';
+        }
+      } catch {}
+    }
+    showPasskeyGateButton();
+
+    async function tryResumeAdminSession() {
+      // If the session cookie from a previous passkey login is still valid,
+      // skip the gate entirely and load the dashboard.
+      try {
+        const res = await fetch(`/api/admin/users?range=${currentRange}`);
+        if (!res.ok) return;
+        adminSecret = '';
+        document.getElementById('gate-view').style.display = 'none';
+        document.getElementById('admin-main').classList.remove('hidden');
+        document.getElementById('logout-btn').style.display = 'block';
+        applyDashboardData(await res.json());
+        loadPasskeys();
+      } catch {}
+    }
+    tryResumeAdminSession();
+
+    // Patch logout to clear the server-side session cookie if one exists.
+    const _origHandleLogout = handleLogout;
+    handleLogout = function () {
+      passkeyApi('logout').catch(() => {});
+      _origHandleLogout();
+    };
   </script>
 </body>
 </html>
