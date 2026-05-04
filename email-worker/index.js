@@ -2,6 +2,7 @@
 // Receives inbound emails via Cloudflare Email Routing and stores them in D1
 
 import PostalMime from 'postal-mime';
+import { sanitizeRenderedHtml } from '../functions/_sanitize-html.js';
 
 // ========== SHARED HELPERS ==========
 async function cleanupExpired(db) {
@@ -109,25 +110,11 @@ export default {
       let bodyText = parsed.text || "";
 
       // Sanitize HTML — strip active-content tags, event handlers, dangerous
-      // URL schemes, and remote images (tracking pixels). Mirrors the client-
-      // side sanitizer in public/app.js — keep both in sync if either changes.
+      // URL schemes, and remote images (tracking pixels). The shared
+      // sanitizer is also used client-side (public/app.js) for defense in
+      // depth. Update functions/_sanitize-html.js to change the rules.
       if (bodyHtml) {
-        bodyHtml = bodyHtml
-          // Strip pairs (tag + content) for execution-capable elements.
-          .replace(/<(script|style|iframe|object|form|svg|math|noscript|template)\b[\s\S]*?<\/\1\s*>/gi, "")
-          // Strip standalone tags that pull or redirect resources.
-          .replace(/<(embed|link|base|meta|source|track)\b[^>]*>/gi, "")
-          // Catch any unmatched openers (truncated / malformed HTML).
-          .replace(/<\/?(script|style|iframe|object|svg|math|form|noscript|template)\b[^>]*>/gi, "")
-          // on* event handlers — quoted, single-quoted, and unquoted forms.
-          .replace(/\son\w+\s*=\s*"[^"]*"/gi, "")
-          .replace(/\son\w+\s*=\s*'[^']*'/gi, "")
-          .replace(/\son\w+\s*=\s*[^\s>]+/gi, "")
-          // Dangerous URL schemes including HTML-entity-encoded colon
-          // variants (java&#115;cript: etc.).
-          .replace(/(javascript|vbscript|livescript|data|blob|file)\s*(?:&#0*58;?|&#x0*3a;?|:)/gi, "blocked:")
-          // Block ALL remote images to prevent IP leak via tracking pixels.
-          .replace(/<img\b[^>]*>/gi, "[image removed]");
+        bodyHtml = sanitizeRenderedHtml(bodyHtml);
       }
 
       // Limit body size (skip attachments)
