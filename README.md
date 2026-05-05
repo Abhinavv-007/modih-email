@@ -371,5 +371,5 @@ modih-email/
 <div align="center">
   <sub>✉️ Built by <a href="https://abhnv.in"><b>Abhinav Raj</b></a> · powered end-to-end by Cloudflare.</sub>
   <br/>
-  <a href="https://abhnv.in">Portfolio</a> · <a href="https://www.linkedin.com/in/abhnv07/">LinkedIn</a> · <a href="https://x.com/Abhnv007">X</a> · <a href="https://www.instagram.com/abhinavv.007/">Instagram</a>
+  <a href="https://abhnv.in">Portfolio</a> · <a href="https://www.linkedin.com/in/abhnv07/">LinkedIn</a> · <a href="https://x.com/Abhnv8">X</a> · <a href="https://www.instagram.com/abhinavv.007/">Instagram</a>
 </div>
