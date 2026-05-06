@@ -1,5 +1,4 @@
-## 2024-05-04 - Timing Attack Vulnerability on Admin Secret
-
-**Vulnerability:** The `isAdmin` function in `functions/api/admin/users.js` checked the `X-Admin-Secret` header against the `env.ADMIN_SECRET` environment variable using a standard string comparison (`secret === env.ADMIN_SECRET`). This is vulnerable to timing attacks, as string comparison stops as soon as a character mismatch is found.
-**Learning:** Even internal admin secrets need constant-time string comparisons to prevent attackers from guessing the secret one character at a time by measuring response times. The application already had a `safeEqual` function in `_api-helpers.js`, but it wasn't being used consistently for all secret comparisons.
-**Prevention:** Always use constant-time comparison functions (like `safeEqual`) when verifying secrets, tokens, hashes, or passwords.
+## 2024-05-06 - Add Security Headers
+**Vulnerability:** Missing basic security headers like HSTS, X-Frame-Options, X-Content-Type-Options, Referrer-Policy, and Content-Security-Policy.
+**Learning:** For Cloudflare Pages projects, standard security headers can be enforced by adding a `_headers` file in the static build output directory (`public/_headers` in this case).
+**Prevention:** Include a standard `_headers` file when setting up new Cloudflare Pages projects to enforce baseline defense-in-depth protections.
