@@ -1196,9 +1196,10 @@ function sanitizeRenderedHtml(html) {
     // Any leftover unmatched script/style/iframe opener (truncated HTML).
     .replace(/<\/?(script|style|iframe|object|svg|math|form|noscript|template)\b[^>]*>/gi, "")
     // on* event handlers — quoted, single-quoted, and unquoted forms.
-    .replace(/\son\w+\s*=\s*"[^"]*"/gi, "")
-    .replace(/\son\w+\s*=\s*'[^']*'/gi, "")
-    .replace(/\son\w+\s*=\s*[^\s>]+/gi, "")
+    // Handles whitespace OR slashes as separators before the attribute.
+    .replace(/(?:\s|\/)+on\w+\s*=\s*"[^"]*"/gi, "")
+    .replace(/(?:\s|\/)+on\w+\s*=\s*'[^']*'/gi, "")
+    .replace(/(?:\s|\/)+on\w+\s*=\s*[^\s>]+/gi, "")
     // Dangerous URL schemes — match optional whitespace and HTML-entity-
     // encoded colons that would otherwise smuggle past the simple javascript:
     // check (e.g. `java&#115;cript:`).

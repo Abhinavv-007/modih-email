@@ -120,9 +120,10 @@ export default {
           // Catch any unmatched openers (truncated / malformed HTML).
           .replace(/<\/?(script|style|iframe|object|svg|math|form|noscript|template)\b[^>]*>/gi, "")
           // on* event handlers — quoted, single-quoted, and unquoted forms.
-          .replace(/\son\w+\s*=\s*"[^"]*"/gi, "")
-          .replace(/\son\w+\s*=\s*'[^']*'/gi, "")
-          .replace(/\son\w+\s*=\s*[^\s>]+/gi, "")
+          // Handles whitespace OR slashes as separators before the attribute.
+          .replace(/(?:\s|\/)+on\w+\s*=\s*"[^"]*"/gi, "")
+          .replace(/(?:\s|\/)+on\w+\s*=\s*'[^']*'/gi, "")
+          .replace(/(?:\s|\/)+on\w+\s*=\s*[^\s>]+/gi, "")
           // Dangerous URL schemes including HTML-entity-encoded colon
           // variants (java&#115;cript: etc.).
           .replace(/(javascript|vbscript|livescript|data|blob|file)\s*(?:&#0*58;?|&#x0*3a;?|:)/gi, "blocked:")
