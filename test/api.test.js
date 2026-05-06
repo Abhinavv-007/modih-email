@@ -106,6 +106,14 @@ function makeDb() {
 
   return {
     prepare: (sql) => stmt(sql),
+    // D1's `batch()` runs all the prepared statements together. The mock
+    // executes each statement's `.run()` in order so the recorded queries
+    // and queue draining stay consistent with non-batch tests.
+    async batch(stmts) {
+      const out = [];
+      for (const s of stmts) out.push(await s.run());
+      return out;
+    },
     returns: (...rows) => { queue.push(...rows); return makeDbProxy(queue, queries); },
     _queue:   queue,
     _queries: queries,
