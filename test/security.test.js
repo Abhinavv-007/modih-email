@@ -202,6 +202,60 @@ describe("sanitizeRenderedHtml — dangerous URL schemes", () => {
   });
 });
 
+describe("sanitizeRenderedHtml — URL-bypass whitespace inside scheme", () => {
+  // The WHATWG URL parser strips ASCII tab (\t), LF (\n), CR (\r) from URLs
+  // BEFORE parsing the scheme, so embedding any of those chars inside the
+  // scheme name (literal or HTML-entity-encoded) bypasses a literal
+  // `javascript|...` regex. See url.spec.whatwg.org §URL parser.
+  //
+  // Each payload below would render as a live `javascript:` (or vbscript:)
+  // URL in a browser if NOT defanged. The sanitizer must turn the embedded
+  // whitespace into a real ASCII space (which the URL parser does NOT
+  // strip) so the scheme name is corrupted enough to never be honoured.
+  const cases = [
+    { name: "literal TAB in javascript scheme",     payload: '<a href="javas\tcript:alert(1)">x</a>' },
+    { name: "literal LF in javascript scheme",      payload: '<a href="java\nscript:alert(1)">x</a>' },
+    { name: "literal CR in javascript scheme",      payload: '<a href="java\rscript:alert(1)">x</a>' },
+    { name: "literal NUL in javascript scheme",     payload: '<a href="java\u0000script:alert(1)">x</a>' },
+    { name: "&Tab; named entity",                    payload: '<a href="java&Tab;script:alert(1)">x</a>' },
+    { name: "&NewLine; named entity",                payload: '<a href="java&NewLine;script:alert(1)">x</a>' },
+    { name: "&CR; named entity",                     payload: '<a href="java&CR;script:alert(1)">x</a>' },
+    { name: "&LF; named entity",                     payload: '<a href="java&LF;script:alert(1)">x</a>' },
+    { name: "&#9; decimal TAB entity",               payload: '<a href="java&#9;script:alert(1)">x</a>' },
+    { name: "&#x09; hex TAB entity",                 payload: '<a href="java&#x09;script:alert(1)">x</a>' },
+    { name: "&#10; decimal LF entity",               payload: '<a href="java&#10;script:alert(1)">x</a>' },
+    { name: "&#x0a; hex LF entity",                  payload: '<a href="java&#x0a;script:alert(1)">x</a>' },
+    { name: "&#13; decimal CR entity",               payload: '<a href="java&#13;script:alert(1)">x</a>' },
+    { name: "&#x0d; hex CR entity",                  payload: '<a href="java&#x0d;script:alert(1)">x</a>' },
+    { name: "tab inside vbscript scheme",            payload: '<a href="va\tbscript:msgbox(1)">x</a>' },
+    { name: "tab + entity colon combo",              payload: '<a href="java&#9;script&#58;alert(1)">x</a>' },
+    { name: "mixed-case + named tab",                payload: '<a href="JaVa&Tab;ScRiPt:alert(1)">x</a>' },
+    { name: "tab inside src= for embed-class tag",   payload: '<input type=image src="javas\tcript:alert(1)">' },
+  ];
+
+  for (const { name, payload } of cases) {
+    it(`defangs URL-bypass whitespace: ${name}`, () => {
+      const out = sanitizeRenderedHtml(payload);
+      // Browser-sees `javascript:` only if the scheme letters are
+      // contiguous (after the parser strips tab/LF/CR). Our fix turns
+      // those chars into real spaces, so this regex must never match.
+      expect(out, "no live javascript: scheme").not.toMatch(/javascript\s*:/i);
+      expect(out, "no live vbscript: scheme").not.toMatch(/vbscript\s*:/i);
+      expect(out, "no entity-colon javascript:").not.toMatch(/javascript&#0*58;?/i);
+    });
+  }
+
+  it("preserves TAB / LF / CR in body text (whitespace only stripped inside <...>)", () => {
+    const safe = "<p>Hello\tworld\nwith\rtabs</p>";
+    expect(sanitizeRenderedHtml(safe)).toBe(safe);
+  });
+
+  it("preserves TAB / LF / CR inside <pre> content", () => {
+    const safe = "<pre>line1\n\tindented\nline3</pre>";
+    expect(sanitizeRenderedHtml(safe)).toBe(safe);
+  });
+});
+
 describe("sanitizeRenderedHtml — image blocking", () => {
   it("removes ANY <img> (tracking pixel + onerror combo)", () => {
     const cases = [

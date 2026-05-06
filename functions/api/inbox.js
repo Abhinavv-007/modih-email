@@ -193,8 +193,16 @@ async function getAuthContext(request, db) {
       .first();
     let plan = row?.plan || "free";
 
-    // Fallback: resolve by email in case UID wasn't synced yet (admin upgrade path)
-    if (user.email) {
+    // Fallback: resolve by email in case the UID row hasn't been synced yet
+    // (e.g. admin assigned a paid plan by email before the user logged in).
+    //
+    // SECURITY: only honour the email match when Firebase reports the
+    // address is verified. Without this gate, an attacker who registers a
+    // Firebase account using a victim's email — even without verifying it
+    // — would inherit any paid plan the admin had assigned to that email.
+    // UID-based lookup (above) is unaffected and continues to work for
+    // every legitimate user.
+    if (user.email && user.email_verified === true) {
       const emailRows = await db
         .prepare("SELECT plan FROM user_plans WHERE LOWER(email) = LOWER(?)")
         .bind(user.email)

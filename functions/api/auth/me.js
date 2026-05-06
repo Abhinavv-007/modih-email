@@ -91,8 +91,21 @@ export async function onRequestGet(context) {
     ).bind(uid).first();
 
     // ── Step 2: Look up highest plan by email (catches admin-upgraded rows) ─
+    //
+    // SECURITY: any email-based lookup MUST require email_verified === true.
+    // Otherwise an attacker who registers a Firebase account using a
+    // victim's email (without ever verifying it) inherits whatever paid
+    // plan the admin had assigned to that email — and Step 5 below would
+    // delete the legitimate user's UID row, completing the takeover.
+    //
+    // Treating an unverified-email Firebase user as a "free" account by
+    // default is the safe behaviour: the worst case is that a real user
+    // doesn't get their admin-assigned plan until they verify, which is
+    // exactly the trust signal we need to honour cross-account inheritance.
+    const emailTrusted = Boolean(email) && email_verified === true;
+
     let emailBestPlan = "free";
-    if (email) {
+    if (emailTrusted) {
       const emailRows = await env.DB.prepare(
         "SELECT plan FROM user_plans WHERE LOWER(email) = LOWER(?)"
       ).bind(email).all();
@@ -102,7 +115,10 @@ export async function onRequestGet(context) {
     }
 
     // ── Step 3: Resolve final plan ─────────────────────────────────────────
-    // Take the highest of: the UID row's plan OR the best plan found by email
+    // Take the highest of: the UID row's plan OR the best plan found by email.
+    // When `emailTrusted` is false we silently keep `emailBestPlan = "free"`,
+    // so the only thing the unverified-email user can see is the plan
+    // already attached to their own UID.
     const finalPlan = bestOfTwo(byUID?.plan || "free", emailBestPlan);
 
     // ── Step 4: Sync the DB so UID row always holds the canonical plan ─────
@@ -120,7 +136,13 @@ export async function onRequestGet(context) {
     }
 
     // ── Step 5: Clean up orphan rows with same email but different UID ──────
-    if (email) {
+    //
+    // SECURITY: same gate as Step 2. Without it, an unverified-email
+    // attacker could DELETE the legitimate user's plan row purely by
+    // logging in once. Restrict the destructive cleanup to verified
+    // emails — by definition they're the only ones we can claim
+    // ownership over.
+    if (emailTrusted) {
       await env.DB.prepare(
         "DELETE FROM user_plans WHERE LOWER(email) = LOWER(?) AND uid != ?"
       ).bind(email, uid).run();
