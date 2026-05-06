@@ -2886,9 +2886,6 @@ body {
   /* Hero section tighter */
   .hero-section { padding-top: 5rem; padding-bottom: 1rem; }
   .hero-content { padding: 0 0.25rem; }
-
-  /* Dev API callout in generate section */
-  #dev-api-callout a { padding: 0.85rem 1rem; gap: 0.75rem; }
 }
 
 @media (max-width: 480px) {
@@ -2919,4 +2916,271 @@ body {
   /* Footer */
   .footer { padding: 2rem 1rem; }
   .footer-links { gap: 0.75rem; flex-direction: column; align-items: center; }
+}
+
+/* ============================================================
+   NAV AUTH SKELETON
+   Shown inside #nav-auth-area until renderNavAuth() replaces
+   the innerHTML. Prevents the 1–2s blank flash that happens
+   while the Firebase SDK loads, the auth listener fires, and
+   /api/auth/me round-trips. Sized roughly between the "Sign Up"
+   button and the logged-in pill — so swap-in shifts the layout
+   minimally either way.
+   ============================================================ */
+.nav-auth-skeleton {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+}
+
+.nav-auth-skeleton-pill {
+  display: inline-block;
+  width: 110px;
+  height: 32px;
+  border-radius: 100px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0.04) 0%,
+    rgba(255, 255, 255, 0.10) 50%,
+    rgba(255, 255, 255, 0.04) 100%
+  );
+  background-size: 200% 100%;
+  animation: navAuthShimmer 1.6s ease-in-out infinite;
+  /* Match the desktop pill backdrop so the swap is seamless. */
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+}
+
+@keyframes navAuthShimmer {
+  0%   { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .nav-auth-skeleton-pill { animation: none; }
+}
+
+@media (max-width: 768px) {
+  /* Mobile shows a hamburger pill (~52px) — shrink the skeleton
+     so we don't briefly take more space than the final element. */
+  .nav-auth-skeleton-pill { width: 56px; }
+}
+
+/* ============================================================
+   DEVELOPER API DASHBOARD CTA
+   Frosted-glass pill with an animated iridescent edge that
+   responds to hover by speeding up the spin and lifting the
+   inner surface. The dark inner card sits 1.5px inside the
+   spinning conic-gradient, so only a thin rainbow rim shows.
+   ============================================================ */
+/* Wrapper — JS toggles display: none/block. We center the inner
+   CTA via margin:auto so the wrapper can stay block-level and the
+   `display: 'block'` set in app.js continues to work as expected. */
+#dev-api-callout {
+  margin-top: 1.5rem;
+  width: 100%;
+  text-align: center;
+}
+
+.dev-api-cta {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  width: 100%;
+  max-width: 480px;
+  margin: 0 auto;
+  padding: 0.75rem 1.05rem 0.75rem 0.7rem;
+  border-radius: 100px;
+  text-decoration: none;
+  color: #eaddff;
+  cursor: pointer;
+  transition:
+    transform 320ms cubic-bezier(0.2, 0.7, 0.2, 1),
+    box-shadow 320ms cubic-bezier(0.2, 0.7, 0.2, 1),
+    color 280ms ease;
+}
+
+/* Rotating iridescent halo. Sits two layers behind the inner
+   card so only the 1.5px rim ever shows. The element is much
+   larger than the parent (`inset: -150%`) so the rotation
+   covers the full perimeter without any uncovered corners. */
+.dev-api-cta::before {
+  content: "";
+  position: absolute;
+  z-index: -2;
+  inset: -150%;
+  background: conic-gradient(
+    from 0deg,
+    rgba(167, 139, 250, 0.95),  /* purple */
+    rgba( 96, 165, 250, 0.95),  /* blue   */
+    rgba(244, 114, 182, 0.85),  /* pink   */
+    rgba(251, 191,  36, 0.75),  /* gold   */
+    rgba( 52, 211, 153, 0.85),  /* mint   */
+    rgba(167, 139, 250, 0.95)
+  );
+  animation: devApiSpin 8s linear infinite;
+  opacity: 0.55;
+  transition: opacity 380ms ease;
+}
+
+/* Dark inner card. Covers the halo, leaving a thin animated
+   border. On hover this lifts and the background gets lighter
+   to invert toward the bright iridescent feel from the spec. */
+.dev-api-cta::after {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  inset: 1.5px;
+  border-radius: inherit;
+  background:
+    radial-gradient(120% 200% at 0% 0%, rgba(167, 139, 250, 0.10), transparent 55%),
+    radial-gradient(120% 200% at 100% 100%, rgba( 96, 165, 250, 0.08), transparent 55%),
+    rgba(8, 5, 20, 0.92);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  transition: background 420ms ease, inset 420ms ease;
+}
+
+@keyframes devApiSpin {
+  to { transform: rotate(360deg); }
+}
+
+.dev-api-cta-inner {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  text-align: left;
+  min-width: 0;
+}
+
+.dev-api-cta-icon {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.25rem 0.7rem 0.25rem 0.55rem;
+  border-radius: 100px;
+  background: rgba(167, 139, 250, 0.18);
+  border: 1px solid rgba(167, 139, 250, 0.32);
+  flex-shrink: 0;
+  transition:
+    background 320ms ease,
+    border-color 320ms ease,
+    box-shadow 320ms ease;
+}
+
+.dev-api-cta-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #a78bfa;
+  box-shadow: 0 0 8px rgba(167, 139, 250, 0.7);
+  flex-shrink: 0;
+}
+
+.dev-api-cta-tag {
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: #eaddff;
+  text-transform: uppercase;
+}
+
+.dev-api-cta-text {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  min-width: 0;
+}
+
+.dev-api-cta-title {
+  font-size: 0.88rem;
+  font-weight: 600;
+  line-height: 1.2;
+  color: #f4ecff;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.dev-api-cta-subtitle {
+  font-size: 0.7rem;
+  font-family: 'Inter', sans-serif;
+  line-height: 1.25;
+  color: rgba(255, 255, 255, 0.65);
+  margin-top: 0.15rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.dev-api-cta-chevron {
+  flex-shrink: 0;
+  color: #a78bfa;
+  transition: transform 320ms cubic-bezier(0.2, 0.7, 0.2, 1), color 280ms ease;
+}
+
+/* ----- HOVER / FOCUS STATE ----- */
+.dev-api-cta:hover,
+.dev-api-cta:focus-visible {
+  transform: translateY(-2px);
+  color: #ffffff;
+  box-shadow:
+    0 18px 44px -16px rgba(167, 139, 250, 0.55),
+    0 0 0 1px rgba(167, 139, 250, 0.18);
+  outline: none;
+}
+
+.dev-api-cta:hover::before,
+.dev-api-cta:focus-visible::before {
+  opacity: 1;
+  /* Speed up the rim spin to match the energy of the hover. */
+  animation-duration: 3.5s;
+}
+
+.dev-api-cta:hover::after,
+.dev-api-cta:focus-visible::after {
+  background:
+    radial-gradient(120% 200% at 0% 0%, rgba(167, 139, 250, 0.22), transparent 55%),
+    radial-gradient(120% 200% at 100% 100%, rgba( 96, 165, 250, 0.18), transparent 55%),
+    rgba(18, 12, 38, 0.78);
+}
+
+.dev-api-cta:hover .dev-api-cta-icon,
+.dev-api-cta:focus-visible .dev-api-cta-icon {
+  background: rgba(167, 139, 250, 0.32);
+  border-color: rgba(167, 139, 250, 0.55);
+  box-shadow: 0 0 14px rgba(167, 139, 250, 0.35);
+}
+
+.dev-api-cta:hover .dev-api-cta-chevron,
+.dev-api-cta:focus-visible .dev-api-cta-chevron {
+  transform: translateX(4px);
+  color: #ffffff;
+}
+
+.dev-api-cta:active {
+  transform: translateY(-1px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dev-api-cta::before { animation: none; }
+  .dev-api-cta,
+  .dev-api-cta::after,
+  .dev-api-cta-icon,
+  .dev-api-cta-chevron { transition: none; }
+}
+
+@media (max-width: 480px) {
+  .dev-api-cta {
+    padding: 0.7rem 0.9rem 0.7rem 0.6rem;
+    gap: 0.5rem;
+  }
+  .dev-api-cta-subtitle {
+    font-size: 0.66rem;
+  }
 }
