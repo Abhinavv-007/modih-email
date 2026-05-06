@@ -70,7 +70,12 @@
       </div>
       <!-- Auth area: shows Sign In OR logged-in user pill -->
       <div id="nav-auth-area">
-        <!-- Rendered by JS after Firebase auth resolves -->
+        <!-- Skeleton placeholder shown until Firebase auth resolves and
+             renderNavAuth() replaces this innerHTML. Prevents the blank
+             flash while the SDK + /api/auth/me round-trip complete. -->
+        <div class="nav-auth-skeleton" aria-hidden="true">
+          <span class="nav-auth-skeleton-pill"></span>
+        </div>
       </div>
     </div>
   </nav>
@@ -364,21 +369,21 @@
       </div>
 
       <!-- Developer API callout (shown only for developer plan users) -->
-      <div id="dev-api-callout" style="display:none; margin-top:1.5rem; text-align:center;">
-        <a href="/developer.html" style="text-decoration:none;">
-          <div class="hero-tag-pill" style="margin-bottom:0; width:100%; max-width:480px; justify-content:space-between; padding:0.6rem 1rem 0.6rem 0.6rem; background:rgba(8,5,20,0.82); border-color:rgba(167,139,250,0.4); backdrop-filter:blur(20px); -webkit-backdrop-filter:blur(20px); box-shadow: 0 4px 24px rgba(0,0,0,0.5);">
-            <div style="display:flex; align-items:center; gap:0.75rem; text-align:left;">
-              <div class="new-badge-inner" style="background:rgba(167,139,250,0.2); border:1px solid rgba(167,139,250,0.35);">
-                <span class="status-dot" style="background-color:#a78bfa; box-shadow:0 0 8px rgba(167,139,250,0.6);"></span>
-                <span class="new-text" style="color:#eaddff; font-weight:700;">API</span>
-              </div>
-              <div style="display:flex; flex-direction:column; justify-content:center;">
-                <span class="tag-text" style="color:#eaddff; font-weight:600; font-size:0.85rem; line-height:1.2;">Developer API Dashboard</span>
-                <span style="font-size:0.7rem; color:rgba(255,255,255,0.65); font-family:'Inter', sans-serif; line-height:1.2; margin-top:0.2rem;">Manage API keys • 5k creates/mo • 50k reads/mo • 30-day TTL</span>
-              </div>
-            </div>
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#a78bfa" stroke-width="2" style="flex-shrink:0; margin-left:0.5rem;"><polyline points="9 18 15 12 9 6"/></svg>
-          </div>
+      <div id="dev-api-callout" style="display:none;">
+        <a href="/developer.html" class="dev-api-cta" aria-label="Open Developer API Dashboard">
+          <span class="dev-api-cta-inner">
+            <span class="dev-api-cta-icon" aria-hidden="true">
+              <span class="dev-api-cta-dot"></span>
+              <span class="dev-api-cta-tag">API</span>
+            </span>
+            <span class="dev-api-cta-text">
+              <span class="dev-api-cta-title">Developer API Dashboard</span>
+              <span class="dev-api-cta-subtitle">Manage API keys · 5k creates/mo · 50k reads/mo · 30-day TTL</span>
+            </span>
+          </span>
+          <svg class="dev-api-cta-chevron" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <polyline points="9 18 15 12 9 6"/>
+          </svg>
         </a>
       </div>
 
