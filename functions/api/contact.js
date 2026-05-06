@@ -84,8 +84,13 @@ export async function onRequestPost({ request, env }) {
 
     // 3. Send Email using Resend
     if (!env.RESEND_API_KEY) {
-      // Allow testing the UI even if the backend key isn't set up yet
-      console.log('RESEND_API_KEY not configured. Email would have been:', { name, email, message });
+      // Allow testing the UI even if the backend key isn't set up yet.
+      // Do NOT log the submitted name/email/message — those go to Cloudflare
+      // Pages logs which are visible to anyone with project access, and the
+      // submitted message body may contain anything the user typed in
+      // (including secrets they accidentally pasted). Log only that a
+      // submission was dropped so an operator can notice the misconfig.
+      console.warn('[contact] RESEND_API_KEY not configured; submission dropped.');
       return new Response(JSON.stringify({ success: true, warning: 'Email logged (API key not configured)' }), {
         status: 200,
         headers: { 'Content-Type': 'application/json' }

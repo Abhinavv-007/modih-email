@@ -14,19 +14,31 @@ export async function onRequestDelete(context) {
   }
 
   try {
+    // Try to wipe inbox + message rows tied to this user. The `creator_uid`
+    // column was added in a later migration, so older databases may not have
+    // it yet — we tolerate that single class of failure and continue.
     try {
-      await env.DB.prepare(
-        "DELETE FROM messages WHERE inbox_id IN (SELECT id FROM inboxes WHERE creator_uid = ?)"
-      ).bind(user.uid).run();
-      await env.DB.prepare("DELETE FROM inboxes WHERE creator_uid = ?").bind(user.uid).run();
+      await env.DB.batch([
+        env.DB.prepare(
+          "DELETE FROM messages WHERE inbox_id IN (SELECT id FROM inboxes WHERE creator_uid = ?)"
+        ).bind(user.uid),
+        env.DB.prepare("DELETE FROM inboxes WHERE creator_uid = ?").bind(user.uid),
+      ]);
     } catch (error) {
       if (!isMissingColumn(error, "creator_uid")) throw error;
     }
 
-    await env.DB.prepare("DELETE FROM api_usage WHERE uid = ?").bind(user.uid).run();
-    await env.DB.prepare("DELETE FROM api_keys WHERE uid = ?").bind(user.uid).run();
-    await env.DB.prepare("DELETE FROM audit_log WHERE uid = ?").bind(user.uid).run();
-    await env.DB.prepare("DELETE FROM user_plans WHERE uid = ?").bind(user.uid).run();
+    // Wipe everything else in one atomic batch. Previously these ran as four
+    // separate awaited statements — if the worker died between them the
+    // user's account was left half-deleted (e.g. plan row gone but api_keys
+    // still active). Batching both halves the round-trips and gives us
+    // all-or-nothing semantics.
+    await env.DB.batch([
+      env.DB.prepare("DELETE FROM api_usage  WHERE uid = ?").bind(user.uid),
+      env.DB.prepare("DELETE FROM api_keys   WHERE uid = ?").bind(user.uid),
+      env.DB.prepare("DELETE FROM audit_log  WHERE uid = ?").bind(user.uid),
+      env.DB.prepare("DELETE FROM user_plans WHERE uid = ?").bind(user.uid),
+    ]);
 
     try {
       await env.DB.prepare(

@@ -529,10 +529,14 @@ export async function onRequestPost(context) {
       // ── Free: random prefix only ──────────────────────────────────────
       const now       = Math.floor(Date.now() / 1000);
       const expiresAt = now + limits.ttl;
+      // The owner token is independent of the email prefix — generate it
+      // (and the HMAC) once outside the retry loop. Retries here only
+      // resolve email-prefix collisions, so re-hashing every iteration is
+      // wasted work (each `hmacHex` is a SubtleCrypto round-trip).
+      const rawToken       = secureBase64url(32);
+      const ownerTokenHash = await hmacHex(rawToken, env.TOKEN_PEPPER || "");
       for (let attempt = 0; attempt < MAX_RANDOM_RETRIES; attempt++) {
         const id            = secureId(16);
-        const rawToken      = secureBase64url(32);
-        const ownerTokenHash = await hmacHex(rawToken, env.TOKEN_PEPPER || "");
         const randomPrefix  = generateRandomPrefix();
         const email         = `${randomPrefix}@${DOMAIN}`;
         try {
@@ -629,10 +633,14 @@ export async function onRequestPost(context) {
     }
 
     // Pro/Dev random prefix
+    // Same hoisting as the free path: only the prefix can collide, so
+    // recomputing the owner-token hash on each retry is wasted CPU.
+    const rawTokenRand       = secureBase64url(32);
+    const ownerTokenHashRand = await hmacHex(rawTokenRand, env.TOKEN_PEPPER || "");
     for (let attempt = 0; attempt < MAX_RANDOM_RETRIES; attempt++) {
       const id             = secureId(16);
-      const rawToken       = secureBase64url(32);
-      const ownerTokenHash = await hmacHex(rawToken, env.TOKEN_PEPPER || "");
+      const rawToken       = rawTokenRand;
+      const ownerTokenHash = ownerTokenHashRand;
       const prefix         = generateRandomPrefix();
       const email          = `${prefix}@${DOMAIN}`;
       try {
@@ -716,8 +724,14 @@ export async function onRequestDelete(context) {
       return err("FORBIDDEN", "Owner token mismatch.", 403);
     }
 
-    await env.DB.prepare("DELETE FROM messages WHERE inbox_id = ?").bind(inboxId).run();
-    await env.DB.prepare("DELETE FROM inboxes WHERE id = ?").bind(inboxId).run();
+    // Run both deletes in one D1 batch so messages and the inbox row are
+    // removed together. Without batching, a partial failure (or worker
+    // termination between the two statements) leaves orphaned messages
+    // pointing at a deleted inbox; batching also halves the round-trip.
+    await env.DB.batch([
+      env.DB.prepare("DELETE FROM messages WHERE inbox_id = ?").bind(inboxId),
+      env.DB.prepare("DELETE FROM inboxes WHERE id = ?").bind(inboxId),
+    ]);
 
     auditLog(env.DB, "inbox.deleted", { inboxId, ip });
     return ok({ deleted: true });
