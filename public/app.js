@@ -1199,12 +1199,32 @@ function sanitizeRenderedHtml(html) {
   // `java&#115;cript:` past a literal `javascript:` check otherwise. Named
   // entities (&lt; &gt; &amp;) are intentionally left alone — those are how
   // legitimate authors escape `<>&` for display.
-  const normalised = denul.replace(/&#(x?)([0-9a-fA-F]+);/g, (match, hex, num) => {
+  //
+  // TAB / LF / CR (`&#9;` `&#10;` `&#13;`) decode to a real SPACE rather
+  // than the literal control char. The WHATWG URL parser strips those
+  // three chars from URLs before reading the scheme, so leaving them
+  // intact would let `<a href="java&#9;script:alert(1)">` render as
+  // `javascript:alert(1)` despite the literal `javascript|...` check
+  // below. A space is NOT stripped, so the scheme name stays corrupted.
+  const decoded = denul.replace(/&#(x?)([0-9a-fA-F]+);/g, (match, hex, num) => {
     const code = parseInt(num, hex ? 16 : 10);
     if (!Number.isFinite(code)) return match;
+    if (code === 0x09 || code === 0x0a || code === 0x0d) return " ";
     if (code >= 0x20 && code <= 0x7e) return String.fromCharCode(code);
     return match;
   });
+
+  // The same bypass works through the named entities `&Tab;`, `&NewLine;`,
+  // `&CR;`, `&LF;`. Decode each to a literal space (same reason as above).
+  const namedDecoded = decoded.replace(/&(Tab|NewLine|CR|LF);/g, " ");
+
+  // Replace any remaining literal TAB / LF / CR / NULL inside tag
+  // delimiters with a space — covers payloads supplied as raw control
+  // chars rather than entities. We only touch text inside `<...>` so
+  // legitimate whitespace in body text (e.g. inside <pre>) is preserved.
+  const normalised = namedDecoded.replace(/<[^>]+>/g, m =>
+    m.replace(/[\t\n\r\u0000]/g, " ")
+  );
 
   // Strip pairs of dangerous tags including their content.
   const STRIP_PAIR   = /<(script|style|iframe|object|form|svg|math|noscript|template)\b[\s\S]*?<\/\1\s*>/gi;
