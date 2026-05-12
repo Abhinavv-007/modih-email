@@ -106,11 +106,11 @@ export async function onRequestGet(context) {
 
     let emailBestPlan = "free";
     if (emailTrusted) {
-      const emailRows = await env.DB.prepare(
-        "SELECT plan FROM user_plans WHERE LOWER(email) = LOWER(?)"
-      ).bind(email).all();
-      for (const row of (emailRows.results || [])) {
-        emailBestPlan = bestOfTwo(emailBestPlan, row.plan);
+      const bestRow = await env.DB.prepare(
+        "SELECT plan FROM user_plans WHERE LOWER(email) = LOWER(?) ORDER BY CASE plan WHEN 'developer' THEN 3 WHEN 'pro' THEN 2 WHEN 'free' THEN 1 ELSE 0 END DESC LIMIT 1"
+      ).bind(email).first();
+      if (bestRow) {
+        emailBestPlan = bestRow.plan;
       }
     }
 

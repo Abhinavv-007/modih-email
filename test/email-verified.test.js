@@ -57,10 +57,10 @@ function makeRecordingDb({ byUidPlan = null, byEmailPlans = [] } = {}) {
     kind: "first",
     value: byUidPlan ? { uid: VERIFIED_UID, email: SHARED_EMAIL, plan: byUidPlan } : null,
   });
-  // SELECT byEmail → all() (only consumed if email_verified)
+  // SELECT byEmail → first() (only consumed if email_verified)
   queue.push({
-    kind: "all",
-    value: { results: byEmailPlans.map(p => ({ plan: p })) },
+    kind: "first",
+    value: byEmailPlans.length > 0 ? { plan: byEmailPlans[0] } : null,
   });
   // INSERT or UPDATE on user_plans → run()
   queue.push({ kind: "run", value: { meta: { changes: 1 } } });
@@ -148,7 +148,7 @@ describe("/api/auth/me — email_verified gate", () => {
 
     // No SELECT … WHERE LOWER(email) = LOWER(?) was ever executed.
     const emailLookup = db.calls.find(
-      c => c.op === "all" && /WHERE\s+LOWER\(email\)/i.test(c.sql)
+      c => c.op === "first" && /WHERE\s+LOWER\(email\)/i.test(c.sql)
     );
     expect(emailLookup, "no email-based plan lookup for unverified user").toBeUndefined();
 
@@ -184,7 +184,7 @@ describe("/api/auth/me — email_verified gate", () => {
 
     // The verified path DOES run the email-based lookup …
     const emailLookup = db.calls.find(
-      c => c.op === "all" && /WHERE\s+LOWER\(email\)/i.test(c.sql)
+      c => c.op === "first" && /WHERE\s+LOWER\(email\)/i.test(c.sql)
     );
     expect(emailLookup, "verified user triggers email lookup").toBeTruthy();
     expect(emailLookup.bindings).toEqual([SHARED_EMAIL]);
@@ -215,7 +215,7 @@ describe("/api/auth/me — email_verified gate", () => {
     expect(res.status).toBe(200);
 
     const emailLookup = db.calls.find(
-      c => c.op === "all" && /WHERE\s+LOWER\(email\)/i.test(c.sql)
+      c => c.op === "first" && /WHERE\s+LOWER\(email\)/i.test(c.sql)
     );
     expect(emailLookup).toBeUndefined();
 
