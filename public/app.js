@@ -489,9 +489,13 @@ async function createInbox(type) {
     }
   }
 
-  // Loading state
+  // Loading state — button spinners + a skeleton card so the page never
+  // looks frozen during the API round-trip (D1 + KV writes typically take
+  // 1–3s). The skeleton appears immediately and is replaced by the real
+  // address as soon as `showEmailResult` runs.
   btnCustom.classList.add("loading");
   btnRandom.classList.add("loading");
+  showGeneratingSkeleton();
 
   try {
     const body = {};
@@ -546,6 +550,7 @@ async function createInbox(type) {
     const data = await res.json();
 
     if (!res.ok) {
+      hideGeneratingSkeleton();
       // Handle specific free-tier errors (new envelope: data.error.{code,message,...})
       if (data.error?.upgrade_required) {
         showUpgradeError(data.error.message, data.error.feature);
@@ -625,6 +630,32 @@ function showError(msg) {
   errorEl.style.display = "block";
 }
 
+// Show a shimmering placeholder card the instant the user clicks
+// "Random / Custom" so the UI doesn't appear frozen during the inbox
+// creation round-trip. `showEmailResult` replaces the content on success
+// and `hideGeneratingSkeleton` clears it on error.
+function showGeneratingSkeleton() {
+  const resultEl = document.getElementById("email-result");
+  if (!resultEl) return;
+  resultEl.classList.add("is-generating");
+  const addressEl = document.getElementById("result-email-address");
+  if (addressEl) {
+    addressEl.textContent = "Generating your inbox\u2026";
+  }
+  resultEl.style.display = "block";
+  // Smoothly bring it into view so the user sees the loading state immediately.
+  resultEl.scrollIntoView({ behavior: "smooth", block: "center" });
+}
+
+function hideGeneratingSkeleton() {
+  const resultEl = document.getElementById("email-result");
+  if (!resultEl) return;
+  resultEl.classList.remove("is-generating");
+  // Only hide if we never got real data (i.e. address is still the placeholder).
+  if (currentInbox) return;
+  resultEl.style.display = "none";
+}
+
 function showUpgradeError(msg, feature) {
   const upgradeEl = document.getElementById("generate-upgrade");
   const errorEl = document.getElementById("generate-error");
@@ -663,6 +694,7 @@ function showEmailResult(inbox) {
   const resultEl = document.getElementById("email-result");
   const addressEl = document.getElementById("result-email-address");
 
+  resultEl.classList.remove("is-generating");
   addressEl.textContent = inbox.email;
   resultEl.style.display = "block";
 
@@ -974,6 +1006,7 @@ function openMessage(msgId) {
   document.getElementById("mail-empty").style.display = "none";
   const detail = document.getElementById("mail-detail");
   detail.style.display = "block";
+  detail.scrollTop = 0;
 
   document.getElementById("detail-subject").textContent = msg.subject;
   document.getElementById("detail-from").textContent = msg.from_name
@@ -982,13 +1015,9 @@ function openMessage(msgId) {
   document.getElementById("detail-time").textContent = formatTime(msg.received_at);
 
   const bodyEl = document.getElementById("detail-body");
-  if (msg.body_html) {
-    bodyEl.innerHTML = sanitizeRenderedHtml(msg.body_html);
-  } else {
-    bodyEl.innerHTML = `<pre style="white-space:pre-wrap;font-family:inherit;">${escapeHtml(msg.body_text)}</pre>`;
-  }
+  renderMessageBody(bodyEl, msg);
 
-  const otp = extractOTP(msg.subject + " " + msg.body_text + " " + msg.body_html);
+  const otp = extractOTP(msg.subject + " " + (msg.body_text || "") + " " + (msg.body_html || ""));
   const otpEl = document.getElementById("detail-otp");
   if (otp) {
     otpEl.style.display = "flex";
@@ -997,6 +1026,171 @@ function openMessage(msgId) {
     otpEl.style.display = "none";
   }
 }
+
+// Render an email body inside an isolated sandboxed iframe with a clean,
+// light "paper" surface. This is how mature webmail clients (Gmail, Yahoo,
+// Apple Mail) render messages — emails ship their own colors and fonts that
+// usually assume a light background, and stuffing them into the page's dark
+// glass card produces unreadable dark-on-dark text (verification codes,
+// hyperlinks, etc.).
+//
+// The iframe has `sandbox="allow-same-origin"` only — no allow-scripts, so
+// any active content surviving the sanitizer can't execute. Height is
+// observed and synced to the content so the iframe doesn't show an inner
+// scrollbar.
+function renderMessageBody(host, msg) {
+  host.innerHTML = "";
+  host.classList.add("detail-body-paper");
+
+  const iframe = document.createElement("iframe");
+  iframe.className = "detail-body-frame";
+  iframe.setAttribute("sandbox", "allow-same-origin");
+  iframe.setAttribute("referrerpolicy", "no-referrer");
+  iframe.setAttribute("title", "Message body");
+  iframe.setAttribute("loading", "eager");
+  iframe.style.width = "100%";
+  iframe.style.border = "0";
+  iframe.style.display = "block";
+  iframe.style.height = "120px";
+  iframe.style.colorScheme = "light";
+  host.appendChild(iframe);
+
+  const bodyHtml = (typeof msg.body_html === "string" && msg.body_html.trim())
+    ? sanitizeRenderedHtml(msg.body_html)
+    : null;
+  const bodyText = typeof msg.body_text === "string" ? msg.body_text : "";
+
+  const inner = bodyHtml
+    ? prettifyImagePlaceholders(bodyHtml)
+    : `<pre class="plain-text-body">${escapeHtml(bodyText)}</pre>`;
+
+  const srcdoc = `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><base target="_blank"><style>${MESSAGE_FRAME_CSS}</style></head><body>${inner}</body></html>`;
+  iframe.srcdoc = srcdoc;
+
+  const syncHeight = () => {
+    try {
+      const doc = iframe.contentDocument;
+      if (!doc) return;
+      const target = doc.body || doc.documentElement;
+      const h = Math.max(
+        target.scrollHeight,
+        target.offsetHeight,
+        doc.documentElement.scrollHeight
+      );
+      iframe.style.height = `${Math.max(h + 16, 120)}px`;
+    } catch {
+      /* cross-origin or detached — ignore */
+    }
+  };
+
+  iframe.addEventListener("load", () => {
+    syncHeight();
+    try {
+      const doc = iframe.contentDocument;
+      if (!doc) return;
+      // Re-measure when images / fonts arrive.
+      if (typeof ResizeObserver === "function" && doc.body) {
+        const ro = new ResizeObserver(syncHeight);
+        ro.observe(doc.body);
+        iframe._modihResizeObserver = ro;
+      }
+      // Force external links to open in a new tab and block javascript: hrefs
+      // that may have survived (defense in depth — sanitizer already neutralises them).
+      doc.querySelectorAll("a").forEach((a) => {
+        const href = a.getAttribute("href") || "";
+        if (/^\s*(javascript|vbscript|livescript|data|blob|file|blocked):/i.test(href)) {
+          a.removeAttribute("href");
+          a.style.pointerEvents = "none";
+          a.style.opacity = "0.6";
+          a.title = "Link blocked for safety";
+        } else if (href) {
+          a.setAttribute("target", "_blank");
+          a.setAttribute("rel", "noopener noreferrer");
+        }
+      });
+    } catch {
+      /* ignore */
+    }
+  });
+}
+
+// `sanitizeRenderedHtml` replaces every `<img>` with the literal string
+// "[image removed]". Inside an `<a>` tag wrapping a tracking pixel this
+// renders as a clickable orange word, which looks like a broken link.
+// Wrap it in a styled span so it reads as a visual placeholder instead.
+function prettifyImagePlaceholders(html) {
+  if (typeof html !== "string") return "";
+  return html.replace(/\[image removed\]/g,
+    '<span class="image-placeholder" aria-label="Image blocked for privacy">🛡️ image hidden</span>'
+  );
+}
+
+// CSS injected into the message-body iframe. A neutral, readable "paper"
+// surface that ignores the dark page theme. Constraints applied to images
+// and tables prevent runaway-wide emails from bursting the layout.
+const MESSAGE_FRAME_CSS = `
+  :root { color-scheme: light; }
+  html, body {
+    margin: 0;
+    padding: 18px 20px;
+    background: #ffffff;
+    color: #1f2937;
+    font: 15px/1.65 -apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    word-wrap: break-word;
+    overflow-wrap: anywhere;
+  }
+  body { max-width: 100%; }
+  a { color: #2563eb; text-decoration: underline; word-break: break-all; }
+  a:hover { color: #1d4ed8; }
+  p { margin: 0 0 0.9em; }
+  h1, h2, h3, h4, h5, h6 { color: #111827; margin: 1.1em 0 0.55em; line-height: 1.3; }
+  ul, ol { padding-left: 1.4em; margin: 0 0 0.9em; }
+  li { margin: 0.25em 0; }
+  pre, code, kbd, samp {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+    background: #f3f4f6;
+    color: #111827;
+    border-radius: 6px;
+    padding: 1px 6px;
+  }
+  pre.plain-text-body {
+    white-space: pre-wrap;
+    background: transparent;
+    padding: 0;
+    margin: 0;
+    font: inherit;
+    color: inherit;
+  }
+  blockquote {
+    border-left: 3px solid #d1d5db;
+    margin: 0.6em 0;
+    padding: 0.2em 0 0.2em 0.9em;
+    color: #4b5563;
+  }
+  hr { border: 0; border-top: 1px solid #e5e7eb; margin: 1.2em 0; }
+  table { border-collapse: collapse; max-width: 100%; }
+  td, th { padding: 6px 10px; border: 1px solid #e5e7eb; }
+  img, video, iframe, object { max-width: 100% !important; height: auto !important; border-radius: 6px; }
+  .image-placeholder {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35em;
+    padding: 2px 10px;
+    margin: 2px 0;
+    font-size: 0.8em;
+    font-weight: 500;
+    color: #6b7280;
+    background: #f3f4f6;
+    border: 1px dashed #d1d5db;
+    border-radius: 100px;
+  }
+  /* Force-recolor common dark-on-dark email templates whose own inline
+     styles assumed a dark host page. Email authors rarely set background
+     AND color together, so a default light background + a default dark
+     text color produces the closest thing to "open in any mail client". */
+  body, body * { background-color: transparent !important; }
+  body { background: #ffffff !important; }
+`;
 
 function closeMessageDetail() {
   document.getElementById("mail-detail").style.display = "none";
@@ -1137,20 +1331,36 @@ function copyOTP() {
 }
 
 // ========== OTP DETECTION ==========
+//
+// Pulls a verification code out of an email subject + body. Most providers
+// use either pure-digit codes (Google, banks) or alphanumeric upper-case
+// codes (Atlassian, Discord, etc. — e.g. "Q36P4I"). The patterns below
+// look for both shapes in order: explicit "code:" / "is your code" phrases
+// first, then more permissive fallbacks. Returning the longer of the two
+// shapes when both match keeps `123456` over a noisy `2024` near the date.
 function extractOTP(text) {
   if (!text) return null;
 
+  // Alphanumeric tokens must contain at least one digit to avoid matching
+  // random capitalised words like "PLEASE" or "REVIEW".
+  const ALNUM = "[A-Z0-9]{4,10}";
+  const alnumWithDigit = (s) => /[A-Z]/.test(s) && /[0-9]/.test(s) || /^[0-9]{4,8}$/.test(s);
+
   const patterns = [
-    /\b(?:otp|code|verify|verification|pin|passcode|token)[:\s]*(\d{4,8})\b/i,
-    /\b(\d{4,8})\s*(?:is your|is the|is|as your)\s*(?:otp|code|verification|pin|passcode)/i,
-    /(?:enter|use|submit|type)\s*(?:the\s*)?(?:code|otp|pin)?[:\s]*(\d{4,8})\b/i,
-    /\b(?:one[- ]?time\s*(?:password|code|pin))[:\s]*(\d{4,8})\b/i,
-    /\b(\d{6})\b(?=.*(?:verif|otp|code|confirm|expire))/i,
+    new RegExp(`\\b(?:otp|code|verify|verification|pin|passcode|token)[:\\s]+(${ALNUM})\\b`, "i"),
+    new RegExp(`\\b(${ALNUM})\\s+(?:is your|is the|is|as your)\\s+(?:otp|code|verification|pin|passcode)`, "i"),
+    new RegExp(`(?:enter|use|submit|type)\\s+(?:the\\s+)?(?:code|otp|pin)?[:\\s]+(${ALNUM})\\b`, "i"),
+    new RegExp(`\\b(?:one[- ]?time\\s+(?:password|code|pin))[:\\s]+(${ALNUM})\\b`, "i"),
+    /\b(\d{6})\b(?=[\s\S]*?(?:verif|otp|code|confirm|expire))/i,
   ];
 
+  // Patterns are case-insensitive but real OTPs are almost always upper-case.
+  // Look at the original text in upper case so `\b` still picks up word
+  // boundaries around the candidate.
+  const upper = String(text).toUpperCase();
   for (const pattern of patterns) {
-    const match = text.match(pattern);
-    if (match && match[1]) {
+    const match = upper.match(pattern);
+    if (match && match[1] && alnumWithDigit(match[1])) {
       return match[1];
     }
   }
