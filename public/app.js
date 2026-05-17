@@ -950,6 +950,13 @@ async function refreshInbox() {
 }
 
 // ========== RENDER MAIL LIST ==========
+//
+// Diff-based renderer. The previous implementation rebuilt the entire list
+// via `innerHTML = ...` every 5s during the auto-refresh poll, which caused
+// the whole list to flash/reflow ("the website is having shocks"). We now
+// keep DOM nodes keyed by `data-msg-id`, insert ONLY new messages with a
+// gentle slide-in animation, remove ones that disappeared, and update the
+// relative-time text in place. No flicker.
 function renderMailList() {
   if (currentMessageId) return;
 
@@ -957,6 +964,8 @@ function renderMailList() {
   const emptyEl = document.getElementById("mail-empty");
 
   if (currentMessages.length === 0) {
+    // Smoothly clear remaining nodes if any
+    if (listEl.children.length > 0) listEl.innerHTML = "";
     listEl.style.display = "none";
     emptyEl.style.display = "flex";
     return;
@@ -965,28 +974,79 @@ function renderMailList() {
   emptyEl.style.display = "none";
   listEl.style.display = "flex";
 
-  listEl.innerHTML = currentMessages
-    .map((msg, index) => {
-      const fromDisplay = msg.from_name || msg.from_address;
-      const initial = fromDisplay.charAt(0).toUpperCase();
-      const timeAgo = formatTimeAgo(msg.received_at);
-      const otp = extractOTP(msg.subject + " " + msg.body_text + " " + msg.body_html);
+  const existing = new Map();
+  for (const node of Array.from(listEl.children)) {
+    const id = node.getAttribute("data-msg-id");
+    if (id) existing.set(id, node);
+    else node.remove();
+  }
 
-      return `
-      <div class="mail-item" onclick="openMessageByIndex(${index})" style="animation-delay: ${index * 0.08}s">
-        <div class="mail-item-avatar">${initial}</div>
-        <div class="mail-item-content">
-          <div class="mail-item-top">
-            <span class="mail-item-from">${escapeHtml(fromDisplay)}</span>
-            <span class="mail-item-time">${timeAgo}</span>
-          </div>
-          <div class="mail-item-subject">${escapeHtml(msg.subject)}</div>
-          ${otp ? `<div class="mail-item-otp">🔑 OTP: ${otp}</div>` : ""}
-        </div>
+  const seen = new Set();
+  let prevNode = null;
+
+  currentMessages.forEach((msg, index) => {
+    const id = String(msg.id);
+    seen.add(id);
+    let node = existing.get(id);
+    if (!node) {
+      node = buildMailItemNode(msg, index);
+      // Insert in correct position to preserve order without re-creating siblings.
+      if (prevNode && prevNode.nextSibling) {
+        listEl.insertBefore(node, prevNode.nextSibling);
+      } else if (prevNode) {
+        listEl.appendChild(node);
+      } else {
+        listEl.insertBefore(node, listEl.firstChild);
+      }
+    } else {
+      // Refresh the relative time in place (no reflow of the whole row).
+      updateMailItemNode(node, msg, index);
+    }
+    prevNode = node;
+  });
+
+  // Remove nodes for messages that no longer exist.
+  for (const [id, node] of existing) {
+    if (!seen.has(id)) node.remove();
+  }
+}
+
+function buildMailItemNode(msg, index) {
+  const node = document.createElement("div");
+  node.className = "mail-item mail-item-new";
+  node.setAttribute("data-msg-id", String(msg.id));
+  node.setAttribute("data-index", String(index));
+  node.addEventListener("click", () => openMessageByIndex(Number(node.getAttribute("data-index"))));
+  // Fresh items animate in; we strip the class on animation end so future
+  // refreshes don't re-trigger the slide.
+  node.addEventListener("animationend", () => node.classList.remove("mail-item-new"), { once: true });
+  node.style.setProperty("--mail-item-delay", `${Math.min(index, 6) * 0.05}s`);
+
+  const fromDisplay = msg.from_name || msg.from_address;
+  const initial = (fromDisplay || "?").charAt(0).toUpperCase();
+  const otp = extractOTP((msg.subject || "") + " " + (msg.body_text || "") + " " + (msg.body_html || ""));
+
+  node.innerHTML = `
+    <div class="mail-item-avatar">${initial}</div>
+    <div class="mail-item-content">
+      <div class="mail-item-top">
+        <span class="mail-item-from"></span>
+        <span class="mail-item-time" data-received="${msg.received_at}"></span>
       </div>
-    `;
-    })
-    .join("");
+      <div class="mail-item-subject"></div>
+      ${otp ? `<div class="mail-item-otp">🔑 OTP: ${escapeHtml(otp)}</div>` : ""}
+    </div>
+  `;
+  node.querySelector(".mail-item-from").textContent = fromDisplay;
+  node.querySelector(".mail-item-subject").textContent = msg.subject;
+  node.querySelector(".mail-item-time").textContent = formatTimeAgo(msg.received_at);
+  return node;
+}
+
+function updateMailItemNode(node, msg, index) {
+  node.setAttribute("data-index", String(index));
+  const timeEl = node.querySelector(".mail-item-time");
+  if (timeEl) timeEl.textContent = formatTimeAgo(msg.received_at);
 }
 
 // ========== MESSAGE DETAIL ==========
@@ -1060,8 +1120,15 @@ function renderMessageBody(host, msg) {
     : null;
   const bodyText = typeof msg.body_text === "string" ? msg.body_text : "";
 
+  // Real `<img>` tags survive the server sanitizer now (only tracking
+  // pixels are stripped). For older messages stored back when the
+  // sanitizer wrote the literal text "[image removed]" we still swap that
+  // for a small styled pill so it doesn't read as a broken word.
   const inner = bodyHtml
-    ? prettifyImagePlaceholders(bodyHtml)
+    ? bodyHtml.replace(
+        /\[image removed\]/g,
+        '<span class="image-placeholder" aria-label="Image blocked for privacy">image hidden</span>'
+      )
     : `<pre class="plain-text-body">${escapeHtml(bodyText)}</pre>`;
 
   const srcdoc = `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><base target="_blank"><style>${MESSAGE_FRAME_CSS}</style></head><body>${inner}</body></html>`;

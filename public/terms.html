@@ -12,22 +12,24 @@
   <link rel="stylesheet" href="/styles.css?v=6.0" />
 
   <style>
-    /* Document Background overrides matching admin/index.html */
+    /* Video background — same asset that loads on the index page so it is
+       served from the browser cache and costs no extra bandwidth here. */
     .page-bg {
-      position: fixed; inset: 0; z-index: 0;
-      background-image: url('/deskton-mail-bg.png');
-      background-size: cover;
-      background-position: center center;
-      background-repeat: no-repeat;
+      position: fixed; inset: 0; z-index: 0; overflow: hidden;
+      background: #07070d;
+    }
+    .page-bg video {
+      position: absolute; inset: 0;
+      width: 100%; height: 100%;
+      object-fit: cover; object-position: center center;
       -webkit-transform: translateZ(0);
       transform: translateZ(0);
-      will-change: transform;
     }
+    .page-bg .bg-desktop { display: block; }
+    .page-bg .bg-mobile  { display: none; }
     @media (max-width: 768px) {
-      .page-bg {
-        background-image: url('/phone-mail-bg.png');
-        background-position: 50% 30%;
-      }
+      .page-bg .bg-desktop { display: none; }
+      .page-bg .bg-mobile  { display: block; object-position: 50% 50%; }
     }
     .page-overlay {
       position: fixed; inset: 0; z-index: 0;
@@ -150,7 +152,14 @@
 </head>
 <body>
   <!-- Background Layers -->
-  <div class="page-bg"></div>
+  <div class="page-bg">
+    <video class="bg-desktop" muted playsinline loop autoplay preload="auto" poster="/deskton-mail-bg.png">
+      <source src="/desktop-bg-loop.mp4" type="video/mp4" />
+    </video>
+    <video class="bg-mobile" muted playsinline loop autoplay preload="auto" poster="/phone-mail-bg.png">
+      <source src="/mobile-bg-loop.mp4" type="video/mp4" />
+    </video>
+  </div>
   <div class="page-overlay"></div>
 
   <!-- Navigation -->

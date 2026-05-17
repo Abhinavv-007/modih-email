@@ -256,19 +256,48 @@ describe("sanitizeRenderedHtml — URL-bypass whitespace inside scheme", () => {
   });
 });
 
-describe("sanitizeRenderedHtml — image blocking", () => {
-  it("removes ANY <img> (tracking pixel + onerror combo)", () => {
+describe("sanitizeRenderedHtml — image handling", () => {
+  it("keeps regular <img> tags so real email images render", () => {
     const cases = [
-      "<img src='x'>",
-      '<img src="https://attacker.example/pixel.gif">',
-      "<img/src=x/onerror=alert(1)>",
-      "<IMG SRC=x>",
+      '<img src="https://cdn.example/banner.png">',
+      '<img src="https://cdn.example/banner.png" alt="banner" width="600" height="200">',
+      "<IMG SRC=\"https://cdn.example/banner.png\">",
+    ];
+    for (const c of cases) {
+      const out = sanitizeRenderedHtml(c);
+      expect(out, c).toMatch(/<img/i);
+      expect(out, c).toContain("https://cdn.example/banner.png");
+    }
+  });
+
+  it("strips tracking-pixel <img> tags (1x1 or display:none)", () => {
+    const cases = [
+      '<img src="https://tracker/p" width="1" height="1">',
+      '<img src="https://tracker/p" style="display:none">',
+      "<img src='https://tracker/p' style='visibility:hidden'>",
     ];
     for (const c of cases) {
       const out = sanitizeRenderedHtml(c);
       expect(out, c).not.toMatch(/<img/i);
-      expect(out, c).toContain("[image removed]");
     }
+  });
+
+  it("neutralises onerror / onload on surviving <img> tags", () => {
+    const out = sanitizeRenderedHtml('<img src="x" onerror="alert(1)">');
+    expect(out).not.toMatch(/onerror/i);
+    expect(out).not.toMatch(/alert\s*\(/);
+  });
+
+  it("strips srcset to prevent un-vetted URL fetches", () => {
+    const out = sanitizeRenderedHtml('<img src="ok.png" srcset="evil.png 2x">');
+    expect(out).not.toMatch(/srcset/i);
+    expect(out).toContain("ok.png");
+  });
+
+  it("breaks javascript: in <img src> so it never fires", () => {
+    const out = sanitizeRenderedHtml('<img src="javascript:alert(1)">');
+    expect(out).not.toMatch(/javascript\s*:/i);
+    expect(out).toContain("blocked:");
   });
 });
 
