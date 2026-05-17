@@ -1,0 +1,12 @@
+User-agent: *
+Allow: /
+
+# Disallow admin / private surfaces from indexing
+Disallow: /admin/
+Disallow: /admin.html
+Disallow: /api/
+Disallow: /developer.html
+
+# Crawl-delay is intentionally omitted; we serve from Cloudflare's edge.
+
+Sitemap: https://modih.in/sitemap.xml
