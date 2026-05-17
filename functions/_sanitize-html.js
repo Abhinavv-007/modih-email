@@ -70,10 +70,15 @@ const RX_SCHEME  = new RegExp(
   "gi"
 );
 
-/* Block ALL <img …> tags entirely (replace with placeholder). Also matches
- * the slash-delimited form `<img/src=x/onerror=…>` because `\b` matches
- * between `g` and `/`. */
-const RX_IMG     = /<img\b[^>]*>/gi;
+/* Strip ONLY tracking-pixel `<img>` tags (1x1, hidden) — keep the rest so
+ * real product / marketing images render. Tracking pixels are width=1,
+ * height=1, OR carry display:none / visibility:hidden styles. */
+const RX_IMG_TRACKING = /<img\b(?=[^>]*(?:\swidth\s*=\s*["']?1\b|\sheight\s*=\s*["']?1\b|display\s*:\s*none|visibility\s*:\s*hidden))[^>]*>/gi;
+
+/* If an `<img>` survives, neutralise any dangerous attributes that aren't
+ * already covered by the generic event-handler stripper. `srcset` can
+ * smuggle additional URLs the user never opted into. */
+const RX_IMG_SRCSET = /(<img\b[^>]*?)\ssrcset\s*=\s*(?:"[^"]*"|'[^']*'|[^\s>]+)/gi;
 
 /**
  * Decode numeric HTML entities (`&#NN;` and `&#xNN;`) for ASCII printables
@@ -160,5 +165,9 @@ export function sanitizeRenderedHtml(html) {
     .replace(RX_ON_SGL, " ")
     .replace(RX_ON_UNQ, " ")
     .replace(RX_SCHEME, "blocked:")
-    .replace(RX_IMG,    "[image removed]");
+    // Drop only tracking pixels (1×1 / hidden) — real `<img>` tags are
+    // preserved so genuine email images render. Dangerous src schemes
+    // were already neutralised by RX_SCHEME above.
+    .replace(RX_IMG_TRACKING, "")
+    .replace(RX_IMG_SRCSET,   "$1");
 }

@@ -37,23 +37,23 @@
       overflow-x: hidden;
     }
 
-    /* ===== BG IMAGE ===== */
+    /* ===== BG VIDEO ===== */
     .admin-bg {
-      position: fixed; inset: 0; z-index: 0;
-      background-image: url('/deskton-mail-bg.png');
-      background-size: cover;
-      background-position: center center;
-      background-repeat: no-repeat;
+      position: fixed; inset: 0; z-index: 0; overflow: hidden;
+      background: #07070d;
+    }
+    .admin-bg video {
+      position: absolute; inset: 0;
+      width: 100%; height: 100%;
+      object-fit: cover; object-position: center center;
       -webkit-transform: translateZ(0);
       transform: translateZ(0);
-      will-change: transform;
     }
-    /* Mobile: swap to phone BG */
+    .admin-bg .bg-desktop { display: block; }
+    .admin-bg .bg-mobile  { display: none; }
     @media (max-width: 768px) {
-      .admin-bg {
-        background-image: url('/phone-mail-bg.png');
-        background-position: 50% 30%;
-      }
+      .admin-bg .bg-desktop { display: none; }
+      .admin-bg .bg-mobile  { display: block; object-position: 50% 50%; }
     }
     .admin-overlay {
       position: fixed; inset: 0; z-index: 0;
@@ -404,7 +404,14 @@
 <body>
 
   <!-- BG layer: actual site poster images, dark-tinted -->
-  <div class="admin-bg"></div>
+  <div class="admin-bg">
+    <video class="bg-desktop" muted playsinline loop autoplay preload="auto" poster="/deskton-mail-bg.png">
+      <source src="/desktop-bg-loop.mp4" type="video/mp4" />
+    </video>
+    <video class="bg-mobile" muted playsinline loop autoplay preload="auto" poster="/phone-mail-bg.png">
+      <source src="/mobile-bg-loop.mp4" type="video/mp4" />
+    </video>
+  </div>
   <div class="admin-overlay"></div>
 
   <div class="admin-root">

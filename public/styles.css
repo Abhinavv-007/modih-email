@@ -1668,13 +1668,21 @@ body {
   border-radius: var(--radius);
   cursor: pointer;
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-  animation: mailItemIn 0.4s ease both;
+}
+
+/* Animate ONLY freshly-inserted items (added by buildMailItemNode). The
+ * previous version animated every node on every render — combined with
+ * the 5s autoreload that wholesale-replaced innerHTML, the entire list
+ * flashed and reshuffled on each poll ("the website is having shocks"). */
+.mail-item-new {
+  animation: mailItemIn 0.55s cubic-bezier(0.4, 0, 0.2, 1) both;
+  animation-delay: var(--mail-item-delay, 0s);
 }
 
 @keyframes mailItemIn {
   from {
     opacity: 0;
-    transform: translateY(12px);
+    transform: translateY(14px);
   }
   to {
     opacity: 1;
@@ -1821,10 +1829,39 @@ body {
   animation: slideUp 0.3s ease;
 }
 
-.mail-back-btn {
+/* Toolbar row sits at the top of the detail view so Back and Delete are
+   both reachable without scrolling to the bottom of long emails. */
+.mail-detail-toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.75rem;
   margin-bottom: 1rem;
+  flex-wrap: wrap;
+}
+
+.mail-back-btn {
   padding: 0.6rem 1rem;
 }
+
+.mail-delete-btn {
+  padding: 0.6rem 1rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  color: rgba(248, 113, 113, 0.92);
+  border-color: rgba(248, 113, 113, 0.35);
+  background: rgba(248, 113, 113, 0.08);
+  transition: var(--transition);
+}
+.mail-delete-btn:hover {
+  background: rgba(248, 113, 113, 0.18);
+  border-color: rgba(248, 113, 113, 0.55);
+  color: #fff;
+  transform: translateY(-1px);
+  box-shadow: 0 8px 22px rgba(248, 113, 113, 0.22);
+}
+.mail-delete-btn:active { transform: translateY(0); }
 
 .detail-header {
   padding: 1.5rem;
