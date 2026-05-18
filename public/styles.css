@@ -115,23 +115,36 @@ body {
 }
 
 @media (max-width: 768px) {
+  /* On mobile we deliberately DO NOT play the video. iOS Safari has known
+     issues with playing autoplay videos inside a position:fixed container
+     above the page — they jank when the address bar collapses, leaving
+     black bars at the bottom of the viewport and causing the whole page
+     to "step" when scrolling. We use the poster image as a CSS background
+     instead, which is rock-solid across browsers and never repaints. */
   .bg-desktop { display: none; }
-  .bg-mobile {
-    display: block;
-    object-position: 50% 50%; /* Keep mobile video centred */
-  }
-  /* Remove will-change on mobile to eliminate scroll lag */
+  .bg-mobile { display: none; }
+
   .bg-media {
+    /* Use the largest possible viewport unit (svh/lvh fall back to dvh
+       on older Safari). 100lvh ensures the background extends behind the
+       iOS toolbar so there's no black bar at the bottom when it collapses. */
+    height: 100vh;
+    height: 100svh;
+    height: 100lvh;
+    background-image: url('/phone-mail-bg.png');
+    background-size: cover;
+    background-position: center center;
+    background-repeat: no-repeat;
+    /* Remove GPU compositing hints — they don't help here and can cause
+       scroll lag on lower-end Android devices. */
     will-change: auto;
     -webkit-transform: none;
     transform: none;
     -webkit-backface-visibility: visible;
     backface-visibility: visible;
   }
-  .bg-video {
-    will-change: auto;
-    -webkit-transform: none;
-    transform: none;
+  .mail-bg {
+    background-image: url('/phone-mail-bg.png');
   }
 }
 
@@ -3328,4 +3341,534 @@ body {
   .dev-api-cta-title { font-size: 1.2rem; }
   .dev-api-cta-eyebrow { font-size: 0.58rem; letter-spacing: 0.14em; }
   .dev-api-cta-subtitle { font-size: 0.66rem; }
+}
+
+/* =========================================================================
+   ACTIVE INBOXES PANEL — high contrast over bright sky/landscape backgrounds.
+   The previous styling was nearly invisible over the new sky-blue video
+   background. Stronger glass + opaque accent bar + better hover lift.
+   ========================================================================= */
+.inbox-tabs-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+  padding: 1rem;
+  background: linear-gradient(135deg, rgba(14, 14, 22, 0.88) 0%, rgba(20, 20, 32, 0.82) 100%);
+  backdrop-filter: blur(28px) saturate(140%);
+  -webkit-backdrop-filter: blur(28px) saturate(140%);
+  border: 1px solid rgba(212, 167, 106, 0.28);
+  border-radius: 18px;
+  box-shadow: 0 14px 44px rgba(0, 0, 0, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.06);
+}
+
+.inbox-tabs-label {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  font-size: 0.74rem;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--accent);
+  margin-bottom: 0.2rem;
+  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.6);
+}
+
+.inbox-tabs-label::before {
+  content: "";
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 12px var(--accent);
+  animation: inboxPulse 2.4s ease-in-out infinite;
+}
+
+@keyframes inboxPulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50%      { opacity: 0.55; transform: scale(0.85); }
+}
+
+.inbox-tab {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.85rem 1.1rem;
+  background: rgba(28, 28, 42, 0.92);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 14px;
+  cursor: pointer;
+  transition: transform 0.18s ease, background 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.35);
+  position: relative;
+  overflow: hidden;
+}
+
+.inbox-tab::before {
+  content: "";
+  position: absolute;
+  left: 0; top: 0; bottom: 0;
+  width: 3px;
+  background: transparent;
+  transition: background 0.18s ease;
+}
+
+.inbox-tab:hover {
+  background: rgba(40, 40, 58, 0.94);
+  border-color: rgba(212, 167, 106, 0.45);
+  transform: translateX(2px);
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.5);
+}
+
+.inbox-tab.active {
+  background: linear-gradient(135deg, rgba(48, 38, 22, 0.95) 0%, rgba(32, 30, 42, 0.95) 100%);
+  border-color: rgba(212, 167, 106, 0.6);
+  box-shadow: 0 10px 26px rgba(212, 167, 106, 0.18), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+
+.inbox-tab.active::before { background: var(--accent); }
+
+.inbox-tab-content {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  min-width: 0;
+  flex: 1;
+}
+
+.inbox-tab-email {
+  font-family: 'Cormorant Garamond', 'Playfair Display', serif;
+  font-size: 1.2rem;
+  font-weight: 700;
+  color: #fff;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  text-shadow: 0 1px 6px rgba(0, 0, 0, 0.55);
+}
+.inbox-tab.active .inbox-tab-email { color: var(--accent); }
+
+.inbox-tab-meta {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.72rem;
+  color: rgba(255, 255, 255, 0.7);
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.55);
+}
+
+.inbox-tab-meta .reserved-flag {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 1px 7px;
+  border-radius: 100px;
+  background: rgba(212, 167, 106, 0.18);
+  border: 1px solid rgba(212, 167, 106, 0.4);
+  color: var(--accent);
+  font-weight: 600;
+  text-shadow: none;
+}
+
+.inbox-tab-pill {
+  font-size: 0.62rem;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  background: var(--accent);
+  color: #1c130a;
+  padding: 3px 9px;
+  border-radius: 6px;
+  font-weight: 700;
+  box-shadow: 0 4px 12px rgba(212, 167, 106, 0.35);
+}
+
+/* =========================================================================
+   CUSTOM CONFIRM MODAL — replaces the native confirm() dialog
+   ========================================================================= */
+.confirm-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 10500;
+  background: radial-gradient(ellipse at top, rgba(20, 14, 8, 0.72), rgba(0, 0, 0, 0.85));
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  display: none;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.25s ease, visibility 0.25s ease;
+}
+
+.confirm-overlay.active {
+  display: flex;
+  opacity: 1;
+  visibility: visible;
+}
+
+.confirm-card {
+  width: 100%;
+  max-width: 440px;
+  padding: 1.75rem;
+  text-align: center;
+  background: linear-gradient(155deg, rgba(28, 22, 14, 0.96) 0%, rgba(18, 14, 22, 0.96) 100%);
+  border: 1px solid rgba(212, 167, 106, 0.32);
+  border-radius: 20px;
+  box-shadow: 0 28px 80px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(255, 255, 255, 0.04), 0 0 60px rgba(212, 167, 106, 0.08);
+  transform: translateY(20px) scale(0.92);
+  opacity: 0;
+  transition: transform 0.45s cubic-bezier(0.34, 1.56, 0.64, 1), opacity 0.3s ease;
+}
+
+.confirm-overlay.active .confirm-card {
+  transform: translateY(0) scale(1);
+  opacity: 1;
+}
+
+.confirm-icon {
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  background: radial-gradient(circle at center, rgba(248, 113, 113, 0.22), rgba(248, 113, 113, 0.04));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto 1rem;
+  color: rgba(248, 113, 113, 0.92);
+  border: 1px solid rgba(248, 113, 113, 0.35);
+  animation: confirmIconIn 0.55s cubic-bezier(0.34, 1.56, 0.64, 1) both 0.05s;
+  box-shadow: 0 0 30px rgba(248, 113, 113, 0.18);
+}
+
+@keyframes confirmIconIn {
+  from { transform: scale(0.4) rotate(-12deg); opacity: 0; }
+  to   { transform: scale(1) rotate(0deg); opacity: 1; }
+}
+
+.confirm-title {
+  font-family: 'Cormorant Garamond', 'Playfair Display', serif;
+  font-size: 1.75rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin: 0 0 0.5rem;
+  letter-spacing: -0.01em;
+}
+
+.confirm-message {
+  color: var(--text-secondary);
+  font-size: 0.95rem;
+  line-height: 1.55;
+  margin: 0 0 1.5rem;
+}
+
+.confirm-actions {
+  display: flex;
+  gap: 0.65rem;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+.confirm-actions .btn {
+  min-width: 120px;
+  justify-content: center;
+}
+
+.confirm-actions .btn-ghost {
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: var(--text-primary);
+}
+
+.confirm-actions .btn-ghost:hover {
+  background: rgba(255, 255, 255, 0.09);
+  border-color: rgba(255, 255, 255, 0.22);
+  transform: translateY(-1px);
+}
+
+.confirm-actions .confirm-danger {
+  background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+  color: #fff;
+  border: none;
+  box-shadow: 0 8px 22px rgba(239, 68, 68, 0.35);
+  position: relative;
+  overflow: hidden;
+}
+
+.confirm-actions .confirm-danger::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.18), transparent);
+  transform: translateX(-100%);
+  transition: transform 0.6s ease;
+}
+
+.confirm-actions .confirm-danger:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 14px 32px rgba(239, 68, 68, 0.55);
+}
+
+.confirm-actions .confirm-danger:hover::before {
+  transform: translateX(100%);
+}
+
+.confirm-actions .confirm-danger.is-busy {
+  pointer-events: none;
+  opacity: 0.7;
+}
+
+/* When the confirm uses a non-destructive (info) icon */
+.confirm-icon.info {
+  color: var(--accent);
+  border-color: rgba(212, 167, 106, 0.4);
+  background: radial-gradient(circle at center, rgba(212, 167, 106, 0.22), rgba(212, 167, 106, 0.04));
+  box-shadow: 0 0 30px rgba(212, 167, 106, 0.18);
+}
+
+.confirm-actions .confirm-primary {
+  background: linear-gradient(135deg, var(--accent) 0%, var(--accent-warm, #c08947) 100%);
+  color: #1c130a;
+  border: none;
+  box-shadow: 0 8px 22px rgba(212, 167, 106, 0.35);
+  font-weight: 700;
+}
+.confirm-actions .confirm-primary:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 14px 32px rgba(212, 167, 106, 0.55);
+}
+
+/* =========================================================================
+   BLOCK LIST MODAL ITEMS
+   ========================================================================= */
+#blocklist-input {
+  display: block;
+  width: 100%;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 12px;
+  padding: 0.85rem 1rem;
+  font-size: 0.95rem;
+  color: var(--text-primary);
+  outline: none;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+}
+#blocklist-input:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-glow);
+}
+
+.blocklist-items {
+  list-style: none;
+  margin: 1rem 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  max-height: 280px;
+  overflow-y: auto;
+}
+
+.blocklist-items li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.55rem 0.85rem;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 10px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 0.85rem;
+  color: var(--text-primary);
+  animation: blocklistItemIn 0.3s ease both;
+}
+
+@keyframes blocklistItemIn {
+  from { opacity: 0; transform: translateX(-8px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+
+.blocklist-items li button {
+  background: transparent;
+  border: 1px solid rgba(248, 113, 113, 0.35);
+  color: rgba(248, 113, 113, 0.92);
+  border-radius: 8px;
+  padding: 0.25rem 0.6rem;
+  cursor: pointer;
+  font-size: 0.78rem;
+  transition: all 0.15s ease;
+}
+
+.blocklist-items li button:hover {
+  background: rgba(248, 113, 113, 0.15);
+  border-color: rgba(248, 113, 113, 0.6);
+  color: #fff;
+  transform: translateY(-1px);
+}
+
+.blocklist-empty {
+  margin: 1.25rem 0 0;
+  padding: 1rem;
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 0.88rem;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px dashed rgba(255, 255, 255, 0.1);
+  border-radius: 12px;
+}
+
+/* =========================================================================
+   EXPORT BUTTONS in message detail toolbar
+   ========================================================================= */
+.mail-export-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin-left: auto;
+}
+
+.mail-export-btn {
+  padding: 0.55rem 0.9rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.82rem;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 10px;
+  color: var(--text-secondary);
+  transition: all 0.18s ease;
+  cursor: pointer;
+}
+.mail-export-btn:hover {
+  background: rgba(212, 167, 106, 0.1);
+  border-color: rgba(212, 167, 106, 0.45);
+  color: var(--accent);
+  transform: translateY(-1px);
+}
+
+.mail-export-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+  background: rgba(255, 255, 255, 0.02);
+  border-color: rgba(255, 255, 255, 0.06);
+  color: var(--text-muted);
+}
+.mail-export-btn:disabled:hover {
+  transform: none;
+}
+
+.mail-export-btn .pro-lock {
+  font-size: 0.7rem;
+}
+
+/* =========================================================================
+   RESERVE / BLOCKLIST ICON STATES
+   ========================================================================= */
+.icon-btn.is-active-state {
+  background: rgba(212, 167, 106, 0.16);
+  color: var(--accent);
+  border-color: rgba(212, 167, 106, 0.5);
+  box-shadow: 0 0 12px rgba(212, 167, 106, 0.25);
+}
+
+#btn-reserve.is-active-state svg polygon {
+  fill: currentColor;
+}
+
+/* =========================================================================
+   UNIVERSAL BUTTON PRESS / GLOW / RIPPLE ANIMATIONS
+   Subtle "press" + glow on all .btn-primary clicks; injected here so we
+   don't have to wire individual button handlers for every callsite.
+   ========================================================================= */
+.btn-primary,
+.glow-btn {
+  position: relative;
+  overflow: hidden;
+}
+
+.btn-primary::after,
+.glow-btn::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle at var(--ripple-x, 50%) var(--ripple-y, 50%),
+                              rgba(255, 255, 255, 0.45) 0%,
+                              transparent 60%);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.5s ease;
+}
+
+.btn-primary.is-rippling::after,
+.glow-btn.is-rippling::after {
+  animation: btnRipple 0.6s ease-out;
+}
+
+@keyframes btnRipple {
+  from { opacity: 0.8; transform: scale(0.4); }
+  to   { opacity: 0;   transform: scale(2); }
+}
+
+.btn-primary:not(:disabled):active,
+.glow-btn:not(:disabled):active {
+  transform: scale(0.97);
+  transition-duration: 80ms;
+}
+
+/* Universal "shimmer" overlay used by createInbox/upgrade/sendMessage when
+   they're in flight. Add the class .is-loading-shimmer to any element. */
+.is-loading-shimmer {
+  position: relative;
+  overflow: hidden;
+}
+.is-loading-shimmer::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, transparent 0%, rgba(255, 255, 255, 0.22) 50%, transparent 100%);
+  animation: globalShimmer 1.2s linear infinite;
+  pointer-events: none;
+}
+@keyframes globalShimmer {
+  from { transform: translateX(-100%); }
+  to   { transform: translateX(100%); }
+}
+
+/* Success-state for any button that wants to "morph" into a green check */
+.btn-success-state {
+  background: linear-gradient(135deg, #34d399 0%, #10b981 100%) !important;
+  color: #fff !important;
+  border-color: transparent !important;
+  box-shadow: 0 8px 22px rgba(52, 211, 153, 0.45) !important;
+}
+
+@keyframes successCheckPop {
+  from { transform: scale(0.4) rotate(-20deg); opacity: 0; }
+  to   { transform: scale(1) rotate(0deg); opacity: 1; }
+}
+
+/* Reduced motion: drop heavy animations */
+@media (prefers-reduced-motion: reduce) {
+  .confirm-card,
+  .confirm-icon,
+  .inbox-tab,
+  .btn-primary::after,
+  .glow-btn::after,
+  .is-loading-shimmer::before {
+    animation: none !important;
+    transition: opacity 0.2s ease !important;
+  }
+}
+
+/* Mobile: confirm modal sizing */
+@media (max-width: 480px) {
+  .confirm-card {
+    padding: 1.4rem 1.15rem;
+    border-radius: 18px;
+  }
+  .confirm-title { font-size: 1.45rem; }
+  .confirm-actions .btn { width: 100%; }
+
+  .inbox-tab { padding: 0.7rem 0.9rem; }
+  .inbox-tab-email { font-size: 1.05rem; }
 }

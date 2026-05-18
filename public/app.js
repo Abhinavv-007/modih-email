@@ -3,7 +3,7 @@
    ======================================== */
 
 // ========== STATE ==========
-let currentInbox = null;      // { id, email, created_at, expires_at, owner_token }
+let currentInbox = null;      // { id, email, created_at, expires_at, owner_token, reserved }
 let sessionInboxes = [];      // All inboxes created this session (Pro/Dev multi-inbox)
 let currentMessages = [];
 let currentMessageId = null;
@@ -13,6 +13,17 @@ let isMailWindowOpen = false;
 let turnstileWidgetId = null;
 let turnstileRequired = false;
 let currentUser = null;       // Firebase user { uid, email, plan }
+let blocklistCache = null;    // Cached array of blocked senders (loaded on Pro/Dev signin)
+let _lastRenderedMsgIds = ""; // For change detection in renderMailList (no DOM touch when stable)
+
+// Plan helper — returns 'free' | 'pro' | 'developer'
+function userPlan() {
+  return currentUser?.plan || 'free';
+}
+function isPaidUser() {
+  const p = userPlan();
+  return p === 'pro' || p === 'developer';
+}
 
 // ========== FIREBASE AUTH ==========
 const FIREBASE_CONFIG = {
@@ -122,6 +133,19 @@ function renderNavAuth() {
   const expireStat = document.getElementById('stat-expire-label');
   if (expireStat) {
     expireStat.textContent = plan === 'developer' ? '30d' : plan === 'pro' ? '7d' : '3h';
+  }
+
+  // Reveal Pro-only mail-window buttons (block list, reserve) when paid.
+  const proOnly = document.querySelectorAll('.pro-only');
+  proOnly.forEach((el) => {
+    el.style.display = (plan === 'pro' || plan === 'developer') ? '' : 'none';
+  });
+
+  // Cross-device sync: when a signed-in paid user lands on the page, fetch all
+  // their server-side inboxes so they re-appear in this session.
+  if ((plan === 'pro' || plan === 'developer') && firebaseAuth?.currentUser) {
+    syncInboxesFromServer().catch((e) => console.warn('[Sync] failed:', e?.message));
+    fetchBlocklist().catch((e) => console.warn('[Blocklist] fetch failed:', e?.message));
   }
 
   // Update generate section description
@@ -723,57 +747,49 @@ function showEmailResult(inbox) {
 }
 
 // ========== INBOX TAB SWITCHER (Pro/Dev) ==========
+// Renders the "Your Active Inboxes" panel. Heavy contrast & accent bar so it
+// pops over the bright sky-blue background — the previous low-contrast styling
+// rendered the panel essentially invisible on the new wallpaper. Builds the
+// markup once with `innerHTML`; this fn is never called from the 5s poller.
 function renderInboxTabs() {
   const tabEl = document.getElementById('inbox-tabs');
   if (!tabEl) return;
 
   if (sessionInboxes.length < 2) {
     tabEl.style.display = 'none';
+    tabEl.className = '';
+    tabEl.innerHTML = '';
     return;
   }
 
+  tabEl.className = 'inbox-tabs-wrap';
   tabEl.style.display = 'flex';
-  
+
   // Sort inboxes newest first
   const sorted = [...sessionInboxes].sort((a, b) => b.created_at - a.created_at);
 
-  tabEl.innerHTML = `
-    <div style="font-size:0.8rem;color:var(--text-muted);margin-bottom:0.25rem;font-weight:600;letter-spacing:0.05em;text-transform:uppercase;">Your Active Inboxes</div>
-    ` + sorted.map(inbox => {
-      const isActive = currentInbox?.id === inbox.id;
-      return `
-        <div 
-          onclick="switchToInbox('${inbox.id}')"
-          style="
-            display:flex;
-            justify-content:space-between;
-            align-items:center;
-            padding:0.75rem 1rem;
-            background:${isActive ? 'rgba(40,40,50,0.6)' : 'rgba(30,30,40,0.45)'};
-            backdrop-filter:blur(10px);
-            -webkit-backdrop-filter:blur(10px);
-            border:1px solid ${isActive ? 'rgba(212,167,106,0.5)' : 'rgba(255,255,255,0.12)'};
-            border-radius:12px;
-            cursor:pointer;
-            transition:all 0.2s ease;
-            box-shadow:0 4px 12px rgba(0,0,0,0.2);
-          "
-          onmouseover="this.style.background='rgba(50,50,60,0.65)';"
-          onmouseout="this.style.background='${isActive ? 'rgba(40,40,50,0.6)' : 'rgba(30,30,40,0.45)'}';"
-        >
-          <div style="display:flex;flex-direction:column;gap:0.2rem;">
-            <span style="font-family:'Cormorant Garamond',serif;font-size:1.2rem;font-weight:700;color:${isActive ? 'var(--accent)' : 'var(--text)'};">${inbox.email}</span>
-            <span style="font-size:0.7rem;color:var(--text-muted);">Created ${new Date(inbox.created_at * 1000).toLocaleDateString()}</span>
-          </div>
-          <div>
-            ${isActive 
-              ? `<span style="font-size:0.65rem;text-transform:uppercase;letter-spacing:0.1em;background:var(--accent);color:#000;padding:2px 6px;border-radius:4px;font-weight:700;">Viewing</span>`
-              : `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="color:var(--text-muted);"><polyline points="9 18 15 12 9 6"/></svg>`
-            }
-          </div>
+  const headerHtml = `<div class="inbox-tabs-label">Your Active Inboxes · ${sorted.length}</div>`;
+  const itemsHtml = sorted.map((inbox) => {
+    const isActive = currentInbox?.id === inbox.id;
+    const reserved = !!inbox.reserved;
+    const safeEmail = escapeHtml(inbox.email || '');
+    return `
+      <div class="inbox-tab${isActive ? ' active' : ''}" onclick="switchToInbox('${inbox.id}')" role="button" tabindex="0" aria-current="${isActive ? 'true' : 'false'}">
+        <div class="inbox-tab-content">
+          <span class="inbox-tab-email">${safeEmail}</span>
+          <span class="inbox-tab-meta">
+            <span>Created ${new Date(inbox.created_at * 1000).toLocaleDateString()}</span>
+            ${reserved ? '<span class="reserved-flag"><svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor" stroke="none"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>Reserved</span>' : ''}
+          </span>
         </div>
-      `;
-    }).join('');
+        ${isActive
+          ? `<span class="inbox-tab-pill">Viewing</span>`
+          : `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="color:rgba(255,255,255,0.55);flex-shrink:0;"><polyline points="9 18 15 12 9 6"/></svg>`
+        }
+      </div>`;
+  }).join('');
+
+  tabEl.innerHTML = headerHtml + itemsHtml;
 }
 
 function switchToInbox(inboxId) {
@@ -931,7 +947,12 @@ function handleSessionInvalid() {
 
 function startAutoRefresh() {
   if (refreshInterval) clearInterval(refreshInterval);
-  refreshInterval = setInterval(fetchMessages, 5000);
+  // Bumped from 5s -> 12s. With the diff renderer + change detection below,
+  // a stable inbox now produces ZERO DOM mutations per poll (no visible
+  // refresh activity). Most mail providers deliver in 2-15s anyway, so 12s
+  // strikes the right balance between snappy delivery and battery / network
+  // friendliness.
+  refreshInterval = setInterval(fetchMessages, 12000);
 }
 
 function stopAutoRefresh() {
@@ -951,23 +972,43 @@ async function refreshInbox() {
 
 // ========== RENDER MAIL LIST ==========
 //
-// Diff-based renderer. The previous implementation rebuilt the entire list
-// via `innerHTML = ...` every 5s during the auto-refresh poll, which caused
-// the whole list to flash/reflow ("the website is having shocks"). We now
-// keep DOM nodes keyed by `data-msg-id`, insert ONLY new messages with a
-// gentle slide-in animation, remove ones that disappeared, and update the
-// relative-time text in place. No flicker.
+// Diff-based renderer with CHANGE DETECTION. Previously, even though we kept
+// keyed DOM nodes, every 5s poll would still walk the list and update text
+// nodes in place — visually a no-op but enough to trigger micro-repaints that
+// the user perceived as "blinking every 5 seconds". We now compute a tiny
+// fingerprint of the current message id-set + the list length and skip ALL
+// work when nothing changed. The empty-state also won't get re-toggled when
+// it's already empty.
 function renderMailList() {
   if (currentMessageId) return;
 
   const listEl = document.getElementById("mail-list");
   const emptyEl = document.getElementById("mail-empty");
 
-  if (currentMessages.length === 0) {
-    // Smoothly clear remaining nodes if any
+  // Apply client-side block list filter (paid users only — free users have
+  // no UI to add blocklist entries so blocklistCache is always null).
+  const visible = filterMessagesByBlocklist(currentMessages);
+
+  // Cheap content-fingerprint. We only care about identity changes; new mail
+  // arrives with a new id at the front, so this string changes only when the
+  // set / order of messages changes. Read-state could be added later.
+  const fingerprint = visible.map((m) => m.id).join("|");
+  if (fingerprint === _lastRenderedMsgIds) {
+    // Update the per-row relative time without touching the rest of the DOM.
+    // formatTimeAgo only emits a new string when crossing a boundary (s→m→h),
+    // so most polls produce zero text-node writes here.
+    for (const msg of visible) {
+      const node = listEl.querySelector(`[data-msg-id="${msg.id}"]`);
+      if (node) updateMailItemNode(node, msg);
+    }
+    return;
+  }
+
+  if (visible.length === 0) {
     if (listEl.children.length > 0) listEl.innerHTML = "";
     listEl.style.display = "none";
-    emptyEl.style.display = "flex";
+    if (emptyEl.style.display !== "flex") emptyEl.style.display = "flex";
+    _lastRenderedMsgIds = "";
     return;
   }
 
@@ -984,7 +1025,7 @@ function renderMailList() {
   const seen = new Set();
   let prevNode = null;
 
-  currentMessages.forEach((msg, index) => {
+  visible.forEach((msg, index) => {
     const id = String(msg.id);
     seen.add(id);
     let node = existing.get(id);
@@ -1262,14 +1303,34 @@ const MESSAGE_FRAME_CSS = `
 function closeMessageDetail() {
   document.getElementById("mail-detail").style.display = "none";
   currentMessageId = null;
+  // Force re-render after closing a detail view since we skipped renders
+  // while the detail was open.
+  _lastRenderedMsgIds = "";
   renderMailList();
+}
+
+// Context-aware Back button in the mail-window header. If a message detail
+// is open, go back to the inbox list (not all the way to the landing page).
+// If we're on the inbox list, close the mail window.
+function mailHeaderBack() {
+  if (currentMessageId) {
+    closeMessageDetail();
+  } else {
+    closeMailWindow();
+  }
 }
 
 // ========== DELETE ADDRESS & RESET ==========
 async function deleteAddressAndReset() {
   if (!currentInbox) return;
 
-  if (!confirm("Delete this address and all its messages? You'll need to create a new one.")) return;
+  const ok = await showConfirm({
+    title: "Delete this address?",
+    message: "This permanently removes the address and every message inside it. You'll need to create a new one to receive mail again.",
+    okLabel: "Delete address",
+    danger: true,
+  });
+  if (!ok) return;
 
   let deleteOk = false;
   try {
@@ -1328,7 +1389,13 @@ async function deleteAddressAndReset() {
 async function deleteAllMessages() {
   if (!currentInbox) return;
 
-  if (!confirm("Delete all messages in this inbox?")) return;
+  const ok = await showConfirm({
+    title: "Empty this inbox?",
+    message: "All messages currently in this inbox will be permanently deleted. The address itself stays active.",
+    okLabel: "Empty inbox",
+    danger: true,
+  });
+  if (!ok) return;
 
   try {
     const res = await fetch(`/api/messages?inbox_id=${encodeURIComponent(currentInbox.id)}`, {
@@ -1988,6 +2055,525 @@ async function submitContactForm(e) {
     btn.disabled = false;
     btn.style.cssText = originalStyle;
     btn.innerHTML = originalHTML;
+  }
+}
+
+/* ============================================================================
+   ============== CUSTOM CONFIRM DIALOG (replaces native confirm()) ===========
+   ============================================================================ */
+
+// Promise-based confirm modal. Usage:
+//   const ok = await showConfirm({ title, message, okLabel?, danger? });
+// Returns true when the user clicks OK, false when they cancel / dismiss.
+function showConfirm({ title, message, okLabel = "Confirm", cancelLabel = "Cancel", danger = true } = {}) {
+  return new Promise((resolve) => {
+    const overlay = document.getElementById("confirm-modal");
+    if (!overlay) {
+      // Fallback to native confirm if the modal markup is missing (shouldn't happen).
+      resolve(window.confirm(message || title || "Are you sure?"));
+      return;
+    }
+
+    const titleEl  = document.getElementById("confirm-title");
+    const msgEl    = document.getElementById("confirm-message");
+    const okBtn    = document.getElementById("confirm-ok-btn");
+    const okLabel2 = document.getElementById("confirm-ok-label");
+    const cancelBtn= document.getElementById("confirm-cancel-btn");
+    const iconEl   = document.getElementById("confirm-icon");
+
+    titleEl.textContent  = title || "Are you sure?";
+    msgEl.textContent    = message || "";
+    okLabel2.textContent = okLabel;
+    cancelBtn.textContent= cancelLabel;
+    okBtn.classList.toggle("confirm-danger", !!danger);
+    okBtn.classList.toggle("confirm-primary", !danger);
+    iconEl.classList.toggle("info", !danger);
+
+    overlay.style.display = "flex";
+    requestAnimationFrame(() => overlay.classList.add("active"));
+    setTimeout(() => okBtn.focus(), 200);
+
+    const finish = (result) => {
+      overlay.classList.remove("active");
+      setTimeout(() => { overlay.style.display = "none"; }, 280);
+      okBtn.removeEventListener("click", onOk);
+      cancelBtn.removeEventListener("click", onCancel);
+      overlay.removeEventListener("click", onBackdrop);
+      document.removeEventListener("keydown", onKey);
+      resolve(result);
+    };
+    const onOk     = () => finish(true);
+    const onCancel = () => finish(false);
+    const onBackdrop = (e) => { if (e.target === overlay) finish(false); };
+    const onKey    = (e) => {
+      if (e.key === "Escape") finish(false);
+      else if (e.key === "Enter") finish(true);
+    };
+
+    okBtn.addEventListener("click", onOk);
+    cancelBtn.addEventListener("click", onCancel);
+    overlay.addEventListener("click", onBackdrop);
+    document.addEventListener("keydown", onKey);
+  });
+}
+
+/* ============================================================================
+   ====================== BLOCK LIST (Pro / Developer) ========================
+   Backend: /api/blocklist (GET / POST / DELETE). Stored per-user in D1.
+   Email worker should consult this list when delivering mail; on the client
+   we also filter messages defensively so the list updates feel instant.
+   ============================================================================ */
+
+async function authedHeaders(extra = {}) {
+  const headers = { "Content-Type": "application/json", ...extra };
+  if (firebaseAuth?.currentUser) {
+    try {
+      const token = await firebaseAuth.currentUser.getIdToken();
+      headers["Authorization"] = `Bearer ${token}`;
+    } catch (e) {
+      // best-effort, server will 401 if it really needs auth
+    }
+  }
+  return headers;
+}
+
+async function fetchBlocklist() {
+  if (!isPaidUser()) return;
+  try {
+    const headers = await authedHeaders();
+    const res = await fetch("/api/blocklist", { headers, cache: "no-store" });
+    if (!res.ok) return;
+    const data = await res.json().catch(() => ({}));
+    blocklistCache = Array.isArray(data?.data?.entries) ? data.data.entries : (data?.entries || []);
+    renderBlocklist();
+    // Re-render mail list so newly fetched blocks apply immediately.
+    _lastRenderedMsgIds = "";
+    renderMailList();
+  } catch (e) {
+    console.warn("[Blocklist] fetch error:", e?.message);
+  }
+}
+
+function renderBlocklist() {
+  const listEl = document.getElementById("blocklist-items");
+  const emptyEl = document.getElementById("blocklist-empty");
+  if (!listEl || !emptyEl) return;
+
+  const entries = blocklistCache || [];
+  if (entries.length === 0) {
+    listEl.innerHTML = "";
+    emptyEl.style.display = "block";
+    return;
+  }
+  emptyEl.style.display = "none";
+  listEl.innerHTML = entries.map((e) => {
+    const safe = escapeHtml(e);
+    return `<li><span>${safe}</span><button type="button" onclick="removeBlocklistEntry('${safe.replace(/'/g, "&#39;")}')">Unblock</button></li>`;
+  }).join("");
+}
+
+function openBlocklistModal() {
+  if (!isPaidUser()) {
+    showToast("Block list is a Pro feature. Upgrade to unlock!");
+    return;
+  }
+  const overlay = document.getElementById("blocklist-modal");
+  if (!overlay) return;
+  overlay.style.display = "flex";
+  requestAnimationFrame(() => overlay.classList.add("active"));
+  fetchBlocklist();
+  setTimeout(() => document.getElementById("blocklist-input")?.focus(), 150);
+}
+
+function closeBlocklistModal() {
+  const overlay = document.getElementById("blocklist-modal");
+  if (!overlay) return;
+  overlay.classList.remove("active");
+  setTimeout(() => { overlay.style.display = "none"; }, 280);
+}
+
+async function addBlocklistEntry(event) {
+  event?.preventDefault?.();
+  if (!isPaidUser()) {
+    showToast("Block list is a Pro feature. Upgrade to unlock!");
+    return;
+  }
+  const input = document.getElementById("blocklist-input");
+  if (!input) return;
+  const raw = (input.value || "").trim().toLowerCase();
+  if (!raw) return;
+
+  // Basic validation: address or domain only.
+  const looksLikeEmail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(raw);
+  const looksLikeDomain = /^[a-z0-9.-]+\.[a-z]{2,}$/.test(raw);
+  if (!looksLikeEmail && !looksLikeDomain) {
+    showToast("Enter a full email (foo@bar.com) or domain (bar.com).");
+    return;
+  }
+
+  const btn = document.getElementById("blocklist-add-btn");
+  if (btn) btn.classList.add("is-loading-shimmer");
+
+  try {
+    const headers = await authedHeaders();
+    const res = await fetch("/api/blocklist", {
+      method: "POST",
+      headers,
+      body: JSON.stringify({ entry: raw }),
+    });
+    if (res.ok) {
+      blocklistCache = Array.from(new Set([...(blocklistCache || []), raw]));
+      input.value = "";
+      renderBlocklist();
+      _lastRenderedMsgIds = "";
+      renderMailList();
+      showToast(`Blocked: ${raw}`);
+    } else {
+      const data = await res.json().catch(() => ({}));
+      showToast(data.error?.message || data.error || "Could not block. Try again.");
+    }
+  } catch (e) {
+    console.error("[Blocklist] add error:", e);
+    showToast("Network error.");
+  } finally {
+    if (btn) btn.classList.remove("is-loading-shimmer");
+  }
+}
+
+async function removeBlocklistEntry(entry) {
+  if (!isPaidUser() || !entry) return;
+  try {
+    const headers = await authedHeaders();
+    const res = await fetch(`/api/blocklist?entry=${encodeURIComponent(entry)}`, {
+      method: "DELETE",
+      headers,
+    });
+    if (res.ok) {
+      blocklistCache = (blocklistCache || []).filter((e) => e !== entry);
+      renderBlocklist();
+      _lastRenderedMsgIds = "";
+      renderMailList();
+      showToast(`Unblocked: ${entry}`);
+    }
+  } catch (e) {
+    console.error("[Blocklist] remove error:", e);
+  }
+}
+
+// Returns the subset of `msgs` that aren't from a blocked sender.
+function filterMessagesByBlocklist(msgs) {
+  if (!Array.isArray(msgs)) return [];
+  const list = blocklistCache;
+  if (!Array.isArray(list) || list.length === 0) return msgs;
+  const blockedAddrs = new Set(list.filter((e) => e.includes("@")));
+  const blockedDomains = new Set(list.filter((e) => !e.includes("@")));
+  return msgs.filter((m) => {
+    const addr = (m.from_address || "").toLowerCase();
+    if (!addr) return true;
+    if (blockedAddrs.has(addr)) return false;
+    const domain = addr.split("@")[1] || "";
+    if (blockedDomains.has(domain)) return false;
+    return true;
+  });
+}
+
+async function blockSenderFromCurrent() {
+  if (!isPaidUser()) {
+    showToast("Block list is a Pro feature.");
+    return;
+  }
+  const msg = currentMessages.find((m) => m.id === currentMessageId);
+  if (!msg?.from_address) return;
+  const entry = (msg.from_address || "").toLowerCase();
+  const ok = await showConfirm({
+    title: "Block this sender?",
+    message: `All future messages from ${entry} will be filtered out across every inbox you own.`,
+    okLabel: "Block sender",
+    danger: false,
+  });
+  if (!ok) return;
+  // Reuse the add path
+  const input = document.getElementById("blocklist-input");
+  if (input) input.value = entry;
+  await addBlocklistEntry({ preventDefault() {} });
+}
+
+/* ============================================================================
+   =================== EXPORT MESSAGE (.txt / .eml) ===========================
+   Client-side export. Free users get a friendly upgrade nudge; Pro/Dev get
+   the actual download. RFC 5322-ish .eml; not bit-perfect (we don't have the
+   raw MIME) but the headers + body are reconstructed correctly so most mail
+   clients can open it.
+   ============================================================================ */
+
+function exportCurrentMessage(format) {
+  if (!currentMessageId) return;
+  if (!isPaidUser()) {
+    showToast("Export is a Pro feature. Upgrade to download messages!");
+    return;
+  }
+  const msg = currentMessages.find((m) => m.id === currentMessageId);
+  if (!msg) return;
+
+  const safeName = sanitizeFileName(msg.subject || "message");
+  if (format === "txt") {
+    const blob = new Blob([buildTxtExport(msg)], { type: "text/plain;charset=utf-8" });
+    downloadBlob(blob, `${safeName}.txt`);
+    showToast("Exported as .txt");
+  } else if (format === "eml") {
+    const blob = new Blob([buildEmlExport(msg)], { type: "message/rfc822;charset=utf-8" });
+    downloadBlob(blob, `${safeName}.eml`);
+    showToast("Exported as .eml");
+  }
+}
+
+function sanitizeFileName(s) {
+  return (s || "message").replace(/[^a-z0-9._-]+/gi, "_").replace(/^_+|_+$/g, "").slice(0, 80) || "message";
+}
+
+function downloadBlob(blob, fileName) {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = fileName;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  setTimeout(() => URL.revokeObjectURL(url), 500);
+}
+
+function buildTxtExport(msg) {
+  const from = msg.from_name ? `${msg.from_name} <${msg.from_address}>` : (msg.from_address || "");
+  const date = msg.received_at ? new Date(msg.received_at * 1000).toUTCString() : "";
+  const to = currentInbox?.email || "";
+  const subj = msg.subject || "(no subject)";
+  const body = (msg.body_text || stripHtmlForText(msg.body_html || "") || "").trim();
+  return [
+    `From:    ${from}`,
+    `To:      ${to}`,
+    `Date:    ${date}`,
+    `Subject: ${subj}`,
+    "",
+    body,
+    "",
+    "-- Exported from Modih Mail (modih.in) --",
+  ].join("\r\n");
+}
+
+function buildEmlExport(msg) {
+  const from = msg.from_name ? `${msg.from_name} <${msg.from_address}>` : (msg.from_address || "");
+  const date = msg.received_at ? new Date(msg.received_at * 1000).toUTCString() : new Date().toUTCString();
+  const to = currentInbox?.email || "";
+  const subj = msg.subject || "(no subject)";
+  const messageId = msg.id || `${Date.now()}@modih.in`;
+
+  const text = (msg.body_text || stripHtmlForText(msg.body_html || "") || "").trim();
+  const html = (msg.body_html || "").trim();
+
+  if (html) {
+    const boundary = `=_modih_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`;
+    const headers = [
+      `From: ${encodeHeader(from)}`,
+      `To: ${encodeHeader(to)}`,
+      `Subject: ${encodeHeader(subj)}`,
+      `Date: ${date}`,
+      `Message-ID: <${messageId}@modih.in>`,
+      `MIME-Version: 1.0`,
+      `Content-Type: multipart/alternative; boundary="${boundary}"`,
+      `X-Exported-By: Modih Mail`,
+    ].join("\r\n");
+    return [
+      headers,
+      "",
+      `--${boundary}`,
+      `Content-Type: text/plain; charset="utf-8"`,
+      `Content-Transfer-Encoding: 8bit`,
+      "",
+      text || "(no plain-text body)",
+      "",
+      `--${boundary}`,
+      `Content-Type: text/html; charset="utf-8"`,
+      `Content-Transfer-Encoding: 8bit`,
+      "",
+      html,
+      "",
+      `--${boundary}--`,
+      "",
+    ].join("\r\n");
+  }
+  // text-only
+  const headers = [
+    `From: ${encodeHeader(from)}`,
+    `To: ${encodeHeader(to)}`,
+    `Subject: ${encodeHeader(subj)}`,
+    `Date: ${date}`,
+    `Message-ID: <${messageId}@modih.in>`,
+    `MIME-Version: 1.0`,
+    `Content-Type: text/plain; charset="utf-8"`,
+    `Content-Transfer-Encoding: 8bit`,
+    `X-Exported-By: Modih Mail`,
+  ].join("\r\n");
+  return `${headers}\r\n\r\n${text}\r\n`;
+}
+
+// Very loose RFC 2047 encoded-word for non-ASCII header values; keeps
+// ASCII-only headers untouched so .eml files are human-readable.
+function encodeHeader(v) {
+  const s = String(v || "");
+  if (/^[\x20-\x7E]*$/.test(s)) return s;
+  try {
+    return `=?UTF-8?B?${btoa(unescape(encodeURIComponent(s)))}?=`;
+  } catch {
+    return s;
+  }
+}
+
+function stripHtmlForText(html) {
+  if (!html) return "";
+  // Replace block tags with newlines, then strip remaining tags.
+  return html
+    .replace(/<\s*(br|p|div|tr|li|h[1-6])[^>]*>/gi, "\n")
+    .replace(/<\/(p|div|tr|li|h[1-6])\s*>/gi, "\n")
+    .replace(/<[^>]+>/g, "")
+    .replace(/&nbsp;/gi, " ")
+    .replace(/&amp;/gi, "&")
+    .replace(/&lt;/gi, "<")
+    .replace(/&gt;/gi, ">")
+    .replace(/&quot;/gi, '"')
+    .replace(/&#39;/gi, "'")
+    .replace(/\r\n?/g, "\n")
+    .replace(/\n{3,}/g, "\n\n");
+}
+
+/* ============================================================================
+   ================== RESERVE ALIAS (Pro / Developer: up to 3) ================
+   Server-side flag stored on the inbox row in D1. Reserved aliases survive
+   the periodic cleanup job — they're effectively "permanent" until the user
+   deletes them or unreserves.
+   ============================================================================ */
+
+async function toggleReserveCurrent() {
+  if (!currentInbox) return;
+  if (!isPaidUser()) {
+    showToast("Reserved aliases are a Pro feature.");
+    return;
+  }
+  const willReserve = !currentInbox.reserved;
+
+  // 3-alias cap (defensive — server enforces too)
+  if (willReserve) {
+    const reservedCount = sessionInboxes.filter((i) => i.reserved).length;
+    if (reservedCount >= 3) {
+      showToast("You can reserve up to 3 aliases. Unreserve one first.");
+      return;
+    }
+  }
+
+  try {
+    const headers = await authedHeaders();
+    const res = await fetch(`/api/inbox/reserve?id=${encodeURIComponent(currentInbox.id)}`, {
+      method: willReserve ? "POST" : "DELETE",
+      headers,
+    });
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      showToast(data.error?.message || data.error || "Could not update reservation.");
+      return;
+    }
+    currentInbox.reserved = willReserve;
+    const stored = sessionInboxes.find((i) => i.id === currentInbox.id);
+    if (stored) stored.reserved = willReserve;
+    saveSession();
+    updateReserveButtonState();
+    renderInboxTabs();
+    showToast(willReserve ? "Alias reserved ⭐" : "Reservation removed");
+  } catch (e) {
+    console.error("[Reserve] error:", e);
+    showToast("Network error.");
+  }
+}
+
+function updateReserveButtonState() {
+  const btn = document.getElementById("btn-reserve");
+  if (!btn) return;
+  if (!currentInbox) {
+    btn.classList.remove("is-active-state");
+    return;
+  }
+  btn.classList.toggle("is-active-state", !!currentInbox.reserved);
+  btn.title = currentInbox.reserved
+    ? "Reserved ⭐ — click to remove (Pro: keeps across expiry, up to 3)"
+    : "Reserve alias (Pro: keeps across expiry, up to 3)";
+}
+
+/* ============================================================================
+   =================== SYNC INBOXES ACROSS DEVICES ============================
+   Pro/Developer feature. GET /api/inbox/mine returns the user's full live
+   inbox list keyed by Firebase UID, which we merge into the local session.
+   ============================================================================ */
+
+async function syncInboxesFromServer() {
+  if (!isPaidUser() || !firebaseAuth?.currentUser) return;
+  try {
+    const headers = await authedHeaders();
+    const res = await fetch("/api/inbox/mine", { headers, cache: "no-store" });
+    if (!res.ok) return;
+    const data = await res.json().catch(() => ({}));
+    const remote = Array.isArray(data?.data?.inboxes) ? data.data.inboxes : (data.inboxes || []);
+    if (!remote.length) return;
+
+    // Merge remote into local (remote wins on shared id).
+    const byId = new Map(sessionInboxes.map((i) => [i.id, i]));
+    for (const r of remote) byId.set(r.id, { ...byId.get(r.id), ...r });
+    sessionInboxes = Array.from(byId.values()).sort((a, b) => b.created_at - a.created_at);
+    saveSession();
+
+    // If we don't have a current inbox, surface the most recent one.
+    if (!currentInbox && sessionInboxes[0]) {
+      currentInbox = sessionInboxes[0];
+      showEmailResult(currentInbox);
+    } else if (currentInbox) {
+      // Pull updated reserved flag etc. into the live reference
+      const fresh = sessionInboxes.find((i) => i.id === currentInbox.id);
+      if (fresh) currentInbox = { ...currentInbox, ...fresh };
+      updateReserveButtonState();
+      renderInboxTabs();
+    }
+  } catch (e) {
+    console.warn("[Sync] error:", e?.message);
+  }
+}
+
+/* ============================================================================
+   ============= UNIVERSAL CLICK RIPPLE / PRESS ANIMATIONS =====================
+   Attaches a tiny pointerdown listener at the document level so every
+   .btn-primary / .glow-btn gets a ripple effect without per-call wiring.
+   ============================================================================ */
+function initButtonAnimations() {
+  if (window._modihRippleInstalled) return;
+  window._modihRippleInstalled = true;
+  document.addEventListener("pointerdown", (e) => {
+    const btn = e.target?.closest?.(".btn-primary, .glow-btn");
+    if (!btn || btn.disabled) return;
+    const rect = btn.getBoundingClientRect();
+    const x = ((e.clientX - rect.left) / rect.width) * 100;
+    const y = ((e.clientY - rect.top) / rect.height) * 100;
+    btn.style.setProperty("--ripple-x", `${x}%`);
+    btn.style.setProperty("--ripple-y", `${y}%`);
+    btn.classList.remove("is-rippling");
+    // restart animation
+    void btn.offsetWidth;
+    btn.classList.add("is-rippling");
+    setTimeout(() => btn.classList.remove("is-rippling"), 650);
+  }, { passive: true });
+}
+
+// Auto-initialise on DOMContentLoaded (additive — doesn't replace existing init).
+if (typeof document !== "undefined") {
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", initButtonAnimations);
+  } else {
+    initButtonAnimations();
   }
 }
 

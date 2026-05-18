@@ -228,14 +228,32 @@ async function getAuthContext(request, db) {
 async function cleanupExpired(db) {
   const now = Math.floor(Date.now() / 1000);
   try {
-    await db
-      .prepare("DELETE FROM messages WHERE inbox_id IN (SELECT id FROM inboxes WHERE expires_at > 0 AND expires_at < ?)")
-      .bind(now)
-      .run();
-    await db
-      .prepare("DELETE FROM inboxes WHERE expires_at > 0 AND expires_at < ?")
-      .bind(now)
-      .run();
+    // Reserved aliases (Pro feature) survive expiry. The IFNULL guard keeps
+    // this working on deploys where migrate-pro-features.sql hasn't been
+    // applied yet (the column will be missing entirely on those rows).
+    try {
+      await db
+        .prepare(
+          "DELETE FROM messages WHERE inbox_id IN (SELECT id FROM inboxes WHERE expires_at > 0 AND expires_at < ? AND IFNULL(reserved, 0) = 0)"
+        )
+        .bind(now)
+        .run();
+      await db
+        .prepare("DELETE FROM inboxes WHERE expires_at > 0 AND expires_at < ? AND IFNULL(reserved, 0) = 0")
+        .bind(now)
+        .run();
+    } catch (error) {
+      if (!String(error?.message || "").includes("reserved")) throw error;
+      // Pre-migration fallback: no reserved column yet.
+      await db
+        .prepare("DELETE FROM messages WHERE inbox_id IN (SELECT id FROM inboxes WHERE expires_at > 0 AND expires_at < ?)")
+        .bind(now)
+        .run();
+      await db
+        .prepare("DELETE FROM inboxes WHERE expires_at > 0 AND expires_at < ?")
+        .bind(now)
+        .run();
+    }
   } catch (e) {
     console.error("Cleanup error:", e);
   }
