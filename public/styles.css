@@ -1440,20 +1440,29 @@ body {
   gap: 0.75rem;
 }
 
-.generate-actions .btn-primary {
+.generate-actions .btn-primary,
+.generate-actions .btn-secondary {
   flex: 1;
   justify-content: center;
   padding: 1rem;
-  background: rgba(30, 30, 40, 0.4);
-  border: 1px solid rgba(255, 255, 255, 0.15);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
+  background: rgba(0, 0, 0, 0.5);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  /* No `all` transitions, no bouncy easing — those combined with the
+     ::after halo were what made the Custom Name / Random buttons look
+     like they were "breaking out" on hover. Linear/short transitions
+     on the specific props only. */
+  transition: background 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease;
 }
 
-.generate-actions .btn-primary:hover {
-  background: rgba(40, 40, 55, 0.6);
-  border-color: rgba(255, 255, 255, 0.3);
+.generate-actions .btn-primary:hover,
+.generate-actions .btn-secondary:not(:disabled):hover {
+  background: rgba(0, 0, 0, 0.65);
+  border-color: rgba(255, 255, 255, 0.32);
   box-shadow: 0 6px 20px rgba(0, 0, 0, 0.4);
+  /* Override the inherited `transform: translateY(-2px)` from .btn-primary:hover. */
+  transform: none;
 }
 
 .error-msg {
@@ -3353,12 +3362,14 @@ body {
   flex-direction: column;
   gap: 0.55rem;
   padding: 1rem;
-  background: linear-gradient(135deg, rgba(14, 14, 22, 0.88) 0%, rgba(20, 20, 32, 0.82) 100%);
-  backdrop-filter: blur(28px) saturate(140%);
-  -webkit-backdrop-filter: blur(28px) saturate(140%);
-  border: 1px solid rgba(212, 167, 106, 0.28);
+  /* Pure transparent black — no blue/violet hue. Matches the user's
+     request for a clean black/white/transparent panel. */
+  background: rgba(0, 0, 0, 0.55);
+  backdrop-filter: blur(28px) saturate(120%);
+  -webkit-backdrop-filter: blur(28px) saturate(120%);
+  border: 1px solid rgba(255, 255, 255, 0.14);
   border-radius: 18px;
-  box-shadow: 0 14px 44px rgba(0, 0, 0, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  box-shadow: 0 14px 44px rgba(0, 0, 0, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.05);
 }
 
 .inbox-tabs-label {
@@ -3369,7 +3380,7 @@ body {
   font-weight: 700;
   letter-spacing: 0.14em;
   text-transform: uppercase;
-  color: var(--accent);
+  color: rgba(255, 255, 255, 0.78);
   margin-bottom: 0.2rem;
   text-shadow: 0 1px 4px rgba(0, 0, 0, 0.6);
 }
@@ -3378,8 +3389,8 @@ body {
   content: "";
   width: 6px; height: 6px;
   border-radius: 50%;
-  background: var(--accent);
-  box-shadow: 0 0 12px var(--accent);
+  background: rgba(255, 255, 255, 0.85);
+  box-shadow: 0 0 10px rgba(255, 255, 255, 0.55);
   animation: inboxPulse 2.4s ease-in-out infinite;
 }
 
@@ -3393,12 +3404,14 @@ body {
   justify-content: space-between;
   align-items: center;
   padding: 0.85rem 1.1rem;
-  background: rgba(28, 28, 42, 0.92);
-  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: rgba(0, 0, 0, 0.42);
+  border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 14px;
   cursor: pointer;
-  transition: transform 0.18s ease, background 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease;
-  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.35);
+  /* Only transition non-layout properties to avoid the jitter the user
+     described. No `transform` here — it caused the panel to shift on hover. */
+  transition: background 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.3);
   position: relative;
   overflow: hidden;
 }
@@ -3413,19 +3426,19 @@ body {
 }
 
 .inbox-tab:hover {
-  background: rgba(40, 40, 58, 0.94);
-  border-color: rgba(212, 167, 106, 0.45);
-  transform: translateX(2px);
-  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.5);
+  background: rgba(255, 255, 255, 0.06);
+  border-color: rgba(255, 255, 255, 0.25);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.4);
 }
 
 .inbox-tab.active {
-  background: linear-gradient(135deg, rgba(48, 38, 22, 0.95) 0%, rgba(32, 30, 42, 0.95) 100%);
-  border-color: rgba(212, 167, 106, 0.6);
-  box-shadow: 0 10px 26px rgba(212, 167, 106, 0.18), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  /* Pure white-on-black emphasis — no warm gold gradient. */
+  background: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.45);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.08);
 }
 
-.inbox-tab.active::before { background: var(--accent); }
+.inbox-tab.active::before { background: rgba(255, 255, 255, 0.9); }
 
 .inbox-tab-content {
   display: flex;
@@ -3445,7 +3458,7 @@ body {
   text-overflow: ellipsis;
   text-shadow: 0 1px 6px rgba(0, 0, 0, 0.55);
 }
-.inbox-tab.active .inbox-tab-email { color: var(--accent); }
+.inbox-tab.active .inbox-tab-email { color: #fff; }
 
 .inbox-tab-meta {
   display: flex;
@@ -3462,9 +3475,9 @@ body {
   gap: 0.25rem;
   padding: 1px 7px;
   border-radius: 100px;
-  background: rgba(212, 167, 106, 0.18);
-  border: 1px solid rgba(212, 167, 106, 0.4);
-  color: var(--accent);
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  color: rgba(255, 255, 255, 0.92);
   font-weight: 600;
   text-shadow: none;
 }
@@ -3473,12 +3486,12 @@ body {
   font-size: 0.62rem;
   text-transform: uppercase;
   letter-spacing: 0.12em;
-  background: var(--accent);
-  color: #1c130a;
+  background: rgba(255, 255, 255, 0.92);
+  color: #0a0a10;
   padding: 3px 9px;
   border-radius: 6px;
   font-weight: 700;
-  box-shadow: 0 4px 12px rgba(212, 167, 106, 0.35);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.35);
 }
 
 /* =========================================================================
@@ -3776,9 +3789,13 @@ body {
 }
 
 /* =========================================================================
-   UNIVERSAL BUTTON PRESS / GLOW / RIPPLE ANIMATIONS
-   Subtle "press" + glow on all .btn-primary clicks; injected here so we
-   don't have to wire individual button handlers for every callsite.
+   UNIVERSAL BUTTON PRESS / RIPPLE
+   IMPORTANT: do NOT use ::after here. The base .btn has its own .btn::after
+   halo that is shown on .btn:hover (opacity:1). Overriding ::after for
+   .btn-primary caused a white radial gradient to flash in on hover, which
+   the user perceived as a blinking/breaking-out effect on Random / Custom
+   Name / Private Inbox buttons. We use a dedicated `.btn-ripple` overlay
+   span that the JS adds + animates on click instead — no hover conflicts.
    ========================================================================= */
 .btn-primary,
 .glow-btn {
@@ -3786,27 +3803,21 @@ body {
   overflow: hidden;
 }
 
-.btn-primary::after,
-.glow-btn::after {
-  content: "";
+.btn-ripple {
   position: absolute;
-  inset: 0;
-  background: radial-gradient(circle at var(--ripple-x, 50%) var(--ripple-y, 50%),
-                              rgba(255, 255, 255, 0.45) 0%,
-                              transparent 60%);
-  opacity: 0;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(255, 255, 255, 0.55) 0%, rgba(255, 255, 255, 0) 60%);
   pointer-events: none;
-  transition: opacity 0.5s ease;
-}
-
-.btn-primary.is-rippling::after,
-.glow-btn.is-rippling::after {
-  animation: btnRipple 0.6s ease-out;
+  opacity: 0.9;
+  transform: scale(0);
+  animation: btnRipple 0.55s ease-out forwards;
 }
 
 @keyframes btnRipple {
-  from { opacity: 0.8; transform: scale(0.4); }
-  to   { opacity: 0;   transform: scale(2); }
+  to {
+    transform: scale(2.4);
+    opacity: 0;
+  }
 }
 
 .btn-primary:not(:disabled):active,
@@ -3852,8 +3863,7 @@ body {
   .confirm-card,
   .confirm-icon,
   .inbox-tab,
-  .btn-primary::after,
-  .glow-btn::after,
+  .btn-ripple,
   .is-loading-shimmer::before {
     animation: none !important;
     transition: opacity 0.2s ease !important;

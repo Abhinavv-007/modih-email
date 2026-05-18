@@ -513,6 +513,24 @@ async function createInbox(type) {
     }
   }
 
+  // If a free-plan user already has an active inbox and is about to create
+  // a new one, ask first — the previous address is lost on free plan because
+  // we only keep one inbox per session. Paid users can hold multiple, so the
+  // existing inbox just moves into the Active Inboxes panel and we skip the
+  // confirm.
+  const plan = currentUser?.plan || 'free';
+  const isPaid = plan === 'pro' || plan === 'developer';
+  if (currentInbox && !isPaid) {
+    const ok = await showConfirm({
+      title: "Replace your current inbox?",
+      message: `You'll create a new address and your current one (${currentInbox.email}) will be discarded along with any messages in it. Upgrade to Pro to keep up to 10 active inboxes at once.`,
+      okLabel: "Yes, create new",
+      cancelLabel: "Keep current",
+      danger: true,
+    });
+    if (!ok) return;
+  }
+
   // Loading state — button spinners + a skeleton card so the page never
   // looks frozen during the API round-trip (D1 + KV writes typically take
   // 1–3s). The skeleton appears immediately and is replaced by the real
@@ -2548,6 +2566,9 @@ async function syncInboxesFromServer() {
    ============= UNIVERSAL CLICK RIPPLE / PRESS ANIMATIONS =====================
    Attaches a tiny pointerdown listener at the document level so every
    .btn-primary / .glow-btn gets a ripple effect without per-call wiring.
+   Uses a dedicated <span.btn-ripple> overlay instead of ::after, so it
+   never conflicts with the base .btn:hover::after halo (which previously
+   caused a white "blink" on hover).
    ============================================================================ */
 function initButtonAnimations() {
   if (window._modihRippleInstalled) return;
@@ -2556,15 +2577,14 @@ function initButtonAnimations() {
     const btn = e.target?.closest?.(".btn-primary, .glow-btn");
     if (!btn || btn.disabled) return;
     const rect = btn.getBoundingClientRect();
-    const x = ((e.clientX - rect.left) / rect.width) * 100;
-    const y = ((e.clientY - rect.top) / rect.height) * 100;
-    btn.style.setProperty("--ripple-x", `${x}%`);
-    btn.style.setProperty("--ripple-y", `${y}%`);
-    btn.classList.remove("is-rippling");
-    // restart animation
-    void btn.offsetWidth;
-    btn.classList.add("is-rippling");
-    setTimeout(() => btn.classList.remove("is-rippling"), 650);
+    const size = Math.max(rect.width, rect.height);
+    const ripple = document.createElement("span");
+    ripple.className = "btn-ripple";
+    ripple.style.width = ripple.style.height = `${size}px`;
+    ripple.style.left = `${e.clientX - rect.left - size / 2}px`;
+    ripple.style.top = `${e.clientY - rect.top - size / 2}px`;
+    btn.appendChild(ripple);
+    setTimeout(() => ripple.remove(), 600);
   }, { passive: true });
 }
 
