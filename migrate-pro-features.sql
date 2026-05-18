@@ -23,7 +23,7 @@ CREATE INDEX IF NOT EXISTS idx_user_blocklist_uid ON user_blocklist (uid);
 -- ---- Reserved alias flag -------------------------------------------------
 -- D1 has no IF NOT EXISTS for ADD COLUMN, so we tolerate the "duplicate
 -- column" error at apply time. Run this once after deploy:
---   wrangler d1 execute modih-mail --file migrate-pro-features.sql --remote
+--   npx wrangler d1 execute modih-mail-db --file=migrate-pro-features.sql --remote
 ALTER TABLE inboxes ADD COLUMN reserved INTEGER NOT NULL DEFAULT 0;
 
 -- Backfill index for fast "list reserved by user" queries used by /api/inbox/mine.
