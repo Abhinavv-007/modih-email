@@ -786,13 +786,27 @@ function renderInboxTabs() {
   // Sort inboxes newest first
   const sorted = [...sessionInboxes].sort((a, b) => b.created_at - a.created_at);
 
-  const headerHtml = `<div class="inbox-tabs-label">Your Active Inboxes · ${sorted.length}</div>`;
+  // Bulk "Clear inactive" button only appears for paid users with more than
+  // just the active inbox in the list — that's the only case where pruning
+  // actually clears anything. Reserved inboxes are skipped server-side.
+  const inactiveCount = sorted.filter((i) => i.id !== currentInbox?.id && !i.reserved).length;
+  const showClear = isPaidUser() && inactiveCount > 0;
+  const headerHtml = `
+    <div class="inbox-tabs-label">
+      <span>Your Active Inboxes \u00b7 ${sorted.length}</span>
+      ${showClear ? `<button type="button" class="inbox-tabs-clear" onclick="clearInactiveInboxes()" title="Permanently delete every inactive inbox in this list (reserved inboxes are kept).">Clear inactive (${inactiveCount})</button>` : ''}
+    </div>`;
   const itemsHtml = sorted.map((inbox) => {
     const isActive = currentInbox?.id === inbox.id;
     const reserved = !!inbox.reserved;
     const safeEmail = escapeHtml(inbox.email || '');
+    const safeId = escapeHtml(inbox.id || '');
+    // Delete (X) button — visible for paid users on inactive non-reserved
+    // tabs. Active inbox uses the main Delete-address toolbar, reserved tabs
+    // require unreserving first (matches the pattern in cleanupExpired).
+    const showX = isPaidUser() && !isActive && !reserved;
     return `
-      <div class="inbox-tab${isActive ? ' active' : ''}" onclick="switchToInbox('${inbox.id}')" role="button" tabindex="0" aria-current="${isActive ? 'true' : 'false'}">
+      <div class="inbox-tab${isActive ? ' active' : ''}" onclick="switchToInbox('${safeId}')" role="button" tabindex="0" aria-current="${isActive ? 'true' : 'false'}">
         <div class="inbox-tab-content">
           <span class="inbox-tab-email">${safeEmail}</span>
           <span class="inbox-tab-meta">
@@ -800,14 +814,96 @@ function renderInboxTabs() {
             ${reserved ? '<span class="reserved-flag"><svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor" stroke="none"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>Reserved</span>' : ''}
           </span>
         </div>
-        ${isActive
-          ? `<span class="inbox-tab-pill">Viewing</span>`
-          : `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="color:rgba(255,255,255,0.55);flex-shrink:0;"><polyline points="9 18 15 12 9 6"/></svg>`
-        }
+        <div class="inbox-tab-actions">
+          ${showX ? `<button type="button" class="inbox-tab-delete" onclick="event.stopPropagation(); deleteInboxById('${safeId}');" title="Delete this inbox"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>` : ''}
+          ${isActive
+            ? `<span class="inbox-tab-pill">Viewing</span>`
+            : `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="color:rgba(255,255,255,0.45);flex-shrink:0;"><polyline points="9 18 15 12 9 6"/></svg>`
+          }
+        </div>
       </div>`;
   }).join('');
 
   tabEl.innerHTML = headerHtml + itemsHtml;
+}
+
+// ── Per-tab delete (X button on each non-active inbox) ──────────────────────
+// Uses DELETE /api/inbox/mine, which authenticates via Firebase UID instead of
+// owner_token — that's important for inboxes synced from other devices where
+// the local owner_token was never persisted.
+async function deleteInboxById(inboxId) {
+  if (!inboxId) return;
+  const target = sessionInboxes.find((i) => i.id === inboxId);
+  if (!target) return;
+
+  const ok = await showConfirm({
+    title: 'Delete this inbox?',
+    message: `Permanently removes ${target.email} and every message in it. This can't be undone.`,
+    okLabel: 'Delete inbox',
+    danger: true,
+  });
+  if (!ok) return;
+
+  try {
+    const headers = await authedHeaders();
+    const res = await fetch(`/api/inbox/mine?id=${encodeURIComponent(inboxId)}`, {
+      method: 'DELETE',
+      headers,
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      showToast(data.error?.message || 'Failed to delete inbox.');
+      return;
+    }
+    sessionInboxes = sessionInboxes.filter((i) => i.id !== inboxId);
+    saveSession();
+    renderInboxTabs();
+    showToast(`Deleted ${target.email}.`);
+  } catch (e) {
+    console.error('[deleteInboxById] error:', e);
+    showToast('Network error. Could not delete inbox.');
+  }
+}
+
+// ── Bulk "Clear inactive" — purges every non-active, non-reserved inbox
+//    the signed-in user owns. Reserved + currently-viewing inboxes are kept.
+async function clearInactiveInboxes() {
+  if (!isPaidUser()) return;
+  const candidates = sessionInboxes.filter((i) => i.id !== currentInbox?.id && !i.reserved);
+  if (candidates.length === 0) return;
+
+  const ok = await showConfirm({
+    title: `Clear ${candidates.length} inactive inbox${candidates.length === 1 ? '' : 'es'}?`,
+    message: `Permanently deletes every non-reserved inbox you're not currently viewing. Reserved inboxes will be kept. This can't be undone.`,
+    okLabel: 'Clear inactive',
+    danger: true,
+  });
+  if (!ok) return;
+
+  try {
+    const headers = await authedHeaders();
+    const keepParam = currentInbox?.id ? `&keep=${encodeURIComponent(currentInbox.id)}` : '';
+    const res = await fetch(`/api/inbox/mine?all=1${keepParam}`, {
+      method: 'DELETE',
+      headers,
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      showToast(data.error?.message || 'Failed to clear inboxes.');
+      return;
+    }
+    const removed = typeof data.deleted === 'number' ? data.deleted : candidates.length;
+    // Drop everything we just deleted from local state. Keep reserved + active.
+    const keepIds = new Set();
+    if (currentInbox?.id) keepIds.add(currentInbox.id);
+    sessionInboxes = sessionInboxes.filter((i) => i.reserved || keepIds.has(i.id));
+    saveSession();
+    renderInboxTabs();
+    showToast(`Cleared ${removed} inbox${removed === 1 ? '' : 'es'}.`);
+  } catch (e) {
+    console.error('[clearInactiveInboxes] error:', e);
+    showToast('Network error. Could not clear inboxes.');
+  }
 }
 
 function switchToInbox(inboxId) {
