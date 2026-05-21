@@ -1,9 +1,11 @@
-// GET    /api/messages?inbox_id=xxx          — fetch messages (requires X-Owner-Token)
+// GET    /api/messages?inbox_id=xxx          — fetch messages
 // DELETE /api/messages?inbox_id=xxx          — delete all messages
 // DELETE /api/messages?inbox_id=xxx&id=xxx   — delete one message
 //
-// X-API-Key is optional on GET for developer plan usage tracking.
+// Access is allowed with the one-time owner token, a signed-in inbox owner, or
+// the owning Developer API key.
 
+import { verifyFirebaseToken } from "../_auth-helper.js";
 import {
   validateOwnerToken,
   resolveApiKey,
@@ -82,6 +84,45 @@ async function logReadUsage(db, { uid, keyId, endpoint, ip, inboxId, statusCode 
   } catch (_) {}
 }
 
+async function getBearerUser(request) {
+  const authHeader = request.headers.get("Authorization") || "";
+  if (!authHeader.startsWith("Bearer ")) return null;
+  const token = authHeader.slice(7).trim();
+  if (!token) return null;
+  try {
+    const user = await verifyFirebaseToken(token);
+    return user?.uid ? user : null;
+  } catch (_) {
+    return null;
+  }
+}
+
+async function canAccessInbox({ request, env, ip, inbox, ownerToken, apiKeyAuth }) {
+  if (ownerToken) {
+    if (await isAuthRateLimited(env.RATE_LIMIT, ip, "inbox_token")) {
+      return { err: err("RATE_LIMITED", "Too many failed authentication attempts. Try again later.", 429) };
+    }
+    const valid = await validateOwnerToken(inbox, ownerToken, env.TOKEN_PEPPER || "");
+    if (!valid) {
+      await recordAuthFailure(env.RATE_LIMIT, ip, "inbox_token");
+      auditLog(env.DB, "owner_token.invalid", { inboxId: inbox.id, ip });
+      return { err: err("FORBIDDEN", "Owner token mismatch.", 403) };
+    }
+    return { ok: true, via: "owner_token" };
+  }
+
+  if (apiKeyAuth?.uid && inbox.creator_uid && inbox.creator_uid === apiKeyAuth.uid) {
+    return { ok: true, via: "api_key" };
+  }
+
+  const user = await getBearerUser(request);
+  if (user?.uid && inbox.creator_uid && inbox.creator_uid === user.uid) {
+    return { ok: true, via: "firebase", uid: user.uid };
+  }
+
+  return { err: err("UNAUTHORIZED", "Owner token or signed-in owner required.", 401) };
+}
+
 // ── GET /api/messages ────────────────────────────────────────────────────────
 export async function onRequestGet(context) {
   const { env, request } = context;
@@ -136,20 +177,15 @@ export async function onRequestGet(context) {
     }
   }
 
-  // Owner token is always required (identifies and authorises inbox access)
-  if (!ownerToken) {
-    return err("UNAUTHORIZED", "Owner token required.", 401);
-  }
-
-  // Auth-failure rate limit before token validation (brute-force protection)
-  if (await isAuthRateLimited(env.RATE_LIMIT, ip, "inbox_token")) {
-    return err("RATE_LIMITED", "Too many failed authentication attempts. Try again later.", 429);
+  const authHeader = request.headers.get("Authorization") || "";
+  if (!ownerToken && !apiKeyAuth && !authHeader.startsWith("Bearer ")) {
+    return err("UNAUTHORIZED", "Owner token or signed-in owner required.", 401);
   }
 
   try {
     const inbox = await env.DB
       .prepare(
-        "SELECT id, email, owner_token, owner_token_hash, token_version, created_at, expires_at FROM inboxes WHERE id = ?"
+        "SELECT id, email, owner_token, owner_token_hash, token_version, creator_uid, created_at, expires_at FROM inboxes WHERE id = ?"
       )
       .bind(inboxId)
       .first();
@@ -163,12 +199,8 @@ export async function onRequestGet(context) {
       return err("INBOX_EXPIRED", "Inbox has expired.", 404, { expired: true });
     }
 
-    const valid = await validateOwnerToken(inbox, ownerToken, env.TOKEN_PEPPER || "");
-    if (!valid) {
-      await recordAuthFailure(env.RATE_LIMIT, ip, "inbox_token");
-      auditLog(env.DB, "owner_token.invalid", { inboxId, ip });
-      return err("FORBIDDEN", "Owner token mismatch.", 403);
-    }
+    const access = await canAccessInbox({ request, env, ip, inbox, ownerToken, apiKeyAuth });
+    if (access.err) return access.err;
 
     const result = await env.DB
       .prepare(
@@ -218,8 +250,9 @@ export async function onRequestDelete(context) {
   if (!inboxId) {
     return err("VALIDATION_ERROR", "inbox_id parameter required.", 400);
   }
-  if (!ownerToken) {
-    return err("UNAUTHORIZED", "Owner token required.", 401);
+  const authHeader = request.headers.get("Authorization") || "";
+  if (!ownerToken && !authHeader.startsWith("Bearer ")) {
+    return err("UNAUTHORIZED", "Owner token or signed-in owner required.", 401);
   }
 
   // Per-IP delete rate limit
@@ -228,14 +261,9 @@ export async function onRequestDelete(context) {
     return err("RATE_LIMITED", "Too many delete requests. Slow down.", 429);
   }
 
-  // Auth-failure rate limit
-  if (await isAuthRateLimited(env.RATE_LIMIT, ip, "inbox_token")) {
-    return err("RATE_LIMITED", "Too many failed authentication attempts. Try again later.", 429);
-  }
-
   try {
     const inbox = await env.DB
-      .prepare("SELECT id, owner_token, owner_token_hash, token_version, expires_at FROM inboxes WHERE id = ?")
+      .prepare("SELECT id, owner_token, owner_token_hash, token_version, creator_uid, expires_at FROM inboxes WHERE id = ?")
       .bind(inboxId)
       .first();
 
@@ -248,12 +276,8 @@ export async function onRequestDelete(context) {
       return err("INBOX_EXPIRED", "Inbox has expired.", 404, { expired: true });
     }
 
-    const valid = await validateOwnerToken(inbox, ownerToken, env.TOKEN_PEPPER || "");
-    if (!valid) {
-      await recordAuthFailure(env.RATE_LIMIT, ip, "inbox_token");
-      auditLog(env.DB, "owner_token.invalid", { inboxId, ip });
-      return err("FORBIDDEN", "Owner token mismatch.", 403);
-    }
+    const access = await canAccessInbox({ request, env, ip, inbox, ownerToken, apiKeyAuth: null });
+    if (access.err) return access.err;
 
     if (messageId) {
       await env.DB

@@ -711,23 +711,23 @@ export async function onRequestDelete(context) {
   const url        = new URL(request.url);
   const inboxId    = url.searchParams.get("id");
   const ownerToken = request.headers.get("X-Owner-Token") || "";
+  const authHeader = request.headers.get("Authorization") || "";
   const ip         = request.headers.get("CF-Connecting-IP") || "unknown";
 
   if (!inboxId) {
     return err("VALIDATION_ERROR", "id parameter required.", 400);
   }
-  if (!ownerToken) {
-    return err("UNAUTHORIZED", "Owner token required.", 401);
+  if (!ownerToken && !authHeader.startsWith("Bearer ")) {
+    return err("UNAUTHORIZED", "Owner token or signed-in owner required.", 401);
   }
 
-  // Brute-force protection
-  if (await isAuthRateLimited(env.RATE_LIMIT, ip, "inbox_token")) {
+  if (ownerToken && await isAuthRateLimited(env.RATE_LIMIT, ip, "inbox_token")) {
     return err("RATE_LIMITED", "Too many failed authentication attempts. Try again later.", 429);
   }
 
   try {
     const inbox = await env.DB
-      .prepare("SELECT id, owner_token, owner_token_hash, token_version FROM inboxes WHERE id = ?")
+      .prepare("SELECT id, owner_token, owner_token_hash, token_version, creator_uid FROM inboxes WHERE id = ?")
       .bind(inboxId)
       .first();
 
@@ -735,11 +735,19 @@ export async function onRequestDelete(context) {
       return err("INBOX_NOT_FOUND", "Inbox not found.", 404);
     }
 
-    const valid = await validateOwnerToken(inbox, ownerToken, env.TOKEN_PEPPER || "");
-    if (!valid) {
+    let authorized = false;
+    if (ownerToken) {
+      authorized = await validateOwnerToken(inbox, ownerToken, env.TOKEN_PEPPER || "");
+    } else {
+      const token = authHeader.slice(7).trim();
+      const user = token ? await verifyFirebaseToken(token).catch(() => null) : null;
+      authorized = !!user?.uid && !!inbox.creator_uid && user.uid === inbox.creator_uid;
+    }
+
+    if (!authorized) {
       await recordAuthFailure(env.RATE_LIMIT, ip, "inbox_token");
       auditLog(env.DB, "owner_token.invalid", { inboxId, ip });
-      return err("FORBIDDEN", "Owner token mismatch.", 403);
+      return err("FORBIDDEN", "You do not own this inbox.", 403);
     }
 
     // Run both deletes in one D1 batch so messages and the inbox row are

@@ -444,9 +444,15 @@ function scrollToSection(id) {
 }
 
 // ========== AUTH HELPERS ==========
-function authHeaders() {
-  const token = currentInbox ? currentInbox.owner_token : "";
-  return { "X-Owner-Token": token };
+async function authHeaders() {
+  const headers = {};
+  if (currentInbox?.owner_token) {
+    headers["X-Owner-Token"] = currentInbox.owner_token;
+  }
+  if (currentInbox?.access_via_auth || !currentInbox?.owner_token) {
+    return authedHeaders(headers);
+  }
+  return headers;
 }
 
 // ========== TURNSTILE ==========
@@ -753,13 +759,13 @@ function isInboxExpired(inbox, now = Math.floor(Date.now() / 1000)) {
 }
 
 function isInboxUsable(inbox, now = Math.floor(Date.now() / 1000)) {
-  return !!inbox?.id && !!inbox?.email && !!inbox?.owner_token && !isInboxExpired(inbox, now) && !inbox.inactive_reason;
+  return !!inbox?.id && !!inbox?.email && (!!inbox?.owner_token || !!inbox?.access_via_auth) && !isInboxExpired(inbox, now) && !inbox.inactive_reason;
 }
 
 function inactiveLabelForInbox(inbox) {
   if (isInboxExpired(inbox)) return 'Expired';
   if (inbox?.inactive_reason) return inbox.inactive_reason;
-  if (!inbox?.owner_token) return 'Unavailable';
+  if (!inbox?.owner_token && !inbox?.access_via_auth) return 'Unavailable';
   return 'Inactive';
 }
 
@@ -787,6 +793,9 @@ function renderInboxRow(inbox, options = {}) {
   const safeIdArg = escapeHtml(JSON.stringify(String(inbox.id || '')));
   const createdAt = inbox.created_at ? new Date(inbox.created_at * 1000).toLocaleDateString() : 'Unknown date';
   const statusText = escapeHtml(disabled ? inactiveLabelForInbox(inbox) : (isViewing ? 'Viewing' : 'Open'));
+  const reserveAction = !disabled && isPaidUser()
+    ? `<button class="inbox-tab-mini-action ${reserved ? 'is-reserved' : ''}" type="button" onclick="toggleReserveInbox(${safeIdArg}, event)" title="${reserved ? 'Remove reservation' : 'Reserve alias'}">${reserved ? 'Reserved' : 'Reserve'}</button>`
+    : '';
   const rowClass = [
     'inbox-tab',
     active && isViewing ? 'active' : '',
@@ -802,10 +811,13 @@ function renderInboxRow(inbox, options = {}) {
         <span class="inbox-tab-email">${safeEmail}</span>
         <span class="inbox-tab-meta">
           <span>Created ${createdAt}</span>
-          ${reserved ? '<span class="reserved-flag">Reserved</span>' : ''}
+          ${reserved && disabled ? '<span class="reserved-flag">Reserved</span>' : ''}
         </span>
       </div>
-      <span class="inbox-tab-pill ${disabled ? 'is-muted' : ''}">${statusText}</span>
+      <div class="inbox-tab-actions">
+        ${reserveAction}
+        <span class="inbox-tab-pill ${disabled ? 'is-muted' : ''}">${statusText}</span>
+      </div>
     </div>`;
 }
 
@@ -871,6 +883,20 @@ function switchToInbox(inboxId) {
   saveSession();
   showEmailResult(inbox);
   fetchMessages();
+}
+
+async function toggleReserveInbox(inboxId, event) {
+  event?.stopPropagation?.();
+  const inbox = sessionInboxes.find(i => i.id === inboxId);
+  if (!inbox || !isInboxUsable(inbox)) return;
+  const previousId = currentInbox?.id;
+  currentInbox = inbox;
+  await toggleReserveCurrent();
+  if (previousId && previousId !== inboxId) {
+    currentInbox = sessionInboxes.find(i => i.id === previousId) || currentInbox;
+    saveSession();
+  }
+  renderInboxTabs();
 }
 
 // ========== COUNTDOWN TIMER ==========
@@ -990,7 +1016,7 @@ async function fetchMessages() {
 
   try {
     const res = await fetch(`/api/messages?inbox_id=${encodeURIComponent(currentInbox.id)}`, {
-      headers: authHeaders(),
+      headers: await authHeaders(),
     });
     const data = await res.json();
 
@@ -1421,7 +1447,7 @@ async function deleteAddressAndReset() {
   try {
     const res = await fetch(`/api/inbox?id=${currentInbox.id}`, {
       method: "DELETE",
-      headers: authHeaders(),
+      headers: await authHeaders(),
     });
     deleteOk = res.ok;
     if (!deleteOk) {
@@ -1485,7 +1511,7 @@ async function deleteAllMessages() {
   try {
     const res = await fetch(`/api/messages?inbox_id=${encodeURIComponent(currentInbox.id)}`, {
       method: "DELETE",
-      headers: authHeaders(),
+      headers: await authHeaders(),
     });
 
     if (res.ok) {
@@ -1508,7 +1534,7 @@ async function deleteCurrentMessage() {
       `/api/messages?inbox_id=${encodeURIComponent(currentInbox.id)}&id=${encodeURIComponent(currentMessageId)}`,
       {
         method: "DELETE",
-        headers: authHeaders(),
+        headers: await authHeaders(),
       }
     );
 
@@ -1722,6 +1748,7 @@ function saveSession() {
       created_at: inbox.created_at,
       expires_at: inbox.expires_at,
       owner_token: inbox.owner_token,
+      access_via_auth: !!inbox.access_via_auth,
       reserved: !!inbox.reserved,
       inactive_reason: inbox.inactive_reason || '',
     }));
@@ -1776,6 +1803,7 @@ async function restoreSession() {
     const now = Math.floor(Date.now() / 1000);
     const checkedInboxes = await Promise.all(inboxesToRestore.map(async (ibx) => {
       if (isInboxExpired(ibx, now)) return { ...ibx, inactive_reason: 'Expired' };
+      if (ibx.access_via_auth && !ibx.owner_token) return { ...ibx, inactive_reason: '' };
       if (!ibx.owner_token) return { ...ibx, inactive_reason: ibx.inactive_reason || 'Unavailable' };
       try {
         const res = await fetch(`/api/messages?inbox_id=${encodeURIComponent(ibx.id)}`, {
@@ -2607,7 +2635,8 @@ async function syncInboxesFromServer() {
         ...existing,
         ...r,
         owner_token: existing.owner_token,
-        inactive_reason: existing.owner_token ? '' : 'Unavailable',
+        access_via_auth: true,
+        inactive_reason: '',
       });
     }
     sessionInboxes = Array.from(byId.values()).sort((a, b) => b.created_at - a.created_at);
