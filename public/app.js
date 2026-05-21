@@ -5,6 +5,7 @@
 // ========== STATE ==========
 let currentInbox = null;      // { id, email, created_at, expires_at, owner_token, reserved }
 let sessionInboxes = [];      // All inboxes created this session (Pro/Dev multi-inbox)
+let inactiveInboxesExpanded = false;
 let currentMessages = [];
 let currentMessageId = null;
 let countdownInterval = null;
@@ -747,15 +748,77 @@ function showEmailResult(inbox) {
 }
 
 // ========== INBOX TAB SWITCHER (Pro/Dev) ==========
-// Renders the "Your Active Inboxes" panel. Heavy contrast & accent bar so it
-// pops over the bright sky-blue background — the previous low-contrast styling
-// rendered the panel essentially invisible on the new wallpaper. Builds the
-// markup once with `innerHTML`; this fn is never called from the 5s poller.
+function isInboxExpired(inbox, now = Math.floor(Date.now() / 1000)) {
+  return !!inbox?.expires_at && inbox.expires_at > 0 && inbox.expires_at <= now;
+}
+
+function isInboxUsable(inbox, now = Math.floor(Date.now() / 1000)) {
+  return !!inbox?.id && !!inbox?.email && !!inbox?.owner_token && !isInboxExpired(inbox, now) && !inbox.inactive_reason;
+}
+
+function inactiveLabelForInbox(inbox) {
+  if (isInboxExpired(inbox)) return 'Expired';
+  if (inbox?.inactive_reason) return inbox.inactive_reason;
+  if (!inbox?.owner_token) return 'Unavailable';
+  return 'Inactive';
+}
+
+function getInboxBuckets() {
+  const now = Math.floor(Date.now() / 1000);
+  const byId = new Map();
+  for (const inbox of sessionInboxes) {
+    if (!inbox?.id) continue;
+    const previous = byId.get(inbox.id) || {};
+    byId.set(inbox.id, { ...previous, ...inbox });
+  }
+
+  const sorted = Array.from(byId.values()).sort((a, b) => (b.created_at || 0) - (a.created_at || 0));
+  return {
+    active: sorted.filter((inbox) => isInboxUsable(inbox, now)),
+    inactive: sorted.filter((inbox) => !isInboxUsable(inbox, now)),
+  };
+}
+
+function renderInboxRow(inbox, options = {}) {
+  const { active = false, disabled = false } = options;
+  const isViewing = currentInbox?.id === inbox.id;
+  const reserved = !!inbox.reserved;
+  const safeEmail = escapeHtml(inbox.email || '');
+  const safeIdArg = escapeHtml(JSON.stringify(String(inbox.id || '')));
+  const createdAt = inbox.created_at ? new Date(inbox.created_at * 1000).toLocaleDateString() : 'Unknown date';
+  const statusText = escapeHtml(disabled ? inactiveLabelForInbox(inbox) : (isViewing ? 'Viewing' : 'Open'));
+  const rowClass = [
+    'inbox-tab',
+    active && isViewing ? 'active' : '',
+    disabled ? 'is-inactive' : '',
+  ].filter(Boolean).join(' ');
+  const actionAttrs = disabled
+    ? 'aria-disabled="true"'
+    : `onclick="switchToInbox(${safeIdArg})" role="button" tabindex="0" aria-current="${isViewing ? 'true' : 'false'}"`;
+
+  return `
+    <div class="${rowClass}" ${actionAttrs}>
+      <div class="inbox-tab-content">
+        <span class="inbox-tab-email">${safeEmail}</span>
+        <span class="inbox-tab-meta">
+          <span>Created ${createdAt}</span>
+          ${reserved ? '<span class="reserved-flag">Reserved</span>' : ''}
+        </span>
+      </div>
+      <span class="inbox-tab-pill ${disabled ? 'is-muted' : ''}">${statusText}</span>
+    </div>`;
+}
+
+// Renders live inboxes separately from previous/unusable ones so stale rows do
+// not compete with the inbox the user can actually open in this browser.
 function renderInboxTabs() {
   const tabEl = document.getElementById('inbox-tabs');
   if (!tabEl) return;
 
-  if (sessionInboxes.length < 2) {
+  const { active, inactive } = getInboxBuckets();
+  const total = active.length + inactive.length;
+
+  if (total < 2 && inactive.length === 0) {
     tabEl.style.display = 'none';
     tabEl.className = '';
     tabEl.innerHTML = '';
@@ -765,36 +828,44 @@ function renderInboxTabs() {
   tabEl.className = 'inbox-tabs-wrap';
   tabEl.style.display = 'flex';
 
-  // Sort inboxes newest first
-  const sorted = [...sessionInboxes].sort((a, b) => b.created_at - a.created_at);
+  const activeHtml = active.length
+    ? active.map((inbox) => renderInboxRow(inbox, { active: true })).join('')
+    : '<div class="inbox-tabs-empty">No active inbox in this browser.</div>';
 
-  const headerHtml = `<div class="inbox-tabs-label">Your Active Inboxes · ${sorted.length}</div>`;
-  const itemsHtml = sorted.map((inbox) => {
-    const isActive = currentInbox?.id === inbox.id;
-    const reserved = !!inbox.reserved;
-    const safeEmail = escapeHtml(inbox.email || '');
-    return `
-      <div class="inbox-tab${isActive ? ' active' : ''}" onclick="switchToInbox('${inbox.id}')" role="button" tabindex="0" aria-current="${isActive ? 'true' : 'false'}">
-        <div class="inbox-tab-content">
-          <span class="inbox-tab-email">${safeEmail}</span>
-          <span class="inbox-tab-meta">
-            <span>Created ${new Date(inbox.created_at * 1000).toLocaleDateString()}</span>
-            ${reserved ? '<span class="reserved-flag"><svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor" stroke="none"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>Reserved</span>' : ''}
-          </span>
-        </div>
-        ${isActive
-          ? `<span class="inbox-tab-pill">Viewing</span>`
-          : `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="color:rgba(255,255,255,0.55);flex-shrink:0;"><polyline points="9 18 15 12 9 6"/></svg>`
-        }
-      </div>`;
-  }).join('');
+  const inactiveHtml = inactive.length ? `
+    <button class="inbox-history-toggle" type="button" onclick="toggleInactiveInboxes()" aria-expanded="${inactiveInboxesExpanded ? 'true' : 'false'}">
+      <span>Previous inactive inboxes</span>
+      <span class="inbox-history-count">${inactive.length}</span>
+      <span class="inbox-history-chevron">${inactiveInboxesExpanded ? '-' : '+'}</span>
+    </button>
+    <div class="inbox-history-menu${inactiveInboxesExpanded ? ' open' : ''}">
+      ${inactive.map((inbox) => renderInboxRow(inbox, { disabled: true })).join('')}
+    </div>` : '';
 
-  tabEl.innerHTML = headerHtml + itemsHtml;
+  tabEl.innerHTML = `
+    <div class="inbox-tabs-header">
+      <div>
+        <div class="inbox-tabs-label">Active inboxes</div>
+        <div class="inbox-tabs-subtitle">${active.length} ready to view</div>
+      </div>
+    </div>
+    <div class="inbox-tabs-active-list">${activeHtml}</div>
+    ${inactiveHtml}`;
+}
+
+function toggleInactiveInboxes() {
+  inactiveInboxesExpanded = !inactiveInboxesExpanded;
+  renderInboxTabs();
 }
 
 function switchToInbox(inboxId) {
   const inbox = sessionInboxes.find(i => i.id === inboxId);
   if (!inbox || currentInbox?.id === inboxId) return;
+  if (!isInboxUsable(inbox)) {
+    showToast("That inbox is no longer active in this browser.");
+    renderInboxTabs();
+    return;
+  }
   currentInbox = inbox;
   currentMessages = [];
   saveSession();
@@ -834,9 +905,16 @@ function startCountdown(expiresAt) {
 }
 
 function handleExpired() {
+  if (currentInbox) currentInbox.inactive_reason = 'Expired';
+  const expiredId = currentInbox?.id;
+  if (expiredId) {
+    const stored = sessionInboxes.find((i) => i.id === expiredId);
+    if (stored) stored.inactive_reason = 'Expired';
+  }
   currentInbox = null;
   currentMessages = [];
-  clearSession();
+  saveSession();
+  renderInboxTabs();
 
   if (isMailWindowOpen) {
     closeMailWindow();
@@ -931,9 +1009,16 @@ async function fetchMessages() {
 }
 
 function handleSessionInvalid() {
+  if (currentInbox) currentInbox.inactive_reason = 'Unavailable';
+  const invalidId = currentInbox?.id;
+  if (invalidId) {
+    const stored = sessionInboxes.find((i) => i.id === invalidId);
+    if (stored) stored.inactive_reason = 'Unavailable';
+  }
   currentInbox = null;
   currentMessages = [];
-  clearSession();
+  saveSession();
+  renderInboxTabs();
 
   if (isMailWindowOpen) {
     closeMailWindow();
@@ -1630,16 +1715,22 @@ function showToast(msg) {
 
 // ========== SESSION PERSISTENCE ==========
 function saveSession() {
-  if (currentInbox) {
+  if (sessionInboxes.length) {
     const dataToSave = sessionInboxes.map(inbox => ({
       id: inbox.id,
       email: inbox.email,
       created_at: inbox.created_at,
       expires_at: inbox.expires_at,
       owner_token: inbox.owner_token,
+      reserved: !!inbox.reserved,
+      inactive_reason: inbox.inactive_reason || '',
     }));
     localStorage.setItem("modih_inboxes_v2", JSON.stringify(dataToSave));
+  }
+  if (currentInbox) {
     localStorage.setItem("modih_active_inbox_id", currentInbox.id);
+  } else {
+    localStorage.removeItem("modih_active_inbox_id");
   }
 }
 
@@ -1678,58 +1769,44 @@ async function restoreSession() {
       return;
     }
 
-    if (!inboxToActivate || !inboxToActivate.owner_token) {
-      clearSession();
-      return;
-    }
+    if (!inboxesToRestore.length) return;
 
-    // Filter out expired inboxes from the array
+    // Validate every locally usable inbox so old/expired records do not render
+    // as active just because they were still in localStorage.
     const now = Math.floor(Date.now() / 1000);
-    const validInboxes = [];
-    for (const ibx of inboxesToRestore) {
-      if (!ibx.expires_at || ibx.expires_at > now) {
-        validInboxes.push(ibx);
+    const checkedInboxes = await Promise.all(inboxesToRestore.map(async (ibx) => {
+      if (isInboxExpired(ibx, now)) return { ...ibx, inactive_reason: 'Expired' };
+      if (!ibx.owner_token) return { ...ibx, inactive_reason: ibx.inactive_reason || 'Unavailable' };
+      try {
+        const res = await fetch(`/api/messages?inbox_id=${encodeURIComponent(ibx.id)}`, {
+          headers: { "X-Owner-Token": ibx.owner_token },
+        });
+        if (!res.ok) return { ...ibx, inactive_reason: 'Unavailable' };
+        const data = await res.json();
+        const payload = data.data || data;
+        const inboxPayload = payload.inbox;
+        return {
+          ...ibx,
+          expires_at: inboxPayload?.expires_at ?? ibx.expires_at,
+          inactive_reason: '',
+        };
+      } catch {
+        return { ...ibx, inactive_reason: ibx.inactive_reason || 'Unavailable' };
       }
-    }
+    }));
 
-    if (validInboxes.length === 0) {
-      clearSession();
-      return;
-    }
+    sessionInboxes = checkedInboxes;
+    const activeInboxes = getInboxBuckets().active;
 
-    // If active one expired, pick the first valid one
-    if (!validInboxes.find(i => i.id === inboxToActivate.id)) {
-      inboxToActivate = validInboxes[0];
-    }
-    
-    sessionInboxes = validInboxes;
-
-    // Validate the active inbox by calling backend
-    const res = await fetch(`/api/messages?inbox_id=${inboxToActivate.id}`, {
-      headers: { "X-Owner-Token": inboxToActivate.owner_token },
-    });
-
-    if (res.ok) {
-      const data = await res.json();
-      // /api/messages now returns { success, data: { inbox, messages, count } }.
-      // Older deployments (before the envelope refactor) returned the raw
-      // payload at the top level — keep that fallback so cached single-tab
-      // sessions don't break across rollouts.
-      const payload = data.data || data;
-      const inboxPayload = payload.inbox;
-      if (inboxPayload && inboxPayload.expires_at) {
-        inboxToActivate.expires_at = inboxPayload.expires_at;
-        // Also update it in the array
-        const idx = sessionInboxes.findIndex(i => i.id === inboxToActivate.id);
-        if (idx >= 0) sessionInboxes[idx].expires_at = inboxPayload.expires_at;
-      }
+    if (activeInboxes.length) {
+      inboxToActivate = activeInboxes.find(i => i.id === activeId) || activeInboxes[0];
       currentInbox = inboxToActivate;
       showEmailResult(currentInbox);
     } else {
-      // If the backend call fails, just use the validInboxes we have but maybe the server wiped it
-      // In a robust implementation we'd check each inbox, but for now just clear if the active one is dead
-      clearSession();
+      currentInbox = null;
+      renderInboxTabs();
     }
+    saveSession();
   } catch (e) {
     clearSession();
   }
@@ -2524,13 +2601,22 @@ async function syncInboxesFromServer() {
 
     // Merge remote into local (remote wins on shared id).
     const byId = new Map(sessionInboxes.map((i) => [i.id, i]));
-    for (const r of remote) byId.set(r.id, { ...byId.get(r.id), ...r });
+    for (const r of remote) {
+      const existing = byId.get(r.id) || {};
+      byId.set(r.id, {
+        ...existing,
+        ...r,
+        owner_token: existing.owner_token,
+        inactive_reason: existing.owner_token ? '' : 'Unavailable',
+      });
+    }
     sessionInboxes = Array.from(byId.values()).sort((a, b) => b.created_at - a.created_at);
     saveSession();
 
     // If we don't have a current inbox, surface the most recent one.
-    if (!currentInbox && sessionInboxes[0]) {
-      currentInbox = sessionInboxes[0];
+    const activeInboxes = getInboxBuckets().active;
+    if (!currentInbox && activeInboxes[0]) {
+      currentInbox = activeInboxes[0];
       showEmailResult(currentInbox);
     } else if (currentInbox) {
       // Pull updated reserved flag etc. into the live reference
@@ -2576,4 +2662,3 @@ if (typeof document !== "undefined") {
     initButtonAnimations();
   }
 }
-
