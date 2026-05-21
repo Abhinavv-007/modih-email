@@ -1314,9 +1314,14 @@ body {
 .generate-box {
   max-width: 560px;
   margin: 0 auto 2rem;
-  background: linear-gradient(135deg, rgba(22, 24, 31, 0.58), rgba(23, 20, 25, 0.48));
+  background: linear-gradient(135deg, rgba(22, 24, 31, 0.78), rgba(23, 20, 25, 0.72));
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
   border-color: rgba(255, 255, 255, 0.16);
-  box-shadow: 0 18px 54px rgba(0, 0, 0, 0.24), inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  box-shadow: 0 18px 48px rgba(0, 0, 0, 0.24), inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  transform: translateZ(0);
+  backface-visibility: hidden;
+  contain: paint;
 }
 
 .input-group {
@@ -1454,6 +1459,9 @@ body {
   border-radius: 999px;
   min-height: 54px;
   transform: translateZ(0);
+  backface-visibility: hidden;
+  contain: paint;
+  transition: background-color 0.16s ease, border-color 0.16s ease;
 }
 
 .generate-actions .btn::before,
@@ -1465,31 +1473,35 @@ body {
   flex: 1;
   justify-content: center;
   padding: 1rem;
-  background: rgba(19, 24, 34, 0.62);
+  background: rgba(19, 24, 34, 0.9);
   border: 1px solid rgba(255, 255, 255, 0.16);
-  backdrop-filter: blur(14px);
-  -webkit-backdrop-filter: blur(14px);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
 }
 
 .generate-actions .btn-primary:hover {
-  background: rgba(27, 33, 44, 0.72);
+  background: rgba(27, 33, 44, 0.95);
   border-color: rgba(212, 167, 106, 0.32);
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.22), inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  transform: translateZ(0);
 }
 
 .generate-actions .btn-secondary {
   flex: 0.58;
   justify-content: center;
   padding: 1rem;
-  background: rgba(18, 22, 31, 0.44);
+  background: rgba(18, 22, 31, 0.88);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
   border-color: rgba(255, 255, 255, 0.12);
 }
 
 .generate-actions .btn-secondary:not(:disabled):hover {
-  background: rgba(25, 30, 40, 0.58);
+  background: rgba(25, 30, 40, 0.92);
   border-color: rgba(212, 167, 106, 0.24);
-  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.18);
+  box-shadow: none;
+  transform: translateZ(0);
 }
 
 .error-msg {
@@ -3991,6 +4003,33 @@ body {
 .glow-btn:not(:disabled):active {
   transform: scale(0.97);
   transition-duration: 80ms;
+}
+
+/* The generate card sits over a moving video. Keep its controls on stable
+   paint layers so hover/focus does not flash translucent overlays. */
+.generate-box .btn,
+.generate-box .btn:hover,
+.generate-box .btn:active,
+.generate-box .glow-btn:not(:disabled):active {
+  transform: translateZ(0) !important;
+}
+
+.generate-box .btn::before,
+.generate-box .btn::after,
+.generate-box .glow-btn::before,
+.generate-box .glow-btn::after,
+.generate-box .btn-primary::after {
+  content: none !important;
+  display: none !important;
+  animation: none !important;
+  transition: none !important;
+}
+
+.generate-box .btn-primary,
+.generate-box .btn-secondary {
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  will-change: auto;
 }
 
 /* Universal "shimmer" overlay used by createInbox/upgrade/sendMessage when
