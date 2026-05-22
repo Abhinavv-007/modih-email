@@ -193,6 +193,71 @@ describe("DELETE /api/inbox — atomic batch", () => {
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
+//  2b. Signed-in address history
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe("GET /api/inbox/mine — signed-in address history", () => {
+  beforeEach(() => { vi.resetModules(); });
+
+  it("returns history for free signed-in users instead of gating it to Pro", async () => {
+    vi.doMock("../functions/_auth-helper.js", () => ({
+      verifyFirebaseToken: async () => ({ uid: "free-user-1", email: "free@example.com", email_verified: true }),
+    }));
+
+    const { onRequestGet } = await import("../functions/api/inbox/mine.js");
+    const db = makeRecordingDb([
+      { kind: "first", value: { plan: "free" } },
+      { kind: "all", value: { results: [
+        { id: "live-1", email: "live@modih.in", created_at: 300, expires_at: 9999999999, reserved: 0 },
+      ] } },
+      { kind: "all", value: { results: [
+        { id: "old-1", email: "old@modih.in", created_at: 200, expires_at: null, reserved: 0, active: 0 },
+        { id: "live-1", email: "live@modih.in", created_at: 300, expires_at: 9999999999, reserved: 0, active: 1 },
+      ] } },
+    ]);
+
+    const req = new Request("https://api.modih.in/api/inbox/mine", {
+      headers: { Authorization: "Bearer valid-token" },
+    });
+    const res = await onRequestGet({ request: req, env: { DB: db } });
+    const body = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(body.data.plan).toBe("free");
+    expect(body.data.inboxes).toHaveLength(1);
+    expect(body.data.history.map((i) => i.email)).toEqual(["live@modih.in", "old@modih.in"]);
+    expect(body.data.history.find((i) => i.email === "old@modih.in").active).toBe(false);
+  });
+
+  it("keeps live inboxes in history when admin_events has not backfilled them yet", async () => {
+    vi.doMock("../functions/_auth-helper.js", () => ({
+      verifyFirebaseToken: async () => ({ uid: "pro-user-1", email: "pro@example.com", email_verified: true }),
+    }));
+
+    const { onRequestGet } = await import("../functions/api/inbox/mine.js");
+    const db = makeRecordingDb([
+      { kind: "first", value: { plan: "pro" } },
+      { kind: "all", value: { results: [
+        { id: "live-2", email: "fallback@modih.in", created_at: 500, expires_at: 9999999999, reserved: 1 },
+      ] } },
+      { kind: "all", value: { results: [] } },
+    ]);
+
+    const req = new Request("https://api.modih.in/api/inbox/mine", {
+      headers: { Authorization: "Bearer valid-token" },
+    });
+    const res = await onRequestGet({ request: req, env: { DB: db } });
+    const body = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(body.data.inboxes).toHaveLength(1);
+    expect(body.data.history).toEqual([
+      expect.objectContaining({ id: "live-2", email: "fallback@modih.in", active: true, reserved: true }),
+    ]);
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
 //  3. Account-data DELETE uses atomic batches
 // ─────────────────────────────────────────────────────────────────────────────
 

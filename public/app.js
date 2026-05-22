@@ -142,10 +142,12 @@ function renderNavAuth() {
     el.style.display = (plan === 'pro' || plan === 'developer') ? '' : 'none';
   });
 
-  // Cross-device sync: when a signed-in paid user lands on the page, fetch all
-  // their server-side inboxes so they re-appear in this session.
-  if ((plan === 'pro' || plan === 'developer') && firebaseAuth?.currentUser) {
+  // Account history: every signed-in user gets their server-side address
+  // history, while paid users also unlock Pro-only mail controls.
+  if (firebaseAuth?.currentUser) {
     syncInboxesFromServer().catch((e) => console.warn('[Sync] failed:', e?.message));
+  }
+  if ((plan === 'pro' || plan === 'developer') && firebaseAuth?.currentUser) {
     fetchBlocklist().catch((e) => console.warn('[Blocklist] fetch failed:', e?.message));
   }
 
@@ -254,6 +256,9 @@ async function handleSignOut() {
     await firebaseAuth.signOut();
   }
   currentUser = null;
+  clearSession();
+  const resultEl = document.getElementById("email-result");
+  if (resultEl) resultEl.style.display = "none";
   renderNavAuth();
   showToast('Signed out');
 }
@@ -619,8 +624,9 @@ async function createInbox(type) {
     const finalPlan = currentUser?.plan || backendPlan;
     const isPaid = finalPlan === 'pro' || finalPlan === 'developer';
 
-    if (isPaid) {
-      // Pro/Dev: accumulate inboxes instead of replacing
+    if (isPaid || currentUser) {
+      // Signed-in users get address history, so keep previous rows and merge
+      // the newly-created inbox instead of wiping the account list.
       if (!sessionInboxes.find(i => i.id === inboxData.id)) {
         sessionInboxes.push(inboxData);
       }
@@ -844,9 +850,10 @@ function renderInboxTabs() {
     ? active.map((inbox) => renderInboxRow(inbox, { active: true })).join('')
     : '<div class="inbox-tabs-empty">No active inbox in this browser.</div>';
 
+  const historyToggleLabel = currentUser ? 'Email address history' : 'Previous inactive inboxes';
   const inactiveHtml = inactive.length ? `
     <button class="inbox-history-toggle" type="button" onclick="toggleInactiveInboxes()" aria-expanded="${inactiveInboxesExpanded ? 'true' : 'false'}">
-      <span>Previous inactive inboxes</span>
+      <span>${historyToggleLabel}</span>
       <span class="inbox-history-count">${inactive.length}</span>
       <span class="inbox-history-chevron">${inactiveInboxesExpanded ? '-' : '+'}</span>
     </button>
@@ -2612,31 +2619,36 @@ function updateReserveButtonState() {
 }
 
 /* ============================================================================
-   =================== SYNC INBOXES ACROSS DEVICES ============================
-   Pro/Developer feature. GET /api/inbox/mine returns the user's full live
-   inbox list keyed by Firebase UID, which we merge into the local session.
+   ====================== ACCOUNT ADDRESS HISTORY =============================
+   GET /api/inbox/mine returns signed-in address history keyed by Firebase UID.
+   Live rows are reopened through auth; expired/deleted rows remain as history.
    ============================================================================ */
 
 async function syncInboxesFromServer() {
-  if (!isPaidUser() || !firebaseAuth?.currentUser) return;
+  if (!firebaseAuth?.currentUser) return;
   try {
     const headers = await authedHeaders();
     const res = await fetch("/api/inbox/mine", { headers, cache: "no-store" });
     if (!res.ok) return;
     const data = await res.json().catch(() => ({}));
-    const remote = Array.isArray(data?.data?.inboxes) ? data.data.inboxes : (data.inboxes || []);
-    if (!remote.length) return;
+    const payload = data.data || data;
+    const history = Array.isArray(payload.history) ? payload.history : [];
+    const live = Array.isArray(payload.inboxes) ? payload.inboxes : [];
+    const remote = history.length ? history : live;
+    if (!remote.length && !sessionInboxes.length) return;
 
     // Merge remote into local (remote wins on shared id).
     const byId = new Map(sessionInboxes.map((i) => [i.id, i]));
     for (const r of remote) {
+      if (!r?.id || !r?.email) continue;
       const existing = byId.get(r.id) || {};
+      const isLive = !!r.active || live.some((i) => i.id === r.id);
       byId.set(r.id, {
         ...existing,
         ...r,
         owner_token: existing.owner_token,
-        access_via_auth: true,
-        inactive_reason: '',
+        access_via_auth: isLive,
+        inactive_reason: isLive ? '' : 'History',
       });
     }
     sessionInboxes = Array.from(byId.values()).sort((a, b) => b.created_at - a.created_at);
@@ -2652,6 +2664,8 @@ async function syncInboxesFromServer() {
       const fresh = sessionInboxes.find((i) => i.id === currentInbox.id);
       if (fresh) currentInbox = { ...currentInbox, ...fresh };
       updateReserveButtonState();
+      renderInboxTabs();
+    } else {
       renderInboxTabs();
     }
   } catch (e) {
