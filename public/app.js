@@ -10,6 +10,7 @@ let currentMessages = [];
 let currentMessageId = null;
 let countdownInterval = null;
 let refreshInterval = null;
+let accountSyncInterval = null;
 let isMailWindowOpen = false;
 let turnstileWidgetId = null;
 let turnstileRequired = false;
@@ -146,6 +147,9 @@ function renderNavAuth() {
   // history, while paid users also unlock Pro-only mail controls.
   if (firebaseAuth?.currentUser) {
     syncInboxesFromServer().catch((e) => console.warn('[Sync] failed:', e?.message));
+    startAccountSync();
+  } else {
+    stopAccountSync();
   }
   if ((plan === 'pro' || plan === 'developer') && firebaseAuth?.currentUser) {
     fetchBlocklist().catch((e) => console.warn('[Blocklist] fetch failed:', e?.message));
@@ -256,6 +260,7 @@ async function handleSignOut() {
     await firebaseAuth.signOut();
   }
   currentUser = null;
+  stopAccountSync();
   clearSession();
   const resultEl = document.getElementById("email-result");
   if (resultEl) resultEl.style.display = "none";
@@ -2636,19 +2641,23 @@ async function syncInboxesFromServer() {
     const live = Array.isArray(payload.inboxes) ? payload.inboxes : [];
     const remote = history.length ? history : live;
     if (!remote.length && !sessionInboxes.length) return;
+    const liveAccess = await validateRemoteInboxAccess(live);
 
     // Merge remote into local (remote wins on shared id).
     const byId = new Map(sessionInboxes.map((i) => [i.id, i]));
     for (const r of remote) {
       if (!r?.id || !r?.email) continue;
       const existing = byId.get(r.id) || {};
-      const isLive = !!r.active || live.some((i) => i.id === r.id);
+      const wasReportedLive = !!r.active || live.some((i) => i.id === r.id);
+      const validation = liveAccess.get(r.id);
+      const isLive = wasReportedLive && validation?.ok === true;
+      const inactiveReason = isLive ? '' : (wasReportedLive ? (validation?.reason || 'Unavailable') : 'History');
       byId.set(r.id, {
         ...existing,
         ...r,
         owner_token: existing.owner_token,
         access_via_auth: isLive,
-        inactive_reason: isLive ? '' : 'History',
+        inactive_reason: inactiveReason,
       });
     }
     sessionInboxes = Array.from(byId.values()).sort((a, b) => b.created_at - a.created_at);
@@ -2672,6 +2681,55 @@ async function syncInboxesFromServer() {
     console.warn("[Sync] error:", e?.message);
   }
 }
+
+async function validateRemoteInboxAccess(inboxes) {
+  const result = new Map();
+  const liveInboxes = (Array.isArray(inboxes) ? inboxes : []).filter((i) => i?.id);
+  if (!liveInboxes.length || !firebaseAuth?.currentUser) return result;
+
+  const headers = await authedHeaders();
+  await Promise.all(liveInboxes.map(async (inbox) => {
+    try {
+      const res = await fetch(`/api/messages?inbox_id=${encodeURIComponent(inbox.id)}`, {
+        headers,
+        cache: "no-store",
+      });
+      if (res.ok) {
+        result.set(inbox.id, { ok: true });
+        return;
+      }
+      let reason = 'Unavailable';
+      if (res.status === 404) reason = 'Expired';
+      if (res.status === 403 || res.status === 401) reason = 'Unavailable';
+      result.set(inbox.id, { ok: false, reason });
+    } catch {
+      result.set(inbox.id, { ok: false, reason: 'Unavailable' });
+    }
+  }));
+  return result;
+}
+
+function startAccountSync() {
+  if (accountSyncInterval || !firebaseAuth?.currentUser) return;
+  accountSyncInterval = setInterval(() => {
+    if (document.visibilityState !== 'hidden') {
+      syncInboxesFromServer().catch((e) => console.warn('[Sync] failed:', e?.message));
+    }
+  }, 30000);
+}
+
+function stopAccountSync() {
+  if (accountSyncInterval) {
+    clearInterval(accountSyncInterval);
+    accountSyncInterval = null;
+  }
+}
+
+window.addEventListener('focus', () => {
+  if (firebaseAuth?.currentUser) {
+    syncInboxesFromServer().catch((e) => console.warn('[Sync] failed:', e?.message));
+  }
+});
 
 /* ============================================================================
    ============= UNIVERSAL CLICK RIPPLE / PRESS ANIMATIONS =====================

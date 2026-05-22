@@ -257,6 +257,35 @@ describe("GET /api/inbox/mine — signed-in address history", () => {
   });
 });
 
+describe("POST /api/inbox/reserve — paid plan email fallback", () => {
+  beforeEach(() => { vi.resetModules(); });
+
+  it("allows reserve when the paid plan is attached to a verified email row", async () => {
+    vi.doMock("../functions/_auth-helper.js", () => ({
+      verifyFirebaseToken: async () => ({ uid: "uid-with-email-plan", email: "paid@example.com", email_verified: true }),
+    }));
+
+    const { onRequestPost } = await import("../functions/api/inbox/reserve.js");
+    const db = makeRecordingDb([
+      { kind: "first", value: null },
+      { kind: "all", value: { results: [{ plan: "pro" }] } },
+      { kind: "first", value: { id: "inbox-1", creator_uid: "uid-with-email-plan" } },
+      { kind: "first", value: { cnt: 0 } },
+      { kind: "run", value: { meta: { changes: 1 } } },
+    ]);
+
+    const req = new Request("https://api.modih.in/api/inbox/reserve?id=inbox-1", {
+      method: "POST",
+      headers: { Authorization: "Bearer valid-token" },
+    });
+    const res = await onRequestPost({ request: req, env: { DB: db } });
+    const body = await res.json();
+
+    expect(res.status).toBe(200);
+    expect(body.data).toEqual({ id: "inbox-1", reserved: true });
+  });
+});
+
 // ─────────────────────────────────────────────────────────────────────────────
 //  3. Account-data DELETE uses atomic batches
 // ─────────────────────────────────────────────────────────────────────────────

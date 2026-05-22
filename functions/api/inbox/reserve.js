@@ -8,6 +8,33 @@ import { verifyFirebaseToken } from "../../_auth-helper.js";
 import { ok, err } from "../../_api-helpers.js";
 
 const RESERVED_CAP = 3;
+const PLAN_RANK = { developer: 3, pro: 2, free: 1 };
+
+function betterPlan(a, b) {
+  return (PLAN_RANK[a] || 0) >= (PLAN_RANK[b] || 0) ? a : b;
+}
+
+async function getPlanForUser(db, user) {
+  const uidRow = await db
+    .prepare("SELECT plan FROM user_plans WHERE uid = ?")
+    .bind(user.uid)
+    .first();
+
+  let plan = uidRow?.plan || "free";
+  if (user.email && user.email_verified === true) {
+    const emailRows = await db
+      .prepare("SELECT plan FROM user_plans WHERE LOWER(email) = LOWER(?)")
+      .bind(user.email)
+      .all();
+    let emailBest = "free";
+    for (const row of emailRows.results || []) {
+      emailBest = betterPlan(emailBest, row.plan);
+    }
+    plan = betterPlan(plan, emailBest);
+  }
+
+  return ["pro", "developer"].includes(plan) ? plan : "free";
+}
 
 async function requireOwnerPaid(request, db, inboxId) {
   if (!inboxId) return { err: err("VALIDATION_ERROR", "id parameter required.", 400) };
@@ -27,11 +54,7 @@ async function requireOwnerPaid(request, db, inboxId) {
   }
   if (!user?.uid) return { err: err("UNAUTHORIZED", "Invalid auth token.", 401) };
 
-  const planRow = await db
-    .prepare("SELECT plan FROM user_plans WHERE uid = ?")
-    .bind(user.uid)
-    .first();
-  const plan = planRow?.plan || "free";
+  const plan = await getPlanForUser(db, user);
   if (plan !== "pro" && plan !== "developer") {
     return {
       err: err("FEATURE_UNAVAILABLE", "Reserved aliases are a Pro feature.", 403, {

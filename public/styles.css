@@ -3403,12 +3403,12 @@ body {
   margin: 0 auto 1rem;
   padding: 0.9rem;
   text-align: left;
-  background: linear-gradient(135deg, rgba(18, 21, 29, 0.56), rgba(28, 23, 26, 0.46));
-  backdrop-filter: blur(24px) saturate(130%);
-  -webkit-backdrop-filter: blur(24px) saturate(130%);
-  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: linear-gradient(135deg, rgba(7, 10, 16, 0.86), rgba(13, 12, 18, 0.8));
+  backdrop-filter: blur(18px) saturate(125%);
+  -webkit-backdrop-filter: blur(18px) saturate(125%);
+  border: 1px solid rgba(255, 255, 255, 0.16);
   border-radius: 12px;
-  box-shadow: 0 18px 54px rgba(0, 0, 0, 0.26), inset 0 1px 0 rgba(255, 255, 255, 0.07);
+  box-shadow: 0 20px 58px rgba(0, 0, 0, 0.42), inset 0 1px 0 rgba(255, 255, 255, 0.08);
 }
 
 .inbox-tabs-header {
@@ -3442,7 +3442,7 @@ body {
 .inbox-tabs-subtitle {
   margin-top: 0.1rem;
   font-size: 0.74rem;
-  color: rgba(255, 255, 255, 0.56);
+  color: rgba(255, 255, 255, 0.74);
 }
 
 .inbox-tabs-active-list,
@@ -3459,8 +3459,8 @@ body {
   gap: 0.9rem;
   min-height: 70px;
   padding: 0.78rem 0.95rem;
-  background: rgba(12, 15, 23, 0.48);
-  border: 1px solid rgba(255, 255, 255, 0.11);
+  background: rgba(6, 9, 15, 0.82);
+  border: 1px solid rgba(255, 255, 255, 0.14);
   border-radius: 8px;
   cursor: pointer;
   transition: background 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease;
@@ -3480,9 +3480,9 @@ body {
 }
 
 .inbox-tab:hover {
-  background: rgba(18, 22, 31, 0.62);
+  background: rgba(10, 14, 22, 0.9);
   border-color: rgba(212, 167, 106, 0.28);
-  box-shadow: 0 10px 26px rgba(0, 0, 0, 0.18);
+  box-shadow: 0 10px 26px rgba(0, 0, 0, 0.28);
 }
 
 .inbox-tab:focus {
@@ -3495,9 +3495,9 @@ body {
 }
 
 .inbox-tab.active {
-  background: linear-gradient(135deg, rgba(35, 32, 30, 0.72), rgba(17, 20, 28, 0.7));
-  border-color: rgba(212, 167, 106, 0.38);
-  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.22), inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  background: linear-gradient(135deg, rgba(32, 27, 22, 0.92), rgba(8, 11, 18, 0.9));
+  border-color: rgba(212, 167, 106, 0.48);
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.36), inset 0 1px 0 rgba(255, 255, 255, 0.07);
 }
 
 .inbox-tab.active::before {
@@ -3507,7 +3507,7 @@ body {
 .inbox-tab.is-inactive {
   cursor: default;
   opacity: 0.78;
-  background: rgba(10, 12, 18, 0.34);
+  background: rgba(6, 8, 13, 0.66);
 }
 
 .inbox-tab.is-inactive:hover {
@@ -3527,7 +3527,7 @@ body {
   font-family: 'Cormorant Garamond', 'Playfair Display', serif;
   font-size: clamp(1rem, 2.2vw, 1.2rem);
   font-weight: 700;
-  color: #fff;
+  color: rgba(255, 255, 255, 0.96);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -3542,7 +3542,7 @@ body {
   align-items: center;
   gap: 0.5rem;
   font-size: 0.72rem;
-  color: rgba(255, 255, 255, 0.58);
+  color: rgba(255, 255, 255, 0.74);
   flex-wrap: wrap;
 }
 
