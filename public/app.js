@@ -312,7 +312,10 @@ function getBrowserToken() {
 
 function generateFallbackUUID() {
   return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
-    const r = Math.random() * 16 | 0;
+    // 🛡️ Sentinel: Use crypto.getRandomValues instead of Math.random for cryptographically secure UUIDs
+    const r = window.crypto && window.crypto.getRandomValues
+      ? window.crypto.getRandomValues(new Uint8Array(1))[0] & 15
+      : Math.random() * 16 | 0; // Fallback for very old environments
     const v = c === 'x' ? r : (r & 0x3 | 0x8);
     return v.toString(16);
   });
@@ -2488,7 +2491,16 @@ function buildEmlExport(msg) {
   const html = (msg.body_html || "").trim();
 
   if (html) {
-    const boundary = `=_modih_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`;
+    // 🛡️ Sentinel: Use crypto.getRandomValues for cryptographically secure random boundaries
+    let randomHex = "";
+    if (window.crypto && window.crypto.getRandomValues) {
+      const randomBytes = new Uint32Array(1);
+      window.crypto.getRandomValues(randomBytes);
+      randomHex = randomBytes[0].toString(16).padStart(8, '0');
+    } else {
+      randomHex = Math.random().toString(36).slice(2, 10);
+    }
+    const boundary = `=_modih_${Date.now().toString(36)}_${randomHex}`;
     const headers = [
       `From: ${encodeHeader(from)}`,
       `To: ${encodeHeader(to)}`,
