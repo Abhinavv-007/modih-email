@@ -714,7 +714,11 @@ function showUpgradeError(msg, feature) {
     } else if (feature === "creation_limit") {
       inner.innerHTML = "You've hit today's limit. Upgrade to <strong>Pro</strong> for 25 inboxes per day.";
     } else {
-      inner.innerHTML = msg || 'Upgrade to <strong>Pro</strong> for more features.';
+      if (msg) {
+        inner.textContent = msg;
+      } else {
+        inner.innerHTML = 'Upgrade to <strong>Pro</strong> for more features.';
+      }
     }
   }
   upgradeEl.scrollIntoView({ behavior: "smooth", block: "center" });
