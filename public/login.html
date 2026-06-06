@@ -383,7 +383,7 @@
     // ========== ERROR HELPER ==========
     function showError(msg) {
       const errEl = document.getElementById('login-error');
-      errEl.textContent = msg;
+      errEl.textContent = msg || "An error occurred.";
       errEl.classList.add('visible');
     }
 

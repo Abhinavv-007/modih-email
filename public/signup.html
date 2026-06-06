@@ -389,7 +389,7 @@
 
     function showError(msg) {
       const errEl = document.getElementById('signup-error');
-      errEl.textContent = msg;
+      errEl.textContent = msg || "An error occurred.";
       errEl.classList.add('visible');
     }
 
