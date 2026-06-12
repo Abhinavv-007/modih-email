@@ -311,8 +311,11 @@ function getBrowserToken() {
 }
 
 function generateFallbackUUID() {
+  const buf = new Uint8Array(31);
+  crypto.getRandomValues(buf);
+  let i = 0;
   return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
-    const r = Math.random() * 16 | 0;
+    const r = buf[i++] % 16 | 0;
     const v = c === 'x' ? r : (r & 0x3 | 0x8);
     return v.toString(16);
   });
@@ -2488,7 +2491,9 @@ function buildEmlExport(msg) {
   const html = (msg.body_html || "").trim();
 
   if (html) {
-    const boundary = `=_modih_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`;
+    const arr = new Uint32Array(2);
+    crypto.getRandomValues(arr);
+    const boundary = `=_modih_${Date.now().toString(36)}_${arr[0].toString(36)}${arr[1].toString(36)}`;
     const headers = [
       `From: ${encodeHeader(from)}`,
       `To: ${encodeHeader(to)}`,
