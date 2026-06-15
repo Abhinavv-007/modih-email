@@ -1,4 +1,4 @@
-## 2024-05-06 - Add Security Headers
-**Vulnerability:** Missing basic security headers like HSTS, X-Frame-Options, X-Content-Type-Options, Referrer-Policy, and Content-Security-Policy.
-**Learning:** For Cloudflare Pages projects, standard security headers can be enforced by adding a `_headers` file in the static build output directory (`public/_headers` in this case).
-**Prevention:** Include a standard `_headers` file when setting up new Cloudflare Pages projects to enforce baseline defense-in-depth protections.
+## 2024-06-15 - DOM XSS in UI Upgrade Prompt
+**Vulnerability:** A DOM-based Cross-Site Scripting (XSS) vulnerability was found in the `showUpgradeModal` function in `public/app.js`. The variable `msg`, which can contain dynamic data, was being directly assigned to `inner.innerHTML` without sanitization.
+**Learning:** The application code mixes UI structure modification and dynamic text interpolation. When relying on vanilla JS to manipulate the DOM, there is a recurring anti-pattern of using `innerHTML` as a shorthand for text insertion, overriding the default structure.
+**Prevention:** Always use `.textContent` or `.innerText` when inserting dynamic or API-driven strings into the DOM. If the content must be HTML, it should be strictly sanitized with a dedicated utility function like `escapeHtml` before insertion. Add explicit code comments `// [Security] Prevent XSS...` when fixing to raise awareness for future development.
