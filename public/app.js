@@ -312,7 +312,14 @@ function getBrowserToken() {
 
 function generateFallbackUUID() {
   return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
-    const r = Math.random() * 16 | 0;
+    let r;
+    if (typeof crypto !== 'undefined' && crypto.getRandomValues) {
+      const arr = new Uint8Array(1);
+      crypto.getRandomValues(arr);
+      r = arr[0] & 15;
+    } else {
+      r = Math.random() * 16 | 0;
+    }
     const v = c === 'x' ? r : (r & 0x3 | 0x8);
     return v.toString(16);
   });
@@ -2488,7 +2495,17 @@ function buildEmlExport(msg) {
   const html = (msg.body_html || "").trim();
 
   if (html) {
-    const boundary = `=_modih_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`;
+    let randomPart = '';
+    if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+      randomPart = crypto.randomUUID().replace(/-/g, '').slice(0, 8);
+    } else if (typeof crypto !== 'undefined' && crypto.getRandomValues) {
+      const arr = new Uint32Array(1);
+      crypto.getRandomValues(arr);
+      randomPart = arr[0].toString(36).slice(0, 8);
+    } else {
+      randomPart = Math.random().toString(36).slice(2, 10);
+    }
+    const boundary = `=_modih_${Date.now().toString(36)}_${randomPart}`;
     const headers = [
       `From: ${encodeHeader(from)}`,
       `To: ${encodeHeader(to)}`,
