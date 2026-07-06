@@ -311,6 +311,13 @@ function getBrowserToken() {
 }
 
 function generateFallbackUUID() {
+  if (typeof crypto !== 'undefined' && crypto.getRandomValues) {
+    const buf = new Uint8Array(16);
+    crypto.getRandomValues(buf);
+    buf[6] = (buf[6] & 0x0f) | 0x40;
+    buf[8] = (buf[8] & 0x3f) | 0x80;
+    return Array.from(buf).map(b => b.toString(16).padStart(2, '0')).join('').replace(/(.{8})(.{4})(.{4})(.{4})(.{12})/, '$1-$2-$3-$4-$5');
+  }
   return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
     const r = Math.random() * 16 | 0;
     const v = c === 'x' ? r : (r & 0x3 | 0x8);
@@ -714,7 +721,7 @@ function showUpgradeError(msg, feature) {
     } else if (feature === "creation_limit") {
       inner.innerHTML = "You've hit today's limit. Upgrade to <strong>Pro</strong> for 25 inboxes per day.";
     } else {
-      inner.innerHTML = msg || 'Upgrade to <strong>Pro</strong> for more features.';
+      inner.innerHTML = msg ? escapeHtml(msg) : 'Upgrade to <strong>Pro</strong> for more features.';
     }
   }
   upgradeEl.scrollIntoView({ behavior: "smooth", block: "center" });
@@ -2488,7 +2495,17 @@ function buildEmlExport(msg) {
   const html = (msg.body_html || "").trim();
 
   if (html) {
-    const boundary = `=_modih_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`;
+    let randomPart = '';
+    if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+      randomPart = crypto.randomUUID().replace(/-/g, '').slice(0, 8);
+    } else if (typeof crypto !== 'undefined' && crypto.getRandomValues) {
+      const arr = new Uint32Array(1);
+      crypto.getRandomValues(arr);
+      randomPart = arr[0].toString(36).padStart(8, '0');
+    } else {
+      randomPart = Math.random().toString(36).slice(2, 10);
+    }
+    const boundary = `=_modih_${Date.now().toString(36)}_${randomPart}`;
     const headers = [
       `From: ${encodeHeader(from)}`,
       `To: ${encodeHeader(to)}`,
