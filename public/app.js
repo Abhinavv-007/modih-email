@@ -1693,12 +1693,17 @@ function secureRandomHex(byteCount = 8) {
 // for the email-worker and Pages Functions tests.
 //
 // Strategy:
-//   - Strip every active-content tag (script/style/iframe/object/embed/form/
-//     base/meta/svg/math/link/source/track) along with their contents.
+//   - Strip every active-content tag (script/iframe/object/embed/form/base/
+//     meta/svg/math/link/source/track) along with their contents.
+//   - Keep <style> blocks but scrub their CSS (no @import / remote url() /
+//     script schemes) so styled emails — Google OTP codes especially —
+//     render instead of collapsing into unstyled text.
 //   - Strip every on* event-handler attribute regardless of quoting style.
-//   - Neutralize every dangerous URL scheme (javascript:/data:/vbscript:/
-//     blob:/file:) — including HTML-entity-encoded variants.
-//   - Block all <img> tags so remote tracking pixels never leak the user's IP.
+//   - Neutralize dangerous URL schemes (javascript:/vbscript:/blob:/file: and
+//     non-image data:) — including HTML-entity-encoded variants.
+//   - Keep real <img> tags (so genuine email images render) but drop 1×1 /
+//     hidden tracking pixels and srcset. Inline data:image/<raster> is allowed;
+//     data:image/svg+xml and other data: payloads are blocked.
 //
 // Note: this is intentionally regex-based to avoid a heavy DOMPurify
 // dependency on a privacy-focused page. The sanitizer must stay strict —
@@ -1742,17 +1747,39 @@ function sanitizeRenderedHtml(html) {
     m.replace(/[\t\n\r\u0000]/g, " ")
   );
 
-  // Strip pairs of dangerous tags including their content.
-  const STRIP_PAIR   = /<(script|style|iframe|object|form|svg|math|noscript|template)\b[\s\S]*?<\/\1\s*>/gi;
+  // Strip pairs of dangerous tags including their content. <style> is handled
+  // separately below (kept, but its CSS scrubbed) so styled emails render.
+  const STRIP_PAIR   = /<(script|iframe|object|form|svg|math|noscript|template)\b[\s\S]*?<\/\1\s*>/gi;
   // Strip self-closing / standalone dangerous tags.
   const STRIP_SINGLE = /<(embed|link|base|meta|source|track)\b[^>]*>/gi;
   // Catch any unmatched openers (truncated / malformed HTML).
-  const STRIP_OPENER = /<\/?(script|style|iframe|object|svg|math|form|noscript|template)\b[^>]*>/gi;
+  const STRIP_OPENER = /<\/?(script|iframe|object|svg|math|form|noscript|template)\b[^>]*>/gi;
+  // Any leftover (unclosed / malformed) style tag after block extraction.
+  const STRIP_STYLE_STRAY = /<\/?style\b[^>]*>/gi;
+  // data: allowed only for raster images — everything else neutralised.
+  const DATA_URI = /data\s*(?:&#0*58;?|&#x0*3a;?|:)(?!\s*image\/(?:png|jpe?g|gif|webp|bmp|apng|avif)\b)/gi;
+  const STYLE_BLOCK = /<style\b[^>]*>([\s\S]*?)<\/style>/gi;
 
-  return normalised
+  // Scrub the CSS inside a <style> block: no remote fetches (@import / url())
+  // and no active-content schemes. In a script-free sandbox the only real risk
+  // CSS carries is loading remote resources (tracking / exfiltration).
+  const cleanCss = (css) => String(css)
+    .replace(/@import[^;{}]*;?/gi, "")
+    .replace(/expression\s*\(/gi, "blocked(")
+    .replace(/(?:javascript|vbscript)\s*:/gi, "blocked:")
+    .replace(/url\(\s*(["']?)\s*(?!data:image\/)[^)]*\1\s*\)/gi, "url()");
+
+  // Preserve well-formed <style> blocks through the strippers via a private
+  // <modihstyle> alias (see functions/_sanitize-html.js for the full rationale).
+  const withAlias = normalised
+    .replace(/modihstyle/gi, "")
+    .replace(STYLE_BLOCK, (_m, inner) => `<modihstyle>${cleanCss(inner)}</modihstyle>`);
+
+  return withAlias
     .replace(STRIP_PAIR,   "")
     .replace(STRIP_SINGLE, "")
     .replace(STRIP_OPENER, "")
+    .replace(STRIP_STYLE_STRAY, "")
     // on* event handlers — quoted, single-quoted, and unquoted forms.
     // The leading `[\s/]` handles slash-delimited attributes too — HTML
     // parsers treat `<a/onclick=…>` exactly the same as `<a onclick=…>`,
@@ -1761,12 +1788,19 @@ function sanitizeRenderedHtml(html) {
     .replace(/[\s/]on\w+\s*=\s*"[^"]*"/gi, " ")
     .replace(/[\s/]on\w+\s*=\s*'[^']*'/gi, " ")
     .replace(/[\s/]on\w+\s*=\s*[^\s/>]+/gi, " ")
-    // Dangerous URL schemes — covers entity-encoded colons that bypass the
-    // literal `:` check (`java&#115;cript&#58;` etc.).
-    .replace(/(javascript|vbscript|livescript|data|blob|file)\s*(?:&#0*58;?|&#x0*3a;?|:)/gi, "blocked:")
-    // Block ALL <img …> tags (tracking pixels + onerror handlers + remote
-    // URLs). The `\b` boundary catches the slash-delimited form too.
-    .replace(/<img\b[^>]*>/gi, "[image removed]");
+    // data: — blocked for everything except inline raster images.
+    .replace(DATA_URI, "blocked:")
+    // Other dangerous URL schemes — covers entity-encoded colons that bypass
+    // the literal `:` check (`java&#115;cript&#58;` etc.).
+    .replace(/(javascript|vbscript|livescript|blob|file)\s*(?:&#0*58;?|&#x0*3a;?|:)/gi, "blocked:")
+    // Strip only tracking pixels (1×1 / hidden) — real <img> tags now survive
+    // so genuine email images render. Dangerous schemes were neutralised above.
+    .replace(/<img\b(?=[^>]*(?:\swidth\s*=\s*["']?1\b|\sheight\s*=\s*["']?1\b|display\s*:\s*none|visibility\s*:\s*hidden))[^>]*>/gi, "")
+    // Drop srcset so images can't smuggle additional un-opted-in URLs.
+    .replace(/(<img\b[^>]*?)\ssrcset\s*=\s*(?:"[^"]*"|'[^']*'|[^\s>]+)/gi, "$1")
+    // Restore the scrubbed style blocks.
+    .replace(/<modihstyle>/g, "<style>")
+    .replace(/<\/modihstyle>/g, "</style>");
 }
 
 function formatTimeAgo(timestamp) {
