@@ -5,7 +5,11 @@
  * inboxes, messages, and admin_events.
  */
 import { describe, it, expect } from "vitest";
-import { onRequestGet as addressGet } from "../functions/api/admin/address.js";
+import {
+  onRequestGet as addressGet,
+  onRequestPost as addressPost,
+  onRequestDelete as addressDelete,
+} from "../functions/api/admin/address.js";
 
 const ADMIN_SECRET = "correct-horse-battery-staple-12345";
 
@@ -19,9 +23,12 @@ function makeKv(initial = {}) {
   };
 }
 
-// Route DB queries by a matcher against the SQL text.
+// Route DB queries by a matcher against the SQL text. Records executed
+// statements so tests can assert which mutations ran.
 function makeRoutedDb(routes) {
-  return {
+  const executed = [];
+  const db = {
+    executed,
     prepare(sql) {
       let params = [];
       const run = (kind) => {
@@ -36,13 +43,20 @@ function makeRoutedDb(routes) {
         return kind === "all" ? { results: [] } : kind === "first" ? null : { meta: { changes: 0 } };
       };
       return {
+        _sql: sql,
         bind(...a) { params = a; return this; },
         async first() { return run("first"); },
         async all() { return run("all"); },
-        async run() { return run("run"); },
+        async run() { executed.push({ sql, params }); return run("run"); },
       };
     },
+    async batch(stmts) {
+      const out = [];
+      for (const s of stmts) out.push(await s.run());
+      return out;
+    },
   };
+  return db;
 }
 
 function ctx({ url, secret = ADMIN_SECRET, db }) {
@@ -99,7 +113,7 @@ describe("GET /api/admin/address", () => {
         { email: "a@modih.in", first_used_at: 300, creator_uid: "u1", creator_ip: "1.1.1.1" },
         { email: "b@modih.in", first_used_at: 200, creator_uid: null, creator_ip: "2.2.2.2" },
       ]],
-      ["creator_email, expires_at", { creator_email: "o@x.com", expires_at: 9999999999, reserved: 0 }],
+      ["FROM inboxes WHERE email", { id: "i1", creator_email: "o@x.com", expires_at: 9999999999, reserved: 0, blocked: 0 }],
       ["COUNT(*) AS n FROM admin_events", { n: 3 }],
       ["COUNT(*) AS n FROM used_addresses", { n: 2 }],
     ]);
@@ -119,5 +133,90 @@ describe("GET /api/admin/address", () => {
     const b = await res.json();
     // Not treated as a valid address lookup; list mode responded.
     expect(b).toHaveProperty("addresses");
+  });
+
+  it("returns a single message body via ?msg=", async () => {
+    const db = makeRoutedDb([
+      ["FROM messages WHERE id", { id: "m1", inbox_id: "i1", from_address: "a@b.com", subject: "Hi", body_html: "<p>hello</p>", body_text: "hello", received_at: 10 }],
+    ]);
+    const res = await addressGet(ctx({ url: "https://x/api/admin/address?msg=m1", db }));
+    const b = await res.json();
+    expect(b.ok).toBe(true);
+    expect(b.message.body_html).toBe("<p>hello</p>");
+  });
+});
+
+describe("admin address controls", () => {
+  const postCtx = (bodyObj, db) => ({
+    request: new Request("https://x/api/admin/address", {
+      method: "POST",
+      headers: { "X-Admin-Secret": ADMIN_SECRET, "CF-Connecting-IP": "1.1.1.1", "Content-Type": "application/json" },
+      body: JSON.stringify(bodyObj),
+    }),
+    env: { ADMIN_SECRET, RATE_LIMIT: makeKv(), DB: db },
+  });
+
+  it("requires admin auth for POST", async () => {
+    const res = await addressPost({
+      request: new Request("https://x/api/admin/address", { method: "POST", body: "{}" }),
+      env: { ADMIN_SECRET, RATE_LIMIT: makeKv(), DB: makeRoutedDb([]) },
+    });
+    expect(res.status).toBe(401);
+  });
+
+  it("blocks a live address (sets blocked = 1)", async () => {
+    const db = makeRoutedDb([
+      ["FROM used_addresses WHERE email", { email: "a@modih.in", first_used_at: 1 }],
+      ["FROM inboxes WHERE email", { id: "i1", creator_uid: "u1" }],
+      ["UPDATE inboxes SET blocked = 1", { changes: 1 }],
+    ]);
+    const res = await addressPost(postCtx({ email: "a@modih.in", action: "block" }, db));
+    const b = await res.json();
+    expect(b.ok).toBe(true);
+    expect(b.status).toBe("blocked");
+    expect(db.executed.some(e => /UPDATE inboxes SET blocked = 1/.test(e.sql))).toBe(true);
+  });
+
+  it("reactivate recreates a cleaned-up (ledger-only) address", async () => {
+    const db = makeRoutedDb([
+      ["FROM used_addresses WHERE email", { email: "old@modih.in", first_used_at: 1, creator_uid: "u9", creator_ip: "2.2.2.2" }],
+      ["FROM inboxes WHERE email", null], // not live
+      ["INSERT INTO inboxes", { changes: 1 }],
+    ]);
+    const res = await addressPost(postCtx({ email: "old@modih.in", action: "reactivate", ttl_days: 7 }, db));
+    const b = await res.json();
+    expect(b.ok).toBe(true);
+    expect(b.recreated).toBe(true);
+    expect(db.executed.some(e => /INSERT INTO inboxes/.test(e.sql))).toBe(true);
+  });
+
+  it("block on a non-live address is refused", async () => {
+    const db = makeRoutedDb([
+      ["FROM used_addresses WHERE email", { email: "gone@modih.in", first_used_at: 1 }],
+      ["FROM inboxes WHERE email", null],
+    ]);
+    const res = await addressPost(postCtx({ email: "gone@modih.in", action: "block" }, db));
+    expect(res.status).toBe(409);
+  });
+
+  it("DELETE drops the inbox + messages but keeps the ledger (still burned)", async () => {
+    const db = makeRoutedDb([
+      ["FROM inboxes WHERE email", { id: "i1" }],
+      ["DELETE FROM messages WHERE inbox_id", { changes: 2 }],
+      ["DELETE FROM inboxes WHERE id", { changes: 1 }],
+    ]);
+    const res = await addressDelete({
+      request: new Request("https://x/api/admin/address?email=a@modih.in", {
+        method: "DELETE",
+        headers: { "X-Admin-Secret": ADMIN_SECRET, "CF-Connecting-IP": "1.1.1.1" },
+      }),
+      env: { ADMIN_SECRET, RATE_LIMIT: makeKv(), DB: db },
+    });
+    const b = await res.json();
+    expect(b.ok).toBe(true);
+    expect(b.deleted).toBe(true);
+    expect(b.still_burned).toBe(true);
+    // The permanent ledger must NOT be deleted.
+    expect(db.executed.some(e => /DELETE FROM used_addresses/.test(e.sql))).toBe(false);
   });
 });
