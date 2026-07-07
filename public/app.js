@@ -311,11 +311,22 @@ function getBrowserToken() {
 }
 
 function generateFallbackUUID() {
-  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
-    const r = Math.random() * 16 | 0;
-    const v = c === 'x' ? r : (r & 0x3 | 0x8);
-    return v.toString(16);
-  });
+  // Prefer a CSPRNG. crypto.getRandomValues exists in every environment that
+  // ships crypto.randomUUID and many older ones besides, so Math.random() is
+  // only ever a last resort for ancient runtimes that have neither. The
+  // browser token derived from this is used as an anonymous ownership handle,
+  // so predictable output must not be possible on any modern browser.
+  const buf = new Uint8Array(16);
+  if (globalThis.crypto && typeof globalThis.crypto.getRandomValues === "function") {
+    globalThis.crypto.getRandomValues(buf);
+  } else {
+    for (let i = 0; i < 16; i++) buf[i] = Math.floor(Math.random() * 256);
+  }
+  // RFC 4122 v4: set version (4) and variant (10xx) bits.
+  buf[6] = (buf[6] & 0x0f) | 0x40;
+  buf[8] = (buf[8] & 0x3f) | 0x80;
+  const hex = Array.from(buf, (b) => b.toString(16).padStart(2, "0")).join("");
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
 }
 
 // ========== VIDEO CONTROLLER ==========
@@ -1655,6 +1666,21 @@ function escapeHtml(text) {
   return div.innerHTML;
 }
 
+// Cryptographically secure random hex string (2 chars per byte). Used for
+// values that must be unguessable — e.g. MIME multipart boundaries in the .eml
+// export, where a predictable boundary could theoretically be abused for
+// boundary injection. Falls back to Math.random only where Web Crypto is
+// entirely absent.
+function secureRandomHex(byteCount = 8) {
+  const buf = new Uint8Array(byteCount);
+  if (globalThis.crypto && typeof globalThis.crypto.getRandomValues === "function") {
+    globalThis.crypto.getRandomValues(buf);
+  } else {
+    for (let i = 0; i < byteCount; i++) buf[i] = Math.floor(Math.random() * 256);
+  }
+  return Array.from(buf, (b) => b.toString(16).padStart(2, "0")).join("");
+}
+
 // Defensive HTML sanitizer for rendered email bodies.
 //
 // The email-worker also sanitizes server-side, but defense-in-depth matters:
@@ -2511,7 +2537,7 @@ function buildEmlExport(msg) {
   const html = (msg.body_html || "").trim();
 
   if (html) {
-    const boundary = `=_modih_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`;
+    const boundary = `=_modih_${Date.now().toString(36)}_${secureRandomHex(8)}`;
     const headers = [
       `From: ${encodeHeader(from)}`,
       `To: ${encodeHeader(to)}`,

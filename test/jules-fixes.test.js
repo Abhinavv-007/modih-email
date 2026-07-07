@@ -268,7 +268,9 @@ describe("POST /api/inbox/reserve — paid plan email fallback", () => {
     const { onRequestPost } = await import("../functions/api/inbox/reserve.js");
     const db = makeRecordingDb([
       { kind: "first", value: null },
-      { kind: "all", value: { results: [{ plan: "pro" }] } },
+      // Email-based plan fallback now resolves the single best plan at the DB
+      // layer (ORDER BY … LIMIT 1) via first(), not all() + JS ranking (#17).
+      { kind: "first", value: { plan: "pro" } },
       { kind: "first", value: { id: "inbox-1", creator_uid: "uid-with-email-plan" } },
       { kind: "first", value: { cnt: 0 } },
       { kind: "run", value: { meta: { changes: 1 } } },

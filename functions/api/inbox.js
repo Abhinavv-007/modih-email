@@ -203,15 +203,24 @@ async function getAuthContext(request, db) {
     // UID-based lookup (above) is unaffected and continues to work for
     // every legitimate user.
     if (user.email && user.email_verified === true) {
-      const emailRows = await db
-        .prepare("SELECT plan FROM user_plans WHERE LOWER(email) = LOWER(?)")
+      // Resolve the single highest-ranked plan for this email at the DB layer
+      // (ORDER BY … LIMIT 1) instead of loading every matching row and ranking
+      // in JS. The old unbounded fetch let an attacker create many user_plans
+      // rows for a target email to force excessive memory/CPU use (DoS, #17).
+      const emailBest = await db
+        .prepare(
+          `SELECT plan FROM user_plans
+            WHERE LOWER(email) = LOWER(?)
+            ORDER BY CASE plan
+                       WHEN 'developer' THEN 3
+                       WHEN 'pro'       THEN 2
+                       ELSE 1
+                     END DESC
+            LIMIT 1`
+        )
         .bind(user.email)
-        .all();
-      let emailBest = "free";
-      for (const r of emailRows.results || []) {
-        emailBest = betterPlan(emailBest, r.plan);
-      }
-      plan = betterPlan(plan, emailBest);
+        .first();
+      plan = betterPlan(plan, emailBest?.plan || "free");
     }
 
     return {

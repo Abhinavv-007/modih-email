@@ -22,15 +22,23 @@ async function getPlanForUser(db, user) {
 
   let plan = uidRow?.plan || "free";
   if (user.email && user.email_verified === true) {
-    const emailRows = await db
-      .prepare("SELECT plan FROM user_plans WHERE LOWER(email) = LOWER(?)")
+    // Single highest-ranked plan resolved at the DB layer (ORDER BY … LIMIT 1)
+    // rather than loading all matching rows and ranking in JS — bounds the work
+    // regardless of how many user_plans rows exist for the email (DoS, #17).
+    const emailBest = await db
+      .prepare(
+        `SELECT plan FROM user_plans
+          WHERE LOWER(email) = LOWER(?)
+          ORDER BY CASE plan
+                     WHEN 'developer' THEN 3
+                     WHEN 'pro'       THEN 2
+                     ELSE 1
+                   END DESC
+          LIMIT 1`
+      )
       .bind(user.email)
-      .all();
-    let emailBest = "free";
-    for (const row of emailRows.results || []) {
-      emailBest = betterPlan(emailBest, row.plan);
-    }
-    plan = betterPlan(plan, emailBest);
+      .first();
+    plan = betterPlan(plan, emailBest?.plan || "free");
   }
 
   return ["pro", "developer"].includes(plan) ? plan : "free";
