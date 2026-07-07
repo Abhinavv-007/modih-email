@@ -713,8 +713,11 @@ function showUpgradeError(msg, feature) {
       inner.innerHTML = 'Free accounts are limited to <strong>1 active inbox</strong>. Upgrade to Pro for up to 10.';
     } else if (feature === "creation_limit") {
       inner.innerHTML = "You've hit today's limit. Upgrade to <strong>Pro</strong> for 25 inboxes per day.";
+    } else if (msg) {
+      // Use textContent to natively prevent XSS when rendering arbitrary API messages
+      inner.textContent = msg;
     } else {
-      inner.innerHTML = msg || 'Upgrade to <strong>Pro</strong> for more features.';
+      inner.innerHTML = 'Upgrade to <strong>Pro</strong> for more features.';
     }
   }
   upgradeEl.scrollIntoView({ behavior: "smooth", block: "center" });
