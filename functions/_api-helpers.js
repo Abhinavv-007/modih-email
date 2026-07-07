@@ -252,21 +252,96 @@ function normalizeApiLimit(value, fallback) {
 }
 
 // ── Rate limiting ────────────────────────────────────────────────────────────
+//
+// Cloudflare's free KV tier allows only ~1,000 writes/day. The mailbox polls
+// the message-read endpoint on a timer, so a naïve "KV get + put on every
+// request" limiter exhausts the entire daily write quota within about an hour
+// of a single active visitor. Native Workers Rate Limiting was evaluated as a
+// replacement and rejected: it only supports 10s/60s windows (this app needs
+// 900s and 3600s windows), it is per-datacenter, and it is undocumented for
+// Pages Functions (this project runs on Pages).
+//
+// Instead we keep an isolate-local counter and touch KV as little as possible:
+//
+//   • Reads  — the counter is seeded from KV once per window per isolate, then
+//              served from memory. Repeated polls handled by the same warm
+//              isolate cost ZERO further KV reads until the window rolls over.
+//   • Writes — the "allowed" path performs NO KV writes at all. KV is written
+//              only when a key crosses into the blocked state, so sibling
+//              isolates that seed later converge on the block. Normal traffic
+//              therefore costs ~0 writes, keeping us inside the free-tier
+//              budget under continuous polling.
+//
+// Trade-off: counters are per-isolate / per-colo rather than globally exact, so
+// a client whose requests are spread across many isolates could obtain a
+// somewhat higher effective limit. That is acceptable for an abuse throttle
+// that already fails open on KV errors, and auth-failure counting (which IS
+// security-critical) stays eager — see recordAuthFailure below.
+
+// One counter Map per KV binding. A WeakMap gives us a single shared cache per
+// isolate in production (one RATE_LIMIT binding) and natural per-test isolation
+// (each mock KV object is distinct, so it gets a fresh Map).
+const RL_CACHES = new WeakMap();
+
+function rlCacheFor(kv) {
+  let m = RL_CACHES.get(kv);
+  if (!m) {
+    m = new Map();
+    RL_CACHES.set(kv, m);
+  }
+  return m;
+}
+
+function rlPersist(kv, key, entry, now) {
+  entry.persisted = entry.count;
+  // KV enforces a 60s minimum expirationTtl.
+  const ttl = Math.max(60, entry.resetAt - now);
+  try {
+    // Fire-and-forget — never block the response on a KV write, and swallow
+    // errors so a KV outage can't reject the request (fail open).
+    const p = kv.put(key, String(entry.count), { expirationTtl: ttl });
+    if (p && typeof p.catch === "function") p.catch(() => {});
+  } catch {
+    /* ignore — fail open */
+  }
+}
 
 /**
- * KV-backed sliding-window rate limiter.
+ * Sliding-window rate limiter with in-memory write coalescing over KV.
  * Returns true if the request is within the limit (allowed).
- * Increments the counter on every call. Fails open on KV errors.
+ * Fails open on KV errors.
  */
 export async function rateLimit(kv, key, max, windowSecs) {
-  try {
-    const count = parseInt(await kv.get(key) || "0", 10);
-    if (count >= max) return false;
-    await kv.put(key, String(count + 1), { expirationTtl: windowSecs });
-    return true;
-  } catch {
-    return true; // fail open — never block legitimate traffic on KV failure
+  if (!kv) return true;
+  const cache = rlCacheFor(kv);
+  const now = Math.floor(Date.now() / 1000);
+  let entry = cache.get(key);
+
+  // New key or expired window → seed the counter from KV once. Windows are
+  // 60–3600s, so this is at most one KV read per window per isolate.
+  if (!entry || entry.resetAt <= now) {
+    let seed = 0;
+    try {
+      seed = parseInt((await kv.get(key)) || "0", 10) || 0;
+    } catch {
+      seed = 0; // fail open
+    }
+    entry = { count: seed, resetAt: now + windowSecs, persisted: seed };
+    cache.set(key, entry);
   }
+
+  if (entry.count >= max) {
+    // Persist the block once so isolates that seed later see it too.
+    if (entry.persisted < entry.count) rlPersist(kv, key, entry, now);
+    return false;
+  }
+
+  entry.count += 1;
+
+  // Only persist when we cross into the blocked state; the common allowed path
+  // performs no KV writes at all.
+  if (entry.count >= max) rlPersist(kv, key, entry, now);
+  return true;
 }
 
 /**
@@ -290,9 +365,24 @@ export async function isAuthRateLimited(kv, ip, action, max = 10) {
  *
  * Default: 10 failures per 15 minutes per IP per action type.
  * Key format: af:{action}:{ip}
+ *
+ * Unlike rateLimit(), this writes to KV on EVERY failure (eager, not
+ * coalesced): isAuthRateLimited() reads the count back with a direct KV.get,
+ * so the persisted value must be accurate across isolates for brute-force
+ * detection to hold. Auth failures are low-volume by nature (they only happen
+ * on genuinely failed auth), so eager writes here do not threaten the KV
+ * write budget the way success-path polling would.
  */
 export async function recordAuthFailure(kv, ip, action, max = 10, windowSecs = 900) {
-  return rateLimit(kv, `af:${action}:${ip}`, max, windowSecs);
+  try {
+    const key = `af:${action}:${ip}`;
+    const count = parseInt((await kv.get(key)) || "0", 10);
+    if (count >= max) return false;
+    await kv.put(key, String(count + 1), { expirationTtl: windowSecs });
+    return true;
+  } catch {
+    return true; // fail open — never block legitimate traffic on KV failure
+  }
 }
 
 // Backward-compatible alias used by tests and older call sites.

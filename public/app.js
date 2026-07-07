@@ -1078,7 +1078,27 @@ function startAutoRefresh() {
   // refresh activity). Most mail providers deliver in 2-15s anyway, so 12s
   // strikes the right balance between snappy delivery and battery / network
   // friendliness.
-  refreshInterval = setInterval(fetchMessages, 12000);
+  //
+  // We also suspend polling entirely while the tab is hidden: a backgrounded
+  // temp-mail tab left open all day would otherwise fire thousands of requests
+  // it will never show, burning both the Cloudflare request budget and the
+  // user's battery. When the tab becomes visible again we fetch immediately so
+  // the inbox is fresh, then resume the interval.
+  refreshInterval = setInterval(() => {
+    if (document.visibilityState === "hidden") return;
+    fetchMessages();
+  }, 12000);
+}
+
+// Fetch right away when the user returns to the tab so they never see stale
+// mail after the background pause above. Registered once.
+if (!window.__modihVisibilityWired) {
+  window.__modihVisibilityWired = true;
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "visible" && refreshInterval && currentInbox) {
+      fetchMessages();
+    }
+  });
 }
 
 function stopAutoRefresh() {

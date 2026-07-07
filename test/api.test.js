@@ -450,6 +450,33 @@ describe("rateLimit", () => {
     };
     expect(await rateLimit(badKv, "k", 3, 60)).toBe(true);
   });
+
+  it("coalesces writes — the allowed path performs no KV writes", async () => {
+    let puts = 0;
+    const kv = {
+      _store: new Map(),
+      async get(key) { return this._store.get(key) ?? null; },
+      async put(key, value) { puts++; this._store.set(key, value); },
+    };
+    // 119 allowed reads under a max of 120 must not touch KV for writes.
+    for (let i = 0; i < 119; i++) {
+      expect(await rateLimit(kv, "msg_r:1.2.3.4", 120, 60)).toBe(true);
+    }
+    expect(puts).toBe(0);
+
+    // The request that crosses into the blocked state persists exactly once,
+    // and further blocked requests do not keep re-writing.
+    expect(await rateLimit(kv, "msg_r:1.2.3.4", 120, 60)).toBe(true); // count → 120
+    expect(await rateLimit(kv, "msg_r:1.2.3.4", 120, 60)).toBe(false); // blocked
+    expect(await rateLimit(kv, "msg_r:1.2.3.4", 120, 60)).toBe(false); // blocked
+    expect(puts).toBe(1);
+  });
+
+  it("seeds a cold isolate from KV so a block set elsewhere is respected", async () => {
+    const kv = makeKv({ "msg_r:9.9.9.9": "120" });
+    // Fresh binding (fresh WeakMap entry) must read the persisted block.
+    expect(await rateLimit(kv, "msg_r:9.9.9.9", 120, 60)).toBe(false);
+  });
 });
 
 describe("checkAuthRateLimit", () => {
