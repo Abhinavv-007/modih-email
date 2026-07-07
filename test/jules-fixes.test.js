@@ -415,7 +415,15 @@ describe("POST /api/inbox — HMAC hoisted out of retry loop", () => {
           },
         };
       },
-      async batch() { return []; },
+      // Real D1 batch() runs each statement; insertInbox now commits the inbox
+      // row and the used_addresses ledger row together, so the mock must
+      // actually execute them (and surface the UNIQUE error) for the retry
+      // loop to be exercised.
+      async batch(stmts) {
+        const out = [];
+        for (const s of stmts) out.push(await s.run());
+        return out;
+      },
     };
 
     const req = new Request("https://api.modih.in/api/inbox", {
