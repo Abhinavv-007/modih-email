@@ -984,21 +984,23 @@ function openMailWindow() {
 
   isMailWindowOpen = true;
 
-  // Show mail backgrounds, hide landing backgrounds
-  document.getElementById("bg-media").style.display = "none";
-  document.getElementById("mail-bg-media").style.display = "block";
+  // The mailbox now renders INLINE on the landing page instead of taking over
+  // the viewport. We keep the navbar, footer, background, and the generator
+  // section (so the address + "create another" controls stay in reach) and
+  // only collapse the marketing sections so focus lands on the inbox.
+  MARKETING_SECTION_IDS.forEach((id) => {
+    const el = document.getElementById(id);
+    if (el) el.style.display = "none";
+  });
 
-  // Show mail window with animation
+  // Reveal the inline mail panel with its entrance animation.
   const mailWindow = document.getElementById("mail-window");
   mailWindow.style.display = "block";
   requestAnimationFrame(() => {
     mailWindow.classList.add("active");
+    // Bring the inbox into view smoothly, just beneath the generator.
+    mailWindow.scrollIntoView({ behavior: "smooth", block: "start" });
   });
-
-  // Hide main content sections
-  document.getElementById("navbar").style.display = "none";
-  document.querySelectorAll(".section").forEach((s) => (s.style.display = "none"));
-  document.querySelector(".footer").style.display = "none";
 
   // Update header
   document.getElementById("mail-header-email").textContent = currentInbox.email;
@@ -1012,6 +1014,10 @@ function openMailWindow() {
   startAutoRefresh();
 }
 
+// Marketing sections collapsed while the inline mailbox is open. The generator
+// (#generate) is intentionally NOT here — it stays visible above the inbox.
+const MARKETING_SECTION_IDS = ["hero", "features", "pricing"];
+
 function closeMailWindow() {
   isMailWindowOpen = false;
 
@@ -1019,21 +1025,22 @@ function closeMailWindow() {
   const mailWindow = document.getElementById("mail-window");
   mailWindow.classList.remove("active");
 
-  // Wait for animation to finish, then hide
+  // Wait for the animation to finish, then hide the panel and restore the
+  // collapsed marketing sections (clearing the inline style lets the
+  // stylesheet's default display take over again).
   setTimeout(() => {
-    // Swap backgrounds back
-    document.getElementById("bg-media").style.display = "block";
-    document.getElementById("mail-bg-media").style.display = "none";
-
     mailWindow.style.display = "none";
-
-    // Show main content
-    document.getElementById("navbar").style.display = "block";
-    document.querySelectorAll(".section").forEach((s) => (s.style.display = "flex"));
-    document.querySelector(".footer").style.display = "block";
+    MARKETING_SECTION_IDS.forEach((id) => {
+      const el = document.getElementById(id);
+      if (el) el.style.display = "";
+    });
   }, 350);
 
   stopAutoRefresh();
+
+  // Return the user to the generator they came from.
+  const gen = document.getElementById("generate");
+  if (gen) requestAnimationFrame(() => gen.scrollIntoView({ behavior: "smooth", block: "center" }));
 }
 
 // ========== MESSAGE FETCHING ==========
