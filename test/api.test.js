@@ -450,6 +450,33 @@ describe("rateLimit", () => {
     };
     expect(await rateLimit(badKv, "k", 3, 60)).toBe(true);
   });
+
+  it("coalesces writes — the allowed path performs no KV writes", async () => {
+    let puts = 0;
+    const kv = {
+      _store: new Map(),
+      async get(key) { return this._store.get(key) ?? null; },
+      async put(key, value) { puts++; this._store.set(key, value); },
+    };
+    // 119 allowed reads under a max of 120 must not touch KV for writes.
+    for (let i = 0; i < 119; i++) {
+      expect(await rateLimit(kv, "msg_r:1.2.3.4", 120, 60)).toBe(true);
+    }
+    expect(puts).toBe(0);
+
+    // The request that crosses into the blocked state persists exactly once,
+    // and further blocked requests do not keep re-writing.
+    expect(await rateLimit(kv, "msg_r:1.2.3.4", 120, 60)).toBe(true); // count → 120
+    expect(await rateLimit(kv, "msg_r:1.2.3.4", 120, 60)).toBe(false); // blocked
+    expect(await rateLimit(kv, "msg_r:1.2.3.4", 120, 60)).toBe(false); // blocked
+    expect(puts).toBe(1);
+  });
+
+  it("seeds a cold isolate from KV so a block set elsewhere is respected", async () => {
+    const kv = makeKv({ "msg_r:9.9.9.9": "120" });
+    // Fresh binding (fresh WeakMap entry) must read the persisted block.
+    expect(await rateLimit(kv, "msg_r:9.9.9.9", 120, 60)).toBe(false);
+  });
 });
 
 describe("checkAuthRateLimit", () => {
@@ -572,6 +599,65 @@ describe("POST /api/inbox", () => {
     const body = await res.json();
     expect(res.status).toBe(429);
     expect(body.error.code).toBe("RATE_LIMITED");
+  });
+
+  it("records the new address in the permanent used_addresses ledger", async () => {
+    const ctx = makeCtx({
+      method: "POST",
+      url:    "https://api.modih.in/api/inbox",
+      body:   {},
+      dbRows: [
+        null, null,               // cleanup deletes
+        { cnt: 0 }, { cnt: 0 },   // visitor by IP / token
+        { cnt: 0 },               // active count
+        null, null,               // batch: INSERT inboxes + INSERT used_addresses
+        null, null,               // logAdminEvent / logVisitorAction / auditLog
+      ],
+    });
+    const res = await inboxPost(ctx);
+    expect(res.status).toBe(201);
+
+    const ledgerInsert = ctx._db._queries.find(q => /INSERT INTO used_addresses/i.test(q.sql));
+    expect(ledgerInsert, "inbox creation must write the never-reuse ledger").toBeDefined();
+    const emailInsert = ctx._db._queries.find(q => /INSERT INTO inboxes/i.test(q.sql));
+    // The ledger row is keyed on the same address that was issued.
+    expect(ledgerInsert.params[0]).toBe(emailInsert.params[1]);
+  });
+
+  it("skips an address already burned in used_addresses and retries", async () => {
+    // Simulate: the random address collides with a PERMANENT ledger row (the
+    // address was issued once before and its inbox has since expired), so the
+    // batch fails with UNIQUE on used_addresses; the loop must retry and win.
+    let attempt = 0;
+    const db = {
+      prepare(sql) {
+        return {
+          _sql: sql, _b: [],
+          bind(...a) { this._b = a; return this; },
+          async first() { return /COUNT|cnt/i.test(sql) ? { cnt: 0, count: 0 } : null; },
+          async all() { return { results: [] }; },
+          async run() { return { meta: { changes: 1 } }; },
+        };
+      },
+      async batch(stmts) {
+        attempt++;
+        if (attempt === 1) throw new Error("UNIQUE constraint failed: used_addresses.email");
+        const out = [];
+        for (const s of stmts) out.push(await s.run());
+        return out;
+      },
+    };
+    const req = new Request("https://api.modih.in/api/inbox", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "CF-Connecting-IP": "9.9.9.9", "X-Browser-Token": "tok" },
+      body: JSON.stringify({ mode: "random" }),
+    });
+    const res = await inboxPost({
+      request: req,
+      env: { DB: db, RATE_LIMIT: { async get() { return null; }, async put() {} }, TOKEN_PEPPER: "p", TURNSTILE_SECRET: "" },
+    });
+    expect(res.status).toBe(201);
+    expect(attempt).toBeGreaterThanOrEqual(2); // retried past the burned address
   });
 
   it("returns 401 for an invalid API key", async () => {

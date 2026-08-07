@@ -26,15 +26,52 @@
  * regression tests for any new payload class you intend to block.
  */
 
-/* Pairs of dangerous tags + their content (script body, style body, etc.). */
-const STRIP_PAIR_TAGS    = "script|style|iframe|object|form|svg|math|noscript|template";
+/* Pairs of dangerous tags + their content (script body, style body, etc.).
+ * NOTE: <style> is deliberately NOT here — it is handled separately by
+ * cleanCss() below so that legitimate email typography (font sizes, colours,
+ * letter-spacing on verification codes, etc.) survives. Removing it wholesale
+ * was making styled emails — Google OTP messages in particular — render as
+ * unstyled walls of text. */
+const STRIP_PAIR_TAGS    = "script|iframe|object|form|svg|math|noscript|template";
 /* Standalone tags that fetch or redirect resources. */
 const STRIP_SINGLE_TAGS  = "embed|link|base|meta|source|track";
 /* Catch-all opener (matches even if the closer is malformed/missing). */
-const STRIP_OPENER_TAGS  = "script|style|iframe|object|svg|math|form|noscript|template";
+const STRIP_OPENER_TAGS  = "script|iframe|object|svg|math|form|noscript|template";
 
-/* Dangerous URL scheme prefixes. The `:` may be HTML-entity-encoded. */
-const DANGEROUS_SCHEMES  = "javascript|vbscript|livescript|data|blob|file";
+/* Dangerous URL scheme prefixes. The `:` may be HTML-entity-encoded.
+ * `data:` is handled by RX_DATA_URI below instead of being blanket-blocked,
+ * so that inline `data:image/<raster>` images (very common in real email)
+ * render while `data:text/html` and friends stay blocked. */
+const DANGEROUS_SCHEMES  = "javascript|vbscript|livescript|blob|file";
+
+/* `data:` URIs are allowed ONLY for raster images. `data:image/svg+xml` is
+ * NOT whitelisted — SVG can carry <script>, and while the render iframe runs
+ * without allow-scripts, blocking it here is cheap defence in depth. Every
+ * other `data:` payload (text/html, application/*, …) is neutralised. */
+const RX_DATA_URI = /data\s*(?:&#0*58;?|&#x0*3a;?|:)(?!\s*image\/(?:png|jpe?g|gif|webp|bmp|apng|avif)\b)/gi;
+
+/* Match a well-formed <style>…</style> block so its CSS can be scrubbed and
+ * kept rather than discarded. */
+const RX_STYLE_BLOCK = /<style\b[^>]*>([\s\S]*?)<\/style>/gi;
+/* Any leftover (unclosed / malformed) style tag after block extraction. */
+const RX_STYLE_STRAY = /<\/?style\b[^>]*>/gi;
+
+/**
+ * Scrub the body of a <style> block. In a script-free, no-referrer sandbox the
+ * only real risk CSS carries is loading remote resources (open-tracking /
+ * exfiltration) via @import or url(). We strip those while preserving all
+ * layout/typography rules. `expression()` (dead IE vector) and any inline
+ * script/vbscript schemes are neutralised defensively.
+ */
+function cleanCss(css) {
+  return String(css)
+    .replace(/@import[^;{}]*;?/gi, "")                       // no remote stylesheets
+    .replace(/expression\s*\(/gi, "blocked(")               // dead IE vector
+    .replace(/(?:javascript|vbscript)\s*:/gi, "blocked:")
+    // Neutralise every url(...) that isn't an inline data:image — this is what
+    // stops CSS-driven tracking pixels and remote fetches.
+    .replace(/url\(\s*(["']?)\s*(?!data:image\/)[^)]*\1\s*\)/gi, "url()");
+}
 
 const RX_PAIR    = new RegExp(`<(${STRIP_PAIR_TAGS})\\b[\\s\\S]*?<\\/\\1\\s*>`, "gi");
 const RX_SINGLE  = new RegExp(`<(${STRIP_SINGLE_TAGS})\\b[^>]*>`, "gi");
@@ -155,19 +192,45 @@ export function sanitizeRenderedHtml(html) {
   // `javascript:` URL.
   const normalised = neutraliseTagBypassChars(decoded);
 
-  return normalised
+  // Extract well-formed <style> blocks into sentinels BEFORE the tag strippers
+  // run, scrubbing their CSS. Sentinels use U+0001 (already-stripped U+0000's
+  // neighbour) which never appears in real email. Anything still carrying a raw
+  // <style> tag after this is malformed and gets removed by RX_STYLE_STRAY.
+  // Preserve well-formed <style> blocks (with their CSS scrubbed) through the
+  // tag strippers below. We cannot simply exclude <style> from the strippers,
+  // because RX_STYLE_STRAY must still delete UNCLOSED/malformed style tags
+  // (which can otherwise swallow the rest of the document as CSS and hide it).
+  //
+  // Trick: temporarily rename cleaned blocks to a private <modihstyle> alias
+  // that none of the tag regexes match, run the full strip pipeline (which
+  // removes any leftover real <style> orphan), then rename the alias back. Any
+  // literal "modihstyle" in the untrusted input is removed first so a crafted
+  // email cannot smuggle the alias in and forge a style block.
+  const withAlias = normalised
+    .replace(/modihstyle/gi, "")
+    .replace(RX_STYLE_BLOCK, (_m, inner) => `<modihstyle>${cleanCss(inner)}</modihstyle>`);
+
+  const cleaned = withAlias
     .replace(RX_PAIR,   "")
     .replace(RX_SINGLE, "")
     .replace(RX_OPENER, "")
+    .replace(RX_STYLE_STRAY, "")
     // Replace event handlers with a single space so the leading delimiter
-    // ([\s/]) doesn't disappear and merge two adjacent attribute names.
+    // ([\s/]) does not disappear and merge two adjacent attribute names.
     .replace(RX_ON_DBL, " ")
     .replace(RX_ON_SGL, " ")
     .replace(RX_ON_UNQ, " ")
+    // data: — blocked for everything except inline raster images.
+    .replace(RX_DATA_URI, "blocked:")
     .replace(RX_SCHEME, "blocked:")
-    // Drop only tracking pixels (1×1 / hidden) — real `<img>` tags are
+    // Drop only tracking pixels (1x1 / hidden) — real `<img>` tags are
     // preserved so genuine email images render. Dangerous src schemes
-    // were already neutralised by RX_SCHEME above.
+    // were already neutralised above.
     .replace(RX_IMG_TRACKING, "")
     .replace(RX_IMG_SRCSET,   "$1");
+
+  // Restore the scrubbed style blocks.
+  return cleaned
+    .replace(/<modihstyle>/g, "<style>")
+    .replace(/<\/modihstyle>/g, "</style>");
 }

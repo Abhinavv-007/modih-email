@@ -106,12 +106,22 @@ export async function onRequestGet(context) {
 
     let emailBestPlan = "free";
     if (emailTrusted) {
-      const emailRows = await env.DB.prepare(
-        "SELECT plan FROM user_plans WHERE LOWER(email) = LOWER(?)"
-      ).bind(email).all();
-      for (const row of (emailRows.results || [])) {
-        emailBestPlan = bestOfTwo(emailBestPlan, row.plan);
-      }
+      // Resolve the single highest-ranked plan for this email at the DB layer.
+      // The previous version pulled EVERY matching row into memory and ranked
+      // them in JS, so an attacker who created many user_plans rows for a
+      // target email could force unbounded memory/CPU use (application-level
+      // DoS, PR #17). ORDER BY … LIMIT 1 caps the work regardless of row count.
+      const emailBest = await env.DB.prepare(
+        `SELECT plan FROM user_plans
+          WHERE LOWER(email) = LOWER(?)
+          ORDER BY CASE plan
+                     WHEN 'developer' THEN 3
+                     WHEN 'pro'       THEN 2
+                     ELSE 1
+                   END DESC
+          LIMIT 1`
+      ).bind(email).first();
+      if (emailBest?.plan) emailBestPlan = emailBest.plan;
     }
 
     // ── Step 3: Resolve final plan ─────────────────────────────────────────

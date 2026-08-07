@@ -57,10 +57,16 @@ function makeRecordingDb({ byUidPlan = null, byEmailPlans = [] } = {}) {
     kind: "first",
     value: byUidPlan ? { uid: VERIFIED_UID, email: SHARED_EMAIL, plan: byUidPlan } : null,
   });
-  // SELECT byEmail → all() (only consumed if email_verified)
+  // SELECT byEmail → first() (only consumed if email_verified). The handler
+  // now resolves the single highest-ranked plan at the DB layer via
+  // ORDER BY … LIMIT 1, so we return just that one row (DoS fix, #17).
+  const planRank = { developer: 3, pro: 2, free: 1 };
+  const bestEmailPlan = byEmailPlans.length
+    ? byEmailPlans.reduce((best, p) => ((planRank[p] || 0) > (planRank[best] || 0) ? p : best))
+    : null;
   queue.push({
-    kind: "all",
-    value: { results: byEmailPlans.map(p => ({ plan: p })) },
+    kind: "first",
+    value: bestEmailPlan ? { plan: bestEmailPlan } : null,
   });
   // INSERT or UPDATE on user_plans → run()
   queue.push({ kind: "run", value: { meta: { changes: 1 } } });
@@ -148,7 +154,7 @@ describe("/api/auth/me — email_verified gate", () => {
 
     // No SELECT … WHERE LOWER(email) = LOWER(?) was ever executed.
     const emailLookup = db.calls.find(
-      c => c.op === "all" && /WHERE\s+LOWER\(email\)/i.test(c.sql)
+      c => c.op === "first" && /WHERE\s+LOWER\(email\)/i.test(c.sql)
     );
     expect(emailLookup, "no email-based plan lookup for unverified user").toBeUndefined();
 
@@ -184,7 +190,7 @@ describe("/api/auth/me — email_verified gate", () => {
 
     // The verified path DOES run the email-based lookup …
     const emailLookup = db.calls.find(
-      c => c.op === "all" && /WHERE\s+LOWER\(email\)/i.test(c.sql)
+      c => c.op === "first" && /WHERE\s+LOWER\(email\)/i.test(c.sql)
     );
     expect(emailLookup, "verified user triggers email lookup").toBeTruthy();
     expect(emailLookup.bindings).toEqual([SHARED_EMAIL]);
@@ -215,7 +221,7 @@ describe("/api/auth/me — email_verified gate", () => {
     expect(res.status).toBe(200);
 
     const emailLookup = db.calls.find(
-      c => c.op === "all" && /WHERE\s+LOWER\(email\)/i.test(c.sql)
+      c => c.op === "first" && /WHERE\s+LOWER\(email\)/i.test(c.sql)
     );
     expect(emailLookup).toBeUndefined();
 
@@ -330,7 +336,7 @@ describe("inbox.js getAuthContext — email_verified gate", () => {
     }).catch(() => {});
 
     const emailLookup = calls.find(
-      c => c.op === "all" && /WHERE\s+LOWER\(email\)/i.test(c.sql)
+      c => c.op === "first" && /WHERE\s+LOWER\(email\)/i.test(c.sql)
     );
     expect(emailLookup, "no email lookup for unverified-email user").toBeUndefined();
   });
@@ -381,7 +387,7 @@ describe("inbox.js getAuthContext — email_verified gate", () => {
     }).catch(() => {});
 
     const emailLookup = calls.find(
-      c => c.op === "all" && /WHERE\s+LOWER\(email\)/i.test(c.sql)
+      c => c.op === "first" && /WHERE\s+LOWER\(email\)/i.test(c.sql)
     );
     expect(emailLookup, "verified email triggers email lookup").toBeTruthy();
   });

@@ -268,7 +268,9 @@ describe("POST /api/inbox/reserve — paid plan email fallback", () => {
     const { onRequestPost } = await import("../functions/api/inbox/reserve.js");
     const db = makeRecordingDb([
       { kind: "first", value: null },
-      { kind: "all", value: { results: [{ plan: "pro" }] } },
+      // Email-based plan fallback now resolves the single best plan at the DB
+      // layer (ORDER BY … LIMIT 1) via first(), not all() + JS ranking (#17).
+      { kind: "first", value: { plan: "pro" } },
       { kind: "first", value: { id: "inbox-1", creator_uid: "uid-with-email-plan" } },
       { kind: "first", value: { cnt: 0 } },
       { kind: "run", value: { meta: { changes: 1 } } },
@@ -413,7 +415,15 @@ describe("POST /api/inbox — HMAC hoisted out of retry loop", () => {
           },
         };
       },
-      async batch() { return []; },
+      // Real D1 batch() runs each statement; insertInbox now commits the inbox
+      // row and the used_addresses ledger row together, so the mock must
+      // actually execute them (and surface the UNIQUE error) for the retry
+      // loop to be exercised.
+      async batch(stmts) {
+        const out = [];
+        for (const s of stmts) out.push(await s.run());
+        return out;
+      },
     };
 
     const req = new Request("https://api.modih.in/api/inbox", {

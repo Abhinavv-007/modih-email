@@ -131,8 +131,35 @@ describe("sanitizeRenderedHtml — script/style/iframe/svg pairs", () => {
     expect(out).toContain("safe");
   });
 
-  it("strips <style>", () => {
-    expect(sanitizeRenderedHtml('<style>body{}</style>x')).not.toMatch(/style/i);
+  it("keeps <style> blocks but scrubs remote CSS fetches", () => {
+    // Styled emails (Google OTP codes etc.) need <style> to render, so it is
+    // preserved — but CSS that would reach out to the network is neutralised.
+    const out = sanitizeRenderedHtml(
+      '<style>@import url(https://evil.test/x.css); .code{color:#111} .bg{background:url(https://track.test/p.gif)}</style>x'
+    );
+    expect(out).toContain("<style>");
+    expect(out).toContain(".code{color:#111}");   // typography preserved
+    expect(out).not.toMatch(/@import/i);           // no remote stylesheet
+    expect(out).not.toContain("track.test");       // no CSS tracking pixel
+    expect(out).toContain("x");
+  });
+
+  it("keeps a data:image/png but blocks other data: URIs and svg data", () => {
+    const png = sanitizeRenderedHtml('<img src="data:image/png;base64,AAAA">');
+    expect(png).toContain("data:image/png;base64,AAAA");   // inline images render
+
+    const html = sanitizeRenderedHtml('<a href="data:text/html,<b>x">y</a>');
+    expect(html).not.toContain("data:text/html");          // html data: neutralised
+    expect(html).toContain("blocked:");
+
+    const svg = sanitizeRenderedHtml('<img src="data:image/svg+xml;base64,PHN2Zz4=">');
+    expect(svg).not.toContain("data:image/svg+xml");       // svg data: neutralised
+  });
+
+  it("strips an unclosed/malformed <style> so it cannot hide the document", () => {
+    const out = sanitizeRenderedHtml('<style>body{}<div>still visible</div>');
+    expect(out).not.toMatch(/<style/i);
+    expect(out).toContain("still visible");
   });
 
   it("strips <iframe>", () => {

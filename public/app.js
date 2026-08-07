@@ -311,11 +311,22 @@ function getBrowserToken() {
 }
 
 function generateFallbackUUID() {
-  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
-    const r = Math.random() * 16 | 0;
-    const v = c === 'x' ? r : (r & 0x3 | 0x8);
-    return v.toString(16);
-  });
+  // Prefer a CSPRNG. crypto.getRandomValues exists in every environment that
+  // ships crypto.randomUUID and many older ones besides, so Math.random() is
+  // only ever a last resort for ancient runtimes that have neither. The
+  // browser token derived from this is used as an anonymous ownership handle,
+  // so predictable output must not be possible on any modern browser.
+  const buf = new Uint8Array(16);
+  if (globalThis.crypto && typeof globalThis.crypto.getRandomValues === "function") {
+    globalThis.crypto.getRandomValues(buf);
+  } else {
+    for (let i = 0; i < 16; i++) buf[i] = Math.floor(Math.random() * 256);
+  }
+  // RFC 4122 v4: set version (4) and variant (10xx) bits.
+  buf[6] = (buf[6] & 0x0f) | 0x40;
+  buf[8] = (buf[8] & 0x3f) | 0x80;
+  const hex = Array.from(buf, (b) => b.toString(16).padStart(2, "0")).join("");
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
 }
 
 // ========== VIDEO CONTROLLER ==========
@@ -973,21 +984,23 @@ function openMailWindow() {
 
   isMailWindowOpen = true;
 
-  // Show mail backgrounds, hide landing backgrounds
-  document.getElementById("bg-media").style.display = "none";
-  document.getElementById("mail-bg-media").style.display = "block";
+  // The mailbox now renders INLINE on the landing page instead of taking over
+  // the viewport. We keep the navbar, footer, background, and the generator
+  // section (so the address + "create another" controls stay in reach) and
+  // only collapse the marketing sections so focus lands on the inbox.
+  MARKETING_SECTION_IDS.forEach((id) => {
+    const el = document.getElementById(id);
+    if (el) el.style.display = "none";
+  });
 
-  // Show mail window with animation
+  // Reveal the inline mail panel with its entrance animation.
   const mailWindow = document.getElementById("mail-window");
   mailWindow.style.display = "block";
   requestAnimationFrame(() => {
     mailWindow.classList.add("active");
+    // Bring the inbox into view smoothly, just beneath the generator.
+    mailWindow.scrollIntoView({ behavior: "smooth", block: "start" });
   });
-
-  // Hide main content sections
-  document.getElementById("navbar").style.display = "none";
-  document.querySelectorAll(".section").forEach((s) => (s.style.display = "none"));
-  document.querySelector(".footer").style.display = "none";
 
   // Update header
   document.getElementById("mail-header-email").textContent = currentInbox.email;
@@ -1001,6 +1014,10 @@ function openMailWindow() {
   startAutoRefresh();
 }
 
+// Marketing sections collapsed while the inline mailbox is open. The generator
+// (#generate) is intentionally NOT here — it stays visible above the inbox.
+const MARKETING_SECTION_IDS = ["hero", "features", "pricing"];
+
 function closeMailWindow() {
   isMailWindowOpen = false;
 
@@ -1008,21 +1025,22 @@ function closeMailWindow() {
   const mailWindow = document.getElementById("mail-window");
   mailWindow.classList.remove("active");
 
-  // Wait for animation to finish, then hide
+  // Wait for the animation to finish, then hide the panel and restore the
+  // collapsed marketing sections (clearing the inline style lets the
+  // stylesheet's default display take over again).
   setTimeout(() => {
-    // Swap backgrounds back
-    document.getElementById("bg-media").style.display = "block";
-    document.getElementById("mail-bg-media").style.display = "none";
-
     mailWindow.style.display = "none";
-
-    // Show main content
-    document.getElementById("navbar").style.display = "block";
-    document.querySelectorAll(".section").forEach((s) => (s.style.display = "flex"));
-    document.querySelector(".footer").style.display = "block";
+    MARKETING_SECTION_IDS.forEach((id) => {
+      const el = document.getElementById(id);
+      if (el) el.style.display = "";
+    });
   }, 350);
 
   stopAutoRefresh();
+
+  // Return the user to the generator they came from.
+  const gen = document.getElementById("generate");
+  if (gen) requestAnimationFrame(() => gen.scrollIntoView({ behavior: "smooth", block: "center" }));
 }
 
 // ========== MESSAGE FETCHING ==========
@@ -1078,7 +1096,27 @@ function startAutoRefresh() {
   // refresh activity). Most mail providers deliver in 2-15s anyway, so 12s
   // strikes the right balance between snappy delivery and battery / network
   // friendliness.
-  refreshInterval = setInterval(fetchMessages, 12000);
+  //
+  // We also suspend polling entirely while the tab is hidden: a backgrounded
+  // temp-mail tab left open all day would otherwise fire thousands of requests
+  // it will never show, burning both the Cloudflare request budget and the
+  // user's battery. When the tab becomes visible again we fetch immediately so
+  // the inbox is fresh, then resume the interval.
+  refreshInterval = setInterval(() => {
+    if (document.visibilityState === "hidden") return;
+    fetchMessages();
+  }, 12000);
+}
+
+// Fetch right away when the user returns to the tab so they never see stale
+// mail after the background pause above. Registered once.
+if (!window.__modihVisibilityWired) {
+  window.__modihVisibilityWired = true;
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "visible" && refreshInterval && currentInbox) {
+      fetchMessages();
+    }
+  });
 }
 
 function stopAutoRefresh() {
@@ -1635,6 +1673,21 @@ function escapeHtml(text) {
   return div.innerHTML;
 }
 
+// Cryptographically secure random hex string (2 chars per byte). Used for
+// values that must be unguessable — e.g. MIME multipart boundaries in the .eml
+// export, where a predictable boundary could theoretically be abused for
+// boundary injection. Falls back to Math.random only where Web Crypto is
+// entirely absent.
+function secureRandomHex(byteCount = 8) {
+  const buf = new Uint8Array(byteCount);
+  if (globalThis.crypto && typeof globalThis.crypto.getRandomValues === "function") {
+    globalThis.crypto.getRandomValues(buf);
+  } else {
+    for (let i = 0; i < byteCount; i++) buf[i] = Math.floor(Math.random() * 256);
+  }
+  return Array.from(buf, (b) => b.toString(16).padStart(2, "0")).join("");
+}
+
 // Defensive HTML sanitizer for rendered email bodies.
 //
 // The email-worker also sanitizes server-side, but defense-in-depth matters:
@@ -1647,12 +1700,17 @@ function escapeHtml(text) {
 // for the email-worker and Pages Functions tests.
 //
 // Strategy:
-//   - Strip every active-content tag (script/style/iframe/object/embed/form/
-//     base/meta/svg/math/link/source/track) along with their contents.
+//   - Strip every active-content tag (script/iframe/object/embed/form/base/
+//     meta/svg/math/link/source/track) along with their contents.
+//   - Keep <style> blocks but scrub their CSS (no @import / remote url() /
+//     script schemes) so styled emails — Google OTP codes especially —
+//     render instead of collapsing into unstyled text.
 //   - Strip every on* event-handler attribute regardless of quoting style.
-//   - Neutralize every dangerous URL scheme (javascript:/data:/vbscript:/
-//     blob:/file:) — including HTML-entity-encoded variants.
-//   - Block all <img> tags so remote tracking pixels never leak the user's IP.
+//   - Neutralize dangerous URL schemes (javascript:/vbscript:/blob:/file: and
+//     non-image data:) — including HTML-entity-encoded variants.
+//   - Keep real <img> tags (so genuine email images render) but drop 1×1 /
+//     hidden tracking pixels and srcset. Inline data:image/<raster> is allowed;
+//     data:image/svg+xml and other data: payloads are blocked.
 //
 // Note: this is intentionally regex-based to avoid a heavy DOMPurify
 // dependency on a privacy-focused page. The sanitizer must stay strict —
@@ -1696,17 +1754,39 @@ function sanitizeRenderedHtml(html) {
     m.replace(/[\t\n\r\u0000]/g, " ")
   );
 
-  // Strip pairs of dangerous tags including their content.
-  const STRIP_PAIR   = /<(script|style|iframe|object|form|svg|math|noscript|template)\b[\s\S]*?<\/\1\s*>/gi;
+  // Strip pairs of dangerous tags including their content. <style> is handled
+  // separately below (kept, but its CSS scrubbed) so styled emails render.
+  const STRIP_PAIR   = /<(script|iframe|object|form|svg|math|noscript|template)\b[\s\S]*?<\/\1\s*>/gi;
   // Strip self-closing / standalone dangerous tags.
   const STRIP_SINGLE = /<(embed|link|base|meta|source|track)\b[^>]*>/gi;
   // Catch any unmatched openers (truncated / malformed HTML).
-  const STRIP_OPENER = /<\/?(script|style|iframe|object|svg|math|form|noscript|template)\b[^>]*>/gi;
+  const STRIP_OPENER = /<\/?(script|iframe|object|svg|math|form|noscript|template)\b[^>]*>/gi;
+  // Any leftover (unclosed / malformed) style tag after block extraction.
+  const STRIP_STYLE_STRAY = /<\/?style\b[^>]*>/gi;
+  // data: allowed only for raster images — everything else neutralised.
+  const DATA_URI = /data\s*(?:&#0*58;?|&#x0*3a;?|:)(?!\s*image\/(?:png|jpe?g|gif|webp|bmp|apng|avif)\b)/gi;
+  const STYLE_BLOCK = /<style\b[^>]*>([\s\S]*?)<\/style>/gi;
 
-  return normalised
+  // Scrub the CSS inside a <style> block: no remote fetches (@import / url())
+  // and no active-content schemes. In a script-free sandbox the only real risk
+  // CSS carries is loading remote resources (tracking / exfiltration).
+  const cleanCss = (css) => String(css)
+    .replace(/@import[^;{}]*;?/gi, "")
+    .replace(/expression\s*\(/gi, "blocked(")
+    .replace(/(?:javascript|vbscript)\s*:/gi, "blocked:")
+    .replace(/url\(\s*(["']?)\s*(?!data:image\/)[^)]*\1\s*\)/gi, "url()");
+
+  // Preserve well-formed <style> blocks through the strippers via a private
+  // <modihstyle> alias (see functions/_sanitize-html.js for the full rationale).
+  const withAlias = normalised
+    .replace(/modihstyle/gi, "")
+    .replace(STYLE_BLOCK, (_m, inner) => `<modihstyle>${cleanCss(inner)}</modihstyle>`);
+
+  return withAlias
     .replace(STRIP_PAIR,   "")
     .replace(STRIP_SINGLE, "")
     .replace(STRIP_OPENER, "")
+    .replace(STRIP_STYLE_STRAY, "")
     // on* event handlers — quoted, single-quoted, and unquoted forms.
     // The leading `[\s/]` handles slash-delimited attributes too — HTML
     // parsers treat `<a/onclick=…>` exactly the same as `<a onclick=…>`,
@@ -1715,12 +1795,19 @@ function sanitizeRenderedHtml(html) {
     .replace(/[\s/]on\w+\s*=\s*"[^"]*"/gi, " ")
     .replace(/[\s/]on\w+\s*=\s*'[^']*'/gi, " ")
     .replace(/[\s/]on\w+\s*=\s*[^\s/>]+/gi, " ")
-    // Dangerous URL schemes — covers entity-encoded colons that bypass the
-    // literal `:` check (`java&#115;cript&#58;` etc.).
-    .replace(/(javascript|vbscript|livescript|data|blob|file)\s*(?:&#0*58;?|&#x0*3a;?|:)/gi, "blocked:")
-    // Block ALL <img …> tags (tracking pixels + onerror handlers + remote
-    // URLs). The `\b` boundary catches the slash-delimited form too.
-    .replace(/<img\b[^>]*>/gi, "[image removed]");
+    // data: — blocked for everything except inline raster images.
+    .replace(DATA_URI, "blocked:")
+    // Other dangerous URL schemes — covers entity-encoded colons that bypass
+    // the literal `:` check (`java&#115;cript&#58;` etc.).
+    .replace(/(javascript|vbscript|livescript|blob|file)\s*(?:&#0*58;?|&#x0*3a;?|:)/gi, "blocked:")
+    // Strip only tracking pixels (1×1 / hidden) — real <img> tags now survive
+    // so genuine email images render. Dangerous schemes were neutralised above.
+    .replace(/<img\b(?=[^>]*(?:\swidth\s*=\s*["']?1\b|\sheight\s*=\s*["']?1\b|display\s*:\s*none|visibility\s*:\s*hidden))[^>]*>/gi, "")
+    // Drop srcset so images can't smuggle additional un-opted-in URLs.
+    .replace(/(<img\b[^>]*?)\ssrcset\s*=\s*(?:"[^"]*"|'[^']*'|[^\s>]+)/gi, "$1")
+    // Restore the scrubbed style blocks.
+    .replace(/<modihstyle>/g, "<style>")
+    .replace(/<\/modihstyle>/g, "</style>");
 }
 
 function formatTimeAgo(timestamp) {
@@ -2491,7 +2578,7 @@ function buildEmlExport(msg) {
   const html = (msg.body_html || "").trim();
 
   if (html) {
-    const boundary = `=_modih_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`;
+    const boundary = `=_modih_${Date.now().toString(36)}_${secureRandomHex(8)}`;
     const headers = [
       `From: ${encodeHeader(from)}`,
       `To: ${encodeHeader(to)}`,

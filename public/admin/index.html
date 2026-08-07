@@ -399,6 +399,13 @@
       .action-btn { font-size: 0.68rem; padding: 0.28rem 0.55rem; }
       .user-row { padding: 1rem 1rem; }
     }
+    /* Address Explorer status badges */
+    .addr-status { font-weight: 600; text-transform: capitalize; }
+    .addr-active   { color: #34d399; }
+    .addr-reserved { color: #60a5fa; }
+    .addr-expiring { color: #fbbf24; }
+    .addr-expired  { color: #f87171; }
+    #address-body .activity-item:hover { background: rgba(255,255,255,0.04); }
   </style>
 </head>
 <body>
@@ -575,6 +582,23 @@
             <div class="table-loading">Loading…</div>
           </div>
         </article>
+      </section>
+
+      <!-- ===== ADDRESS EXPLORER ===== -->
+      <section class="activity-card" id="address-explorer" style="margin-top:1.5rem; padding:1.25rem;">
+        <div class="activity-head" style="display:flex; align-items:center; justify-content:space-between; gap:1rem; flex-wrap:wrap;">
+          <div>
+            <div class="activity-title">Address Explorer</div>
+            <div class="activity-sub">every address ever issued — creator, lifecycle &amp; mail received (expired ones included)</div>
+          </div>
+          <input id="address-search" type="search" placeholder="Search address…" autocomplete="off"
+            oninput="handleAddressSearch()"
+            style="background:rgba(255,255,255,0.05); border:1px solid rgba(255,255,255,0.12); border-radius:10px; color:inherit; padding:0.5rem 0.8rem; font-size:0.9rem; min-width:220px;">
+        </div>
+        <div class="activity-list" id="address-body" style="margin-top:0.9rem;">
+          <div class="table-loading">Loading addresses…</div>
+        </div>
+        <div id="address-detail" style="display:none; margin-top:1rem;"></div>
       </section>
 
       <!-- ===== PASSKEYS ===== -->
@@ -842,6 +866,7 @@
           const data = await res.json();
           applyDashboardData(data);
           if (typeof loadPasskeys === 'function') loadPasskeys();
+          loadAddresses();
         } else {
           errEl.textContent = 'Admin API returned an error.';
           errEl.classList.add('visible');
@@ -1004,6 +1029,181 @@
           </div>
         `;
       }).join('');
+    }
+
+    // ===== ADDRESS EXPLORER =====
+    // GET helper that authenticates via the admin secret header when we have
+    // one, and otherwise relies on the same-origin admin_session cookie
+    // (passkey login path) — checkAdminAuth accepts either.
+    async function adminApiGet(path) {
+      const headers = {};
+      if (adminSecret) headers['X-Admin-Secret'] = adminSecret;
+      const res = await fetch(path, { headers, credentials: 'same-origin', cache: 'no-store' });
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      return res.json();
+    }
+
+    let addressSearchTimeout;
+    function handleAddressSearch() {
+      clearTimeout(addressSearchTimeout);
+      addressSearchTimeout = setTimeout(loadAddresses, 300);
+    }
+
+    async function loadAddresses() {
+      const body = document.getElementById('address-body');
+      if (!body) return;
+      const q = (document.getElementById('address-search')?.value || '').trim();
+      document.getElementById('address-detail').style.display = 'none';
+      body.innerHTML = '<div class="table-loading"><span class="spin">⟳</span> Loading…</div>';
+      try {
+        const data = await adminApiGet('/api/admin/address?limit=50' + (q ? '&q=' + encodeURIComponent(q) : ''));
+        const items = data.addresses || [];
+        if (!items.length) {
+          body.innerHTML = '<div class="table-empty" style="padding:1.5rem 1rem;">No addresses found.</div>';
+          return;
+        }
+        body.innerHTML = items.map(a => `
+          <div class="activity-item" style="cursor:pointer;" onclick="loadAddressDetail('${encodeURIComponent(a.email)}')">
+            <div class="activity-main">${escHtml(a.email)}</div>
+            <div class="activity-meta">${escHtml(a.creator_email || a.creator_uid || 'anonymous')} · <span class="addr-status addr-${escHtml(a.status)}">${escHtml(a.status)}</span> · ${formatNumber(a.messages_received)} mails · ${formatDateTime(a.first_used_at)}</div>
+          </div>
+        `).join('');
+      } catch (e) {
+        body.innerHTML = '<div class="table-empty">Failed to load addresses.</div>';
+      }
+    }
+
+    async function loadAddressDetail(emailEnc) {
+      const email = decodeURIComponent(emailEnc);
+      const detail = document.getElementById('address-detail');
+      detail.style.display = 'block';
+      detail.innerHTML = '<div class="table-loading"><span class="spin">⟳</span> Loading address…</div>';
+      try {
+        const d = await adminApiGet('/api/admin/address?email=' + encodeURIComponent(email));
+        if (!d.found) {
+          detail.innerHTML = '<div class="table-empty" style="padding:1.5rem;">Address not found.</div>';
+          return;
+        }
+        // Current messages are clickable → open the full body.
+        const cur = (d.messages_current || []).map(m =>
+          `<div class="activity-item" style="cursor:pointer;" onclick="viewMessage('${encodeURIComponent(m.id)}')">
+             <div class="activity-main">${escHtml(m.subject || '(no subject)')}</div>
+             <div class="activity-meta">from ${escHtml(m.from || 'unknown')} · ${escHtml(formatDateTime(m.received_at))} · <span style="opacity:0.7;">open ›</span></div>
+           </div>`
+        ).join('') || '<div class="table-empty" style="padding:1rem;">No current messages.</div>';
+        const hist = (d.messages_history || []).map(m =>
+          `<div class="activity-item"><div class="activity-main">${escHtml((m.subject || '(no subject)') + (m.is_otp ? '  🔑 OTP' : ''))}</div><div class="activity-meta">${escHtml(formatDateTime(m.received_at))}</div></div>`
+        ).join('') || '<div class="table-empty" style="padding:1rem;">No historical receipts.</div>';
+        const c = d.creator || {};
+        const lc = d.lifecycle || {};
+        const eEnc = encodeURIComponent(d.email);
+        const st = d.status;
+        const btn = (label, fn, cls) => `<button class="action-btn ${cls || ''}" onclick="${fn}">${label}</button>`;
+        const actions = [];
+        if (lc.is_live && st !== 'blocked') actions.push(btn('Block', `addressAction('${eEnc}','block')`, 'action-down'));
+        if (st === 'blocked') actions.push(btn('Unblock', `addressAction('${eEnc}','unblock')`, 'action-pro'));
+        if (lc.is_live) actions.push(btn('Extend 7d', `addressAction('${eEnc}','extend')`));
+        if (!lc.is_live) actions.push(btn('Reactivate', `addressAction('${eEnc}','reactivate')`, 'action-dev'));
+        actions.push(btn('Delete', `deleteAddress('${eEnc}')`, 'action-del'));
+        detail.innerHTML = `
+          <div class="activity-head" style="display:flex; justify-content:space-between; align-items:flex-start; gap:1rem; flex-wrap:wrap;">
+            <div>
+              <div class="activity-title">${escHtml(d.email)}</div>
+              <div class="activity-sub">creator ${escHtml(c.email || c.uid || 'anonymous')} · IP ${escHtml(c.ip || '—')} · plan ${escHtml(c.plan || '—')} · <span class="addr-status addr-${escHtml(st)}">${escHtml(st)}</span></div>
+              <div class="activity-sub">first issued ${escHtml(formatDateTime(lc.first_used_at))}${lc.expires_at ? ' · expires ' + escHtml(formatDateTime(lc.expires_at)) : ''}${lc.reserved ? ' · reserved' : ''}</div>
+            </div>
+            <div class="user-actions" style="display:flex; gap:0.4rem; flex-wrap:wrap;">${actions.join('')}</div>
+          </div>
+          <section class="activity-grid" style="margin-top:0.9rem;">
+            <article class="activity-card">
+              <div class="activity-head"><div class="activity-title">Current mail</div><div class="activity-sub">live inbox contents — click to read</div></div>
+              <div class="activity-list">${cur}</div>
+            </article>
+            <article class="activity-card">
+              <div class="activity-head"><div class="activity-title">Received history</div><div class="activity-sub">metadata that survives inbox cleanup</div></div>
+              <div class="activity-list">${hist}</div>
+            </article>
+          </section>`;
+        detail.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      } catch (e) {
+        detail.innerHTML = '<div class="table-empty" style="padding:1.5rem;">Failed to load address.</div>';
+      }
+    }
+
+    // Perform a control action (block / unblock / extend / reactivate) then refresh.
+    async function addressAction(emailEnc, action) {
+      const email = decodeURIComponent(emailEnc);
+      try {
+        const headers = { 'Content-Type': 'application/json' };
+        if (adminSecret) headers['X-Admin-Secret'] = adminSecret;
+        const res = await fetch('/api/admin/address', {
+          method: 'POST', headers, credentials: 'same-origin',
+          body: JSON.stringify({ email, action, ttl_days: 7 }),
+        });
+        const d = await res.json().catch(() => ({}));
+        if (res.ok && d.ok) {
+          showToast('Address ' + action + (action.endsWith('e') ? 'd' : 'ed'));
+          loadAddressDetail(emailEnc);
+          loadAddresses();
+        } else {
+          showToast(d.error || 'Action failed');
+        }
+      } catch (e) { showToast('Network error'); }
+    }
+
+    async function deleteAddress(emailEnc) {
+      if (!confirm('Delete this address?\n\nIts inbox and all its mail are removed, but the address stays permanently reserved and is NEVER reissued to another user.')) return;
+      const email = decodeURIComponent(emailEnc);
+      try {
+        const headers = {};
+        if (adminSecret) headers['X-Admin-Secret'] = adminSecret;
+        const res = await fetch('/api/admin/address?email=' + encodeURIComponent(email), { method: 'DELETE', headers, credentials: 'same-origin' });
+        const d = await res.json().catch(() => ({}));
+        if (res.ok && d.ok) {
+          showToast('Address deleted (still reserved)');
+          document.getElementById('address-detail').style.display = 'none';
+          loadAddresses();
+        } else {
+          showToast(d.error || 'Delete failed');
+        }
+      } catch (e) { showToast('Network error'); }
+    }
+
+    // Open a message's full body in a sandboxed (script-free) overlay.
+    async function viewMessage(idEnc) {
+      try {
+        const d = await adminApiGet('/api/admin/address?msg=' + idEnc);
+        if (!d.ok || !d.message) { showToast('Message not found'); return; }
+        const m = d.message;
+        const overlay = document.createElement('div');
+        overlay.style.cssText = 'position:fixed; inset:0; z-index:1000; background:rgba(0,0,0,0.6); display:flex; align-items:center; justify-content:center; padding:1.5rem;';
+        overlay.onclick = (e) => { if (e.target === overlay) overlay.remove(); };
+        const panel = document.createElement('div');
+        panel.style.cssText = 'background:#111; border:1px solid rgba(255,255,255,0.14); border-radius:14px; max-width:760px; width:100%; max-height:85vh; display:flex; flex-direction:column; overflow:hidden;';
+        const head = document.createElement('div');
+        head.style.cssText = 'padding:1rem 1.25rem; border-bottom:1px solid rgba(255,255,255,0.1);';
+        head.innerHTML = `<div style="font-weight:600;">${escHtml(m.subject || '(no subject)')}</div><div class="activity-sub">from ${escHtml(m.from_name ? m.from_name + ' <' + m.from_address + '>' : (m.from_address || 'unknown'))} · ${escHtml(formatDateTime(m.received_at))}</div>`;
+        const iframe = document.createElement('iframe');
+        iframe.setAttribute('sandbox', 'allow-same-origin');
+        iframe.setAttribute('referrerpolicy', 'no-referrer');
+        iframe.style.cssText = 'flex:1; width:100%; border:0; background:#fff; color-scheme:light; min-height:320px;';
+        // body_html is already server-sanitized; render inside a script-free
+        // sandbox as defense in depth. Fall back to escaped plain text.
+        const inner = (m.body_html && m.body_html.trim())
+          ? m.body_html
+          : `<pre style="white-space:pre-wrap; font-family:inherit; padding:1rem;">${escHtml(m.body_text || '(empty)')}</pre>`;
+        iframe.srcdoc = `<!doctype html><meta charset="utf-8"><base target="_blank"><body style="margin:0; padding:1rem; font-family:system-ui,sans-serif;">${inner}</body>`;
+        const foot = document.createElement('div');
+        foot.style.cssText = 'padding:0.75rem 1.25rem; border-top:1px solid rgba(255,255,255,0.1); text-align:right;';
+        const close = document.createElement('button');
+        close.className = 'action-btn';
+        close.textContent = 'Close';
+        close.onclick = () => overlay.remove();
+        foot.appendChild(close);
+        panel.append(head, iframe, foot);
+        overlay.appendChild(panel);
+        document.body.appendChild(overlay);
+      } catch (e) { showToast('Failed to load message'); }
     }
 
     // ===== FILTERS =====
@@ -1321,6 +1521,7 @@
         document.getElementById('logout-btn').style.display = 'block';
         loadUsers();
         loadPasskeys();
+        loadAddresses();
       } catch (err) {
         errEl.textContent = err && err.name === 'NotAllowedError' ? 'Passkey prompt cancelled.' : (err.message || 'Passkey login failed.');
         errEl.classList.add('visible');
@@ -1472,6 +1673,7 @@
         document.getElementById('logout-btn').style.display = 'block';
         applyDashboardData(await res.json());
         loadPasskeys();
+        loadAddresses();
       } catch {}
     }
     tryResumeAdminSession();

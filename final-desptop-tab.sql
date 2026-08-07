@@ -57,3 +57,15 @@ CREATE INDEX IF NOT EXISTS idx_admin_events_type_time ON admin_events(event_type
 CREATE INDEX IF NOT EXISTS idx_admin_events_uid_time ON admin_events(uid, created_at);
 CREATE INDEX IF NOT EXISTS idx_admin_events_inbox ON admin_events(inbox_id);
 CREATE INDEX IF NOT EXISTS idx_admin_events_email ON admin_events(email);
+
+-- Permanent never-reuse ledger: every address ever issued, never deleted.
+-- Inbox creation writes here atomically with the inbox row, so an address is
+-- handed out at most once for all time — even after its inbox expires and is
+-- cleaned up. See functions/api/inbox.js insertInbox() and
+-- migrate-unique-addresses.sql.
+CREATE TABLE IF NOT EXISTS used_addresses (
+  email         TEXT PRIMARY KEY,
+  first_used_at INTEGER NOT NULL,
+  creator_uid   TEXT DEFAULT NULL,
+  creator_ip    TEXT DEFAULT NULL
+);

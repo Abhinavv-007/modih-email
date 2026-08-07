@@ -58,10 +58,22 @@ async function logAdminEvent(db, {
 async function getInboxByEmail(db, to) {
   try {
     return await db.prepare(
-      "SELECT id, email, expires_at, creator_uid, creator_email, creator_ip, creator_token FROM inboxes WHERE email = ?"
+      "SELECT id, email, expires_at, IFNULL(blocked,0) AS blocked, creator_uid, creator_email, creator_ip, creator_token FROM inboxes WHERE email = ?"
     ).bind(to).first();
   } catch (error) {
-    if (!String(error?.message || "").includes("creator_uid")) throw error;
+    const msg = String(error?.message || "");
+    // Fallback for schemas missing the blocked and/or creator_* columns.
+    if (msg.includes("blocked")) {
+      try {
+        return await db.prepare(
+          "SELECT id, email, expires_at, creator_uid, creator_email, creator_ip, creator_token FROM inboxes WHERE email = ?"
+        ).bind(to).first();
+      } catch (e2) {
+        if (!String(e2?.message || "").includes("creator_uid")) throw e2;
+        return db.prepare("SELECT id, email, expires_at FROM inboxes WHERE email = ?").bind(to).first();
+      }
+    }
+    if (!msg.includes("creator_uid")) throw error;
     return db.prepare("SELECT id, email, expires_at FROM inboxes WHERE email = ?").bind(to).first();
   }
 }
@@ -94,6 +106,12 @@ export default {
       const now = Math.floor(Date.now() / 1000);
       if (inbox.expires_at && inbox.expires_at > 0 && inbox.expires_at < now) {
         message.setReject("Mailbox expired");
+        return;
+      }
+
+      // Reject if an admin has blocked this address.
+      if (inbox.blocked) {
+        message.setReject("Mailbox unavailable");
         return;
       }
 

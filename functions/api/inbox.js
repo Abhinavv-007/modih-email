@@ -203,15 +203,24 @@ async function getAuthContext(request, db) {
     // UID-based lookup (above) is unaffected and continues to work for
     // every legitimate user.
     if (user.email && user.email_verified === true) {
-      const emailRows = await db
-        .prepare("SELECT plan FROM user_plans WHERE LOWER(email) = LOWER(?)")
+      // Resolve the single highest-ranked plan for this email at the DB layer
+      // (ORDER BY … LIMIT 1) instead of loading every matching row and ranking
+      // in JS. The old unbounded fetch let an attacker create many user_plans
+      // rows for a target email to force excessive memory/CPU use (DoS, #17).
+      const emailBest = await db
+        .prepare(
+          `SELECT plan FROM user_plans
+            WHERE LOWER(email) = LOWER(?)
+            ORDER BY CASE plan
+                       WHEN 'developer' THEN 3
+                       WHEN 'pro'       THEN 2
+                       ELSE 1
+                     END DESC
+            LIMIT 1`
+        )
         .bind(user.email)
-        .all();
-      let emailBest = "free";
-      for (const r of emailRows.results || []) {
-        emailBest = betterPlan(emailBest, r.plan);
-      }
-      plan = betterPlan(plan, emailBest);
+        .first();
+      plan = betterPlan(plan, emailBest?.plan || "free");
     }
 
     return {
@@ -378,37 +387,65 @@ async function insertInbox(db, {
   now,
   expiresAt,
 }) {
+  // Full-column inbox insert (current schema).
+  const inboxFull = db
+    .prepare(
+      `INSERT INTO inboxes
+         (id, email, owner_token, owner_token_hash, token_version, creator_ip, creator_token, creator_uid, creator_email, creator_plan, created_at, expires_at)
+       VALUES (?, ?, ?, ?, 2, ?, ?, ?, ?, ?, ?, ?)`
+    )
+    .bind(id, email, "", ownerTokenHash, creatorIp, creatorToken, creatorUid, creatorEmail || "", creatorPlan || "free", now, expiresAt);
+
+  // Legacy inbox insert (older schema without creator_* columns).
+  const inboxLegacy = db
+    .prepare(
+      `INSERT INTO inboxes
+         (id, email, owner_token, owner_token_hash, token_version, creator_ip, creator_token, created_at, expires_at)
+       VALUES (?, ?, ?, ?, 2, ?, ?, ?, ?)`
+    )
+    .bind(id, email, "", ownerTokenHash, creatorIp, creatorToken, now, expiresAt);
+
+  // Permanent never-reuse ledger row. Committed in the SAME batch as the inbox
+  // insert, so the address is claimed for ALL time — even after the inbox
+  // expires and is cleaned up, its PRIMARY KEY here blocks re-issuance to a
+  // second user. A collision surfaces as a "UNIQUE constraint failed" error,
+  // which the caller already treats as "pick another prefix".
+  const ledger = db
+    .prepare(
+      `INSERT INTO used_addresses (email, first_used_at, creator_uid, creator_ip)
+       VALUES (?, ?, ?, ?)`
+    )
+    .bind(email, now, creatorUid, creatorIp);
+
   try {
-    await db
-      .prepare(
-        `INSERT INTO inboxes
-           (id, email, owner_token, owner_token_hash, token_version, creator_ip, creator_token, creator_uid, creator_email, creator_plan, created_at, expires_at)
-         VALUES (?, ?, ?, ?, 2, ?, ?, ?, ?, ?, ?, ?)`
-      )
-      .bind(
-        id,
-        email,
-        "",
-        ownerTokenHash,
-        creatorIp,
-        creatorToken,
-        creatorUid,
-        creatorEmail || "",
-        creatorPlan || "free",
-        now,
-        expiresAt
-      )
-      .run();
+    await db.batch([inboxFull, ledger]);
   } catch (error) {
-    if (!String(error?.message || "").includes("creator_")) throw error;
-    await db
-      .prepare(
-        `INSERT INTO inboxes
-           (id, email, owner_token, owner_token_hash, token_version, creator_ip, creator_token, created_at, expires_at)
-         VALUES (?, ?, ?, ?, 2, ?, ?, ?, ?)`
-      )
-      .bind(id, email, "", ownerTokenHash, creatorIp, creatorToken, now, expiresAt)
-      .run();
+    const msg = String(error?.message || "");
+    // used_addresses not migrated yet → keep working, just without the
+    // cross-expiry guarantee (still unique among live inboxes via inboxes.email).
+    //
+    // Match ONLY the missing-table error here, never a substring of
+    // "used_addresses": a genuine collision surfaces as
+    // "UNIQUE constraint failed: used_addresses.email", which ALSO contains the
+    // table name. Treating that as a fallback would silently insert the inbox
+    // WITHOUT the ledger row and hand a burned address to a second user — the
+    // exact reuse this feature exists to prevent.
+    if (msg.includes("no such table")) {
+      try {
+        await inboxFull.run();
+      } catch (e2) {
+        if (!String(e2?.message || "").includes("creator_")) throw e2;
+        await inboxLegacy.run();
+      }
+      return;
+    }
+    // creator_* columns missing (older schema) → retry the batch with the
+    // legacy inbox insert, keeping the ledger row.
+    if (msg.includes("creator_")) {
+      await db.batch([inboxLegacy, ledger]);
+      return;
+    }
+    throw error; // UNIQUE (address live-taken OR ever-used) bubbles to caller
   }
 }
 
