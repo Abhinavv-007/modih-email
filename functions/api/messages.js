@@ -19,11 +19,13 @@ import {
 
 const API_MONTHLY_READ_LIMIT = 50000;
 
-// Per-IP rate limits for message endpoints (prevent bulk harvesting / token bruteforce)
-const MSG_READ_MAX    = 120;
-const MSG_READ_WIN    = 60;    // 120 reads  / 60 s per IP
+// DELETE is user-triggered and infrequent, so a KV-backed limit is fine here.
+// GET /api/messages is polled by the UI and deliberately does NOT use the
+// generic KV counter: writing on every successful poll burns the Workers KV
+// daily write quota even during normal inbox viewing. Failed authentication is
+// still rate-limited through the existing auth-failure counters below.
 const MSG_DELETE_MAX  = 30;
-const MSG_DELETE_WIN  = 60;    // 30  deletes / 60 s per IP
+const MSG_DELETE_WIN  = 60;    // 30 deletes / 60 s per IP
 
 async function getMonthlyReadCount(db, uid, keyId = null) {
   const now = new Date();
@@ -135,11 +137,11 @@ export async function onRequestGet(context) {
     return err("VALIDATION_ERROR", "inbox_id parameter required.", 400);
   }
 
-  // Per-IP read rate limit (prevents token brute-force via message polling)
-  const readAllowed = await rateLimit(env.RATE_LIMIT, `msg_r:${ip}`, MSG_READ_MAX, MSG_READ_WIN);
-  if (!readAllowed) {
-    return err("RATE_LIMITED", "Too many message read requests. Slow down.", 429);
-  }
+  // Do not increment a KV counter for successful message polling. The browser
+  // polls this endpoint every few seconds while an inbox is open; using
+  // rateLimit() here caused one KV write per poll and exhausted the free-tier
+  // account quota during ordinary use. Invalid owner/API credentials are still
+  // tracked and throttled by recordAuthFailure()/isAuthRateLimited().
 
   // ── Optional API key auth (usage tracking + monthly limit) ──────────────
   const apiKeyHeader = request.headers.get("X-API-Key") || "";
