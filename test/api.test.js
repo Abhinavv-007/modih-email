@@ -134,10 +134,15 @@ function makeDbProxy(queue, queries) {
  */
 function makeKv(initial = {}) {
   const store = new Map(Object.entries(initial));
+  const puts = [];
   return {
     async get(key) { return store.get(key) ?? null; },
-    async put(key, value, _opts) { store.set(key, value); },
+    async put(key, value, opts) {
+      puts.push({ key, value, opts });
+      store.set(key, value);
+    },
     _store: store,
+    _puts: puts,
   };
 }
 
@@ -808,17 +813,21 @@ describe("GET /api/messages", () => {
     expect(res.status).toBe(401);
   });
 
-  it("returns 429 when message read rate limit is exceeded", async () => {
+  it("does not write to KV or honor the legacy counter during successful polling", async () => {
+    const { rawToken, inbox } = await makeInbox();
     const ctx = makeCtx({
       method:   "GET",
       url:      `https://api.modih.in/api/messages?inbox_id=${TEST_INBOX_ID}`,
-      headers:  { "X-Owner-Token": "x" },
+      headers:  { "X-Owner-Token": rawToken },
       kvStore:  { "msg_r:1.2.3.4": "120" }, // at MSG_READ_MAX
+      dbRows:   [inbox, []],
     });
     const res  = await messagesGet(ctx);
     const body = await res.json();
-    expect(res.status).toBe(429);
-    expect(body.error.code).toBe("RATE_LIMITED");
+    expect(res.status).toBe(200);
+    expect(body.success).toBe(true);
+    expect(ctx.env.RATE_LIMIT._puts).toEqual([]);
+    expect(ctx.env.RATE_LIMIT._store.get("msg_r:1.2.3.4")).toBe("120");
   });
 
   it("returns 401 for an invalid API key on GET", async () => {
