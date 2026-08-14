@@ -17,6 +17,8 @@
  * Error    { success: false, error: { code, message, ...extras }, meta: { request_id } }
  */
 
+import { DEVELOPER_API_LIMITS } from "./_developer-limits.js";
+
 // ── Token / ID generation ────────────────────────────────────────────────────
 
 /**
@@ -208,8 +210,14 @@ export async function resolveApiKey(keyValue, db, env) {
       uid: keyRow.uid,
       plan: "developer",
       keyId: keyRow.id,
-      monthlyCreateLimit: normalizeApiLimit(keyRow.monthly_create_limit, 5000),
-      monthlyReadLimit: normalizeApiLimit(keyRow.monthly_read_limit, 50000),
+      monthlyCreateLimit: normalizeApiLimit(
+        keyRow.monthly_create_limit,
+        DEVELOPER_API_LIMITS.monthlyInboxCreates
+      ),
+      monthlyReadLimit: normalizeApiLimit(
+        keyRow.monthly_read_limit,
+        DEVELOPER_API_LIMITS.monthlyMessageReads
+      ),
     };
   } catch (e) {
     console.error("[auth] resolveApiKey error:", e.message);

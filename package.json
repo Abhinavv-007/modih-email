@@ -11,6 +11,7 @@
     "db:migrate:free-tier": "wrangler d1 execute modih-mail-db --remote --file=migrate-free-tier.sql",
     "db:migrate:security": "wrangler d1 execute modih-mail-db --remote --file=migrate-security-hardening.sql",
     "db:migrate:key-limits": "wrangler d1 execute modih-mail-db --remote --file=migrate-api-key-limits.sql",
+    "db:migrate:developer-limits": "wrangler d1 execute modih-mail-db --remote --file=migrate-developer-api-limits-5x.sql",
     "db:migrate:admin": "wrangler d1 execute modih-mail-db --remote --file=migrate-admin-analytics.sql",
     "db:migrate:passkeys": "wrangler d1 execute modih-mail-db --remote --file=migrate-admin-passkeys.sql",
     "test": "vitest run",

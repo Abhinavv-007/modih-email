@@ -562,17 +562,20 @@
           <p class="auth-subtitle" style="margin-bottom:0;">
             API key management and developer tools are exclusive to the
             <strong style="color:rgba(255,255,255,0.9);">Developer plan</strong>.
-            Get 5k inbox creates/mo, 50k message reads/mo, and 30-day inbox retention.
+            Get 100 inbox creates/hour, 25k creates/mo, 250k message reads/mo, and 30-day inbox retention.
           </p>
         </div>
 
         <div style="background:rgba(167,139,250,0.06);border:1px solid rgba(167,139,250,0.18);border-radius:14px;padding:1.25rem 1.5rem;margin-bottom:1.5rem;text-align:left;">
           <div style="display:flex;flex-direction:column;gap:0.6rem;">
             <div style="display:flex;align-items:center;gap:0.6rem;font-size:0.9rem;color:rgba(255,255,255,0.82);">
-              <span style="color:#a78bfa;font-size:1rem;">✓</span> 5,000 inbox creates / month
+              <span style="color:#a78bfa;font-size:1rem;">✓</span> 100 inbox creates / hour
             </div>
             <div style="display:flex;align-items:center;gap:0.6rem;font-size:0.9rem;color:rgba(255,255,255,0.82);">
-              <span style="color:#a78bfa;font-size:1rem;">✓</span> 50,000 message reads / month
+              <span style="color:#a78bfa;font-size:1rem;">✓</span> 25,000 inbox creates / month
+            </div>
+            <div style="display:flex;align-items:center;gap:0.6rem;font-size:0.9rem;color:rgba(255,255,255,0.82);">
+              <span style="color:#a78bfa;font-size:1rem;">✓</span> 250,000 message reads / month
             </div>
             <div style="display:flex;align-items:center;gap:0.6rem;font-size:0.9rem;color:rgba(255,255,255,0.82);">
               <span style="color:#a78bfa;font-size:1rem;">✓</span> 30-day inbox retention (TTL)
@@ -606,7 +609,7 @@
               <p class="section-tag glass-pill" style="margin-bottom:1rem; background:rgba(167,139,250,0.15); border-color:rgba(167,139,250,0.4); color:#eaddff;">✦ Developer API</p>
               <h1 class="section-title" style="font-size:2.5rem; margin-bottom:0.5rem; color:#fff;">Welcome to the <span style="font-family:'Dancing Script', cursive; color:#c4b5fd;">Dashboard.</span></h1>
               <p class="section-desc" style="margin-bottom:0; max-width:600px; color:rgba(255,255,255,0.85);">
-                Manage your API keys and monitor your usage. Your developer quota includes <strong style="color:#eaddff">5k inbox creates/mo</strong> and <strong style="color:#eaddff">50k message reads/mo</strong> with a <strong style="color:#eaddff">30-day inbox retention</strong> (TTL).
+                Manage your API keys and monitor your usage. Your developer quota includes <strong style="color:#eaddff">100 inbox creates/hour</strong>, <strong style="color:#eaddff">25k inbox creates/mo</strong>, and <strong style="color:#eaddff">250k message reads/mo</strong> with a <strong style="color:#eaddff">30-day inbox retention</strong> (TTL).
               </p>
             </div>
           </div>
@@ -620,13 +623,13 @@
             <div class="usage-card glass-card">
               <div class="usage-label">Inbox Creates</div>
               <div class="usage-value" id="stat-creates">—</div>
-              <div class="usage-of" id="stat-creates-of">of 5,000 / month</div>
+              <div class="usage-of" id="stat-creates-of">of 25,000 / month</div>
               <div class="usage-bar"><div class="usage-bar-fill" id="bar-creates" style="width:0%"></div></div>
             </div>
             <div class="usage-card glass-card">
               <div class="usage-label">Message Reads</div>
               <div class="usage-value" id="stat-reads">—</div>
-              <div class="usage-of" id="stat-reads-of">of 50,000 / month</div>
+              <div class="usage-of" id="stat-reads-of">of 250,000 / month</div>
               <div class="usage-bar"><div class="usage-bar-fill" id="bar-reads" style="width:0%"></div></div>
             </div>
             <div class="usage-card glass-card">
@@ -686,7 +689,7 @@
                 <span class="method-pill post">POST</span>
                 <span class="endpoint-path">/api/inbox</span>
               </div>
-              <p class="endpoint-desc">Create a disposable inbox. Returns <code style="font-family:'Courier New',monospace;font-size:0.88em;background:rgba(255,255,255,0.08);padding:0.1em 0.35em;border-radius:3px;">owner_token</code> for subsequent message reads. Custom prefix requires Developer plan.</p>
+              <p class="endpoint-desc">Create a disposable inbox, up to 100 times per hour per API key and IP. Returns <code style="font-family:'Courier New',monospace;font-size:0.88em;background:rgba(255,255,255,0.08);padding:0.1em 0.35em;border-radius:3px;">owner_token</code> for subsequent message reads. Custom prefix requires Developer plan.</p>
               <div class="code-block">curl -X POST https://modih.in/api/inbox \
   -H "X-API-Key: modih-your_key_here" \
   -H "X-Browser-Token: any-stable-uuid" \
@@ -710,7 +713,7 @@
                 <span class="method-pill get">GET</span>
                 <span class="endpoint-path">/api/messages?inbox_id={id}</span>
               </div>
-              <p class="endpoint-desc">Fetch all messages in an inbox. Each call counts as 1 read against your 50k/month quota. Requires the <code style="font-family:'Courier New',monospace;font-size:0.88em;background:rgba(255,255,255,0.08);padding:0.1em 0.35em;border-radius:3px;">owner_token</code> from inbox creation.</p>
+              <p class="endpoint-desc">Fetch all messages in an inbox. Each call counts as 1 read against your 250k/month quota. Requires the <code style="font-family:'Courier New',monospace;font-size:0.88em;background:rgba(255,255,255,0.08);padding:0.1em 0.35em;border-radius:3px;">owner_token</code> from inbox creation.</p>
               <div class="code-block">curl "https://modih.in/api/messages?inbox_id=abc1def2ghi3jkl4" \
   -H "X-API-Key: modih-your_key_here" \
   -H "X-Owner-Token: use-this-to-read-messages"</div>
@@ -771,6 +774,8 @@
           <div>
             <label class="modal-label" for="key-create-limit">Inbox create limit</label>
             <select class="modal-input" id="key-create-limit">
+              <option value="25000">25,000 / month</option>
+              <option value="12500">12,500 / month</option>
               <option value="5000">5,000 / month</option>
               <option value="2500">2,500 / month</option>
               <option value="1000">1,000 / month</option>
@@ -781,8 +786,9 @@
           <div>
             <label class="modal-label" for="key-read-limit">Message read limit</label>
             <select class="modal-input" id="key-read-limit">
+              <option value="250000">250,000 / month</option>
+              <option value="125000">125,000 / month</option>
               <option value="50000">50,000 / month</option>
-              <option value="25000">25,000 / month</option>
               <option value="10000">10,000 / month</option>
               <option value="5000">5,000 / month</option>
               <option value="1000">1,000 / month</option>
@@ -850,6 +856,8 @@
         <div>
           <label class="modal-label" for="detail-create-limit">Inbox create limit</label>
           <select class="modal-input" id="detail-create-limit">
+            <option value="25000">25,000 / month</option>
+            <option value="12500">12,500 / month</option>
             <option value="5000">5,000 / month</option>
             <option value="2500">2,500 / month</option>
             <option value="1000">1,000 / month</option>
@@ -860,8 +868,9 @@
         <div>
           <label class="modal-label" for="detail-read-limit">Message read limit</label>
           <select class="modal-input" id="detail-read-limit">
+            <option value="250000">250,000 / month</option>
+            <option value="125000">125,000 / month</option>
             <option value="50000">50,000 / month</option>
-            <option value="25000">25,000 / month</option>
             <option value="10000">10,000 / month</option>
             <option value="5000">5,000 / month</option>
             <option value="1000">1,000 / month</option>
@@ -1015,8 +1024,8 @@
         const c = d.inbox_creates || {}, r = d.message_reads || {};
         document.getElementById('stat-creates').textContent = (c.used || 0).toLocaleString();
         document.getElementById('stat-reads').textContent   = (r.used || 0).toLocaleString();
-        setBar('bar-creates', c.used || 0, c.limit || 5000);
-        setBar('bar-reads',   r.used || 0, r.limit || 50000);
+        setBar('bar-creates', c.used || 0, c.limit || 25000);
+        setBar('bar-reads',   r.used || 0, r.limit || 250000);
         if (d.resets_at) {
           const dt = new Date(d.resets_at * 1000);
           document.getElementById('usage-reset-label').textContent =
@@ -1071,8 +1080,8 @@
     function keyRowHtml(k, i) {
       const createsUsed = k.usage?.inbox_create || 0;
       const readsUsed = k.usage?.message_read || 0;
-      const createLimit = k.monthly_create_limit || 5000;
-      const readLimit = k.monthly_read_limit || 50000;
+      const createLimit = k.monthly_create_limit || 25000;
+      const readLimit = k.monthly_read_limit || 250000;
       return `
         <div class="key-row" style="animation-delay:${i * 0.06}s">
           <span>
@@ -1141,8 +1150,8 @@
       document.getElementById('modal-form-state').style.display = 'block';
       document.getElementById('modal-reveal-state').style.display = 'none';
       document.getElementById('key-name-input').value = '';
-      document.getElementById('key-create-limit').value = '5000';
-      document.getElementById('key-read-limit').value = '50000';
+      document.getElementById('key-create-limit').value = '25000';
+      document.getElementById('key-read-limit').value = '250000';
       document.getElementById('modal-error').className = 'modal-error';
       document.getElementById('modal-submit-btn').disabled = false;
       document.getElementById('modal-submit-btn').querySelector('span').textContent = 'Create Key';
@@ -1247,8 +1256,8 @@
     function renderKeyDetails(k) {
       const createsUsed = k.usage?.inbox_create || 0;
       const readsUsed = k.usage?.message_read || 0;
-      const createLimit = k.monthly_create_limit || 5000;
-      const readLimit = k.monthly_read_limit || 50000;
+      const createLimit = k.monthly_create_limit || 25000;
+      const readLimit = k.monthly_read_limit || 250000;
 
       document.getElementById('detail-key-name').textContent = k.name || 'API Key';
       document.getElementById('detail-key-sub').textContent = k.is_active ? 'Active key usage and limits.' : 'Revoked key usage history.';

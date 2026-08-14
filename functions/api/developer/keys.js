@@ -3,6 +3,7 @@
 // DELETE /api/developer/keys?id=xxx  — revoke (soft-delete) a key
 
 import { getAuthUser } from "../../_auth-helper.js";
+import { DEVELOPER_API_LIMITS } from "../../_developer-limits.js";
 import {
   secureHex,
   sha256Hex,
@@ -13,8 +14,8 @@ import {
 } from "../../_api-helpers.js";
 
 const MAX_ACTIVE_KEYS = 10;
-const PLAN_CREATE_LIMIT = 5000;
-const PLAN_READ_LIMIT = 50000;
+const PLAN_CREATE_LIMIT = DEVELOPER_API_LIMITS.monthlyInboxCreates;
+const PLAN_READ_LIMIT = DEVELOPER_API_LIMITS.monthlyMessageReads;
 
 async function requireDeveloper(request, db) {
   const user = await getAuthUser(request);

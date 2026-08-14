@@ -6,6 +6,7 @@
 // the owning Developer API key.
 
 import { verifyFirebaseToken } from "../_auth-helper.js";
+import { DEVELOPER_API_LIMITS } from "../_developer-limits.js";
 import {
   validateOwnerToken,
   resolveApiKey,
@@ -17,7 +18,7 @@ import {
   auditLog,
 } from "../_api-helpers.js";
 
-const API_MONTHLY_READ_LIMIT = 50000;
+const API_MONTHLY_READ_LIMIT = DEVELOPER_API_LIMITS.monthlyMessageReads;
 
 // DELETE is user-triggered and infrequent, so a KV-backed limit is fine here.
 // GET /api/messages is polled by the UI and deliberately does NOT use the

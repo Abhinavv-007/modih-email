@@ -8,8 +8,8 @@ CREATE TABLE IF NOT EXISTS api_keys (
   name TEXT NOT NULL DEFAULT 'Default Key',
   key_prefix TEXT NOT NULL,     -- First ~12 chars for display (e.g., mdh_xxxxxxxx...)
   key_hash TEXT NOT NULL,       -- SHA-256 hash of the full key (never store plaintext)
-  monthly_create_limit INTEGER NOT NULL DEFAULT 5000,
-  monthly_read_limit INTEGER NOT NULL DEFAULT 50000,
+  monthly_create_limit INTEGER NOT NULL DEFAULT 25000,
+  monthly_read_limit INTEGER NOT NULL DEFAULT 250000,
   created_at INTEGER NOT NULL,
   last_used_at INTEGER DEFAULT NULL,
   is_active INTEGER NOT NULL DEFAULT 1

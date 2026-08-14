@@ -2,6 +2,7 @@
 // DELETE /api/inbox  — Delete an inbox (requires X-Owner-Token)
 
 import { verifyFirebaseToken } from "../_auth-helper.js";
+import { DEVELOPER_API_LIMITS } from "../_developer-limits.js";
 import {
   secureBase64url,
   secureId,
@@ -51,7 +52,7 @@ const PLAN_CONFIG = {
 
 const TWENTY_FOUR_HOURS = 24 * 60 * 60;
 const TURNSTILE_VERIFY_URL = "https://challenges.cloudflare.com/turnstile/v0/siteverify";
-const API_MONTHLY_CREATE_LIMIT = 5000;
+const API_MONTHLY_CREATE_LIMIT = DEVELOPER_API_LIMITS.monthlyInboxCreates;
 const PLAN_RANK = { developer: 3, pro: 2, free: 1 };
 
 // ========== HELPERS ==========
@@ -106,6 +107,32 @@ async function getMonthlyCreateCount(db, uid, keyId = null) {
     .bind(uid, monthStart)
     .first();
   return row?.cnt || 0;
+}
+
+async function getHourlyCreateCount(db, uid, keyId, ip) {
+  const since = Math.floor(Date.now() / 1000) - RATE_LIMIT_WINDOW;
+  try {
+    const row = await db
+      .prepare(
+        `SELECT COUNT(*) as cnt FROM api_usage
+         WHERE uid = ? AND key_id = ? AND ip = ?
+           AND action = 'inbox_create' AND created_at >= ?`
+      )
+      .bind(uid, keyId, ip, since)
+      .first();
+    return row?.cnt || 0;
+  } catch (error) {
+    if (!String(error?.message || "").match(/key_id|\bip\b/)) throw error;
+    // Pre-migration fallback remains safe, but is broader across the account.
+    const row = await db
+      .prepare(
+        `SELECT COUNT(*) as cnt FROM api_usage
+         WHERE uid = ? AND action = 'inbox_create' AND created_at >= ?`
+      )
+      .bind(uid, since)
+      .first();
+    return row?.cnt || 0;
+  }
 }
 
 async function logApiUsage(db, { uid, keyId = null, action, endpoint, ip = null, inboxId = null, statusCode = 200 }) {
@@ -419,12 +446,6 @@ export async function onRequestPost(context) {
   const browserToken = normalizeBrowserToken(request.headers.get("X-Browser-Token"), ip);
 
   try {
-    // IP-level rate limit (protects against rapid inbox spam from one IP)
-    const allowed = await rateLimit(env.RATE_LIMIT, `rate:${ip}`, RATE_LIMIT_MAX, RATE_LIMIT_WINDOW);
-    if (!allowed) {
-      return err("RATE_LIMITED", "Rate limit exceeded. Try again later.", 429);
-    }
-
     await cleanupExpired(env.DB);
 
     const body     = await request.json().catch(() => ({}));
@@ -444,6 +465,35 @@ export async function onRequestPost(context) {
         await recordAuthFailure(env.RATE_LIMIT, ip, "api_key");
         auditLog(env.DB, "api_key.auth_failed", { ip });
         return err("UNAUTHORIZED", "Invalid or revoked API key.", 401);
+      }
+    }
+
+    // Keep browser traffic on its original KV-backed 10/hour protection. API
+    // traffic is counted from its existing D1 usage rows, avoiding up to 2,400
+    // extra KV writes/day when a key is used continuously at the higher limit.
+    if (apiKeyAuth) {
+      const hourlyCreates = await getHourlyCreateCount(
+        env.DB,
+        apiKeyAuth.uid,
+        apiKeyAuth.keyId,
+        ip
+      );
+      if (hourlyCreates >= DEVELOPER_API_LIMITS.inboxCreatesPerHour) {
+        return err(
+          "RATE_LIMITED",
+          `Developer API limit of ${DEVELOPER_API_LIMITS.inboxCreatesPerHour} inbox creations per hour reached.`,
+          429,
+          {
+            used: hourlyCreates,
+            limit: DEVELOPER_API_LIMITS.inboxCreatesPerHour,
+            retry_after: RATE_LIMIT_WINDOW,
+          }
+        );
+      }
+    } else {
+      const allowed = await rateLimit(env.RATE_LIMIT, `rate:${ip}`, RATE_LIMIT_MAX, RATE_LIMIT_WINDOW);
+      if (!allowed) {
+        return err("RATE_LIMITED", "Rate limit exceeded. Try again later.", 429);
       }
     }
 

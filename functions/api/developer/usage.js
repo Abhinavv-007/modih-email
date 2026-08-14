@@ -1,10 +1,11 @@
 // GET /api/developer/usage — Monthly API usage stats (requires Firebase auth + developer plan)
 
 import { getAuthUser } from "../../_auth-helper.js";
+import { DEVELOPER_API_LIMITS } from "../../_developer-limits.js";
 
 const MONTHLY_LIMITS = {
-  inbox_create: 5000,
-  message_read: 50000,
+  inbox_create: DEVELOPER_API_LIMITS.monthlyInboxCreates,
+  message_read: DEVELOPER_API_LIMITS.monthlyMessageReads,
 };
 
 function getMonthStart() {

@@ -42,6 +42,7 @@ import {
   newRequestId,
   auditLog,
 } from "../functions/_api-helpers.js";
+import { DEVELOPER_API_LIMITS } from "../functions/_developer-limits.js";
 
 // Handlers under test
 import {
@@ -370,8 +371,8 @@ describe("resolveApiKey", () => {
       uid: TEST_UID,
       plan: "developer",
       keyId: "kid1",
-      monthlyCreateLimit: 5000,
-      monthlyReadLimit: 50000,
+      monthlyCreateLimit: DEVELOPER_API_LIMITS.monthlyInboxCreates,
+      monthlyReadLimit: DEVELOPER_API_LIMITS.monthlyMessageReads,
     });
   });
 
@@ -577,6 +578,67 @@ describe("POST /api/inbox", () => {
     const body = await res.json();
     expect(res.status).toBe(429);
     expect(body.error.code).toBe("RATE_LIMITED");
+  });
+
+  it("allows an authenticated API key up to 100 creates/hour without using the web counter", async () => {
+    const rawKey = "modih-" + "a".repeat(32);
+    const ctx = makeCtx({
+      method:  "POST",
+      url:     "https://api.modih.in/api/inbox",
+      headers: { "X-API-Key": rawKey },
+      kvStore: {
+        "rate:1.2.3.4": "10",
+      },
+      dbRows: [
+        null, null,
+        {
+          id: "kid1",
+          uid: TEST_UID,
+          monthly_create_limit: DEVELOPER_API_LIMITS.monthlyInboxCreates,
+          monthly_read_limit: DEVELOPER_API_LIMITS.monthlyMessageReads,
+        },
+        { plan: "developer" },
+        null,
+        { cnt: 99 },
+        { cnt: DEVELOPER_API_LIMITS.monthlyInboxCreates },
+      ],
+    });
+
+    const res = await inboxPost(ctx);
+    const body = await res.json();
+
+    expect(res.status).toBe(429);
+    expect(body.error.code).toBe("PLAN_LIMIT_EXCEEDED");
+    expect(ctx.env.RATE_LIMIT._store.get("rate:1.2.3.4")).toBe("10");
+    expect(ctx.env.RATE_LIMIT._puts).toEqual([]);
+  });
+
+  it("blocks an authenticated API key after 100 creates in the hour", async () => {
+    const rawKey = "modih-" + "b".repeat(32);
+    const ctx = makeCtx({
+      method:  "POST",
+      url:     "https://api.modih.in/api/inbox",
+      headers: { "X-API-Key": rawKey },
+      dbRows: [
+        null, null,
+        {
+          id: "kid2",
+          uid: TEST_UID,
+          monthly_create_limit: DEVELOPER_API_LIMITS.monthlyInboxCreates,
+          monthly_read_limit: DEVELOPER_API_LIMITS.monthlyMessageReads,
+        },
+        { plan: "developer" },
+        null,
+        { cnt: 100 },
+      ],
+    });
+
+    const res = await inboxPost(ctx);
+    const body = await res.json();
+
+    expect(res.status).toBe(429);
+    expect(body.error.code).toBe("RATE_LIMITED");
+    expect(ctx.env.RATE_LIMIT._puts).toEqual([]);
   });
 
   it("returns 401 for an invalid API key", async () => {
