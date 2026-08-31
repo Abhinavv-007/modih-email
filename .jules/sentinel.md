@@ -6,3 +6,7 @@
 **Vulnerability:** Arbitrary API error messages were injected directly into the DOM using `innerHTML`, creating a potential Cross-Site Scripting (XSS) vulnerability if the API response is compromised or spoofed.
 **Learning:** When displaying dynamic textual content (like error messages) from an API, always use `textContent` instead of `innerHTML` to natively escape HTML and prevent injection.
 **Prevention:** Establish a project-wide convention to default to `textContent` for all dynamically generated text, reserving `innerHTML` only for sanitized HTML strings.
+## 2024-08-01 - Fix XSS Vulnerability in escapeHtml
+**Vulnerability:** The client-side `escapeHtml` utility relied on assigning `textContent` to a temporary DOM element and reading back its `innerHTML`. This approach correctly escaped `<`, `>`, and `&`, but failed to escape single (`'`) and double (`"`) quotes, potentially exposing the application to attribute injection XSS.
+**Learning:** When escaping HTML entities in client-side utilities, do not rely on `textContent` to `innerHTML` conversion, as it fails to escape quotes. Use a regex-based replacement covering `&`, `<`, `>`, `"`, and `'`.
+**Prevention:** Establish a project-wide convention to use a robust regex-based escaping function for all dynamic content instead of relying on browser DOM manipulation.
